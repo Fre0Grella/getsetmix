@@ -85,3 +85,39 @@ Progress updates are provided via polling.
 - **Docker recommended**: include a brief Compose example in the deployment guide.
 - **Local app mode**: same web UI, not always-on; auto-opens a browser window on start.
 - **OS**: Linux primary for server deployments; Windows/macOS supported for local app mode.
+
+## Module architecture (draft)
+
+This section defines initial seams and deep modules using the domain language in CONTEXT.md.
+
+### Ingestion Batch module
+
+**Interface**: create an Ingestion Batch, add Source URLs or a Source Collection, edit Track Metadata until downloading starts, start ingestion, and read Ingestion Status. The module owns duplicate detection (Source URL or filename match) and delegates download execution to the **Download Orchestrator**.
+
+**Implementation**: maintains the Staged Track list in-memory, enforces Ingestion Status transitions, and coordinates per-track retries without leaking those rules to callers. The module calls a separate persistence module for URL history and filename index lookups and invokes the **Download Orchestrator** for concurrency and execution.
+
+**Depth**: callers get a small, stable interface while batch rules, ordering, and error handling stay inside the module. This concentrates locality for changes to batching and status behavior.
+
+**Tests**: the interface is the test surface. Tests should cover status transitions, metadata edit windows, and duplicate detection without reaching into the implementation.
+
+### Download Orchestrator module
+
+**Interface**: accept a set of Staged Tracks to download, enforce global default concurrency with optional per-batch override, and report per-track completion or failure events to the **Ingestion Batch**.
+
+**Implementation**: runs downloads in parallel with bounded concurrency, preserves the caller-defined ordering semantics (no guaranteed order), and emits completion events for status updates. This module is a seam so the **Ingestion Batch** can be tested with an adapter that simulates timing and failures.
+
+**Depth**: callers get leverage by delegating execution and concurrency to one place, improving locality for download behavior and performance tuning.
+
+**Tests**: the interface is the test surface. Tests should cover concurrency limits, per-batch overrides, error propagation, and retry signalling without reaching into the implementation.
+
+### URL history + filename index module
+
+**Interface**: record and query ingested Source URLs and filenames for the Rekordbox Library.
+
+**Implementation**: disk-backed store (SQLite or a small file) with a lightweight in-memory cache. This module is a seam so the Ingestion Batch module can be tested with an adapter.
+
+### Ingestion Status state machine
+
+**Interface**: validate allowed transitions between queued, downloading, tagging, ingested, and error.
+
+**Implementation**: colocated inside the Ingestion Batch module for locality, unless a second adapter makes the seam real.

@@ -24,6 +24,10 @@ _Avoid_: batch URL
 A set of staged tracks submitted together for download and tagging.
 _Avoid_: queue, playlist
 
+**Download Orchestrator**:
+The module that executes downloads and enforces concurrency for an **Ingestion Batch**.
+_Avoid_: scheduler, worker
+
 **Staged Track**:
 An entry in the staging list representing a URL + metadata before download starts.
 _Avoid_: job, item
