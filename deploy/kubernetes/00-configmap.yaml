@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: getsetmix-config
+data:
+  GSM_HTTP_PORT: "8000"
+
+  # Where the Rekordbox Library is mounted inside the container.
+  # This must match the volumeMount in 02-deployment.yaml.
+  GSM_LIBRARY_ROOT: "/library"
+
+  # Path to the Rekordbox XML file inside the mounted library volume.
+  # Edit this to your environment.
+  GSM_REKORDBOX_XML_PATH: "/library/rekordbox.xml"
+
+  # Default Rekordbox playlist to receive newly ingested tracks.
+  GSM_INBOX_PLAYLIST: "Inbox"
+
+  # Output encoding.
+  GSM_OUTPUT_FORMAT: "mp3-320"
+
+  # Filename template tokens: {title}, {artist}, {album}, {source}, {id}, {genre}
+  GSM_FILENAME_TEMPLATE: "{title} - {artist}"
+
+  # State directory (URL history, counters).
+  GSM_STATE_DIR: "/data"
+
+  # Download concurrency (owned by the Download Orchestrator module).
+  GSM_DOWNLOAD_CONCURRENCY_DEFAULT: "2"
+
+  # JSON logs to stdout.
+  GSM_LOG_FORMAT: "json"
