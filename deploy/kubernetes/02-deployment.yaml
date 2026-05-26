@@ -37,6 +37,8 @@ spec:
               readOnly: false
             - name: state
               mountPath: /data
+            - name: adapter-cache
+              mountPath: /cache
           livenessProbe:
             httpGet:
               path: /health
@@ -60,6 +62,21 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+        - name: adapter-runtime
+          image: ghcr.io/fre0grella/getsetmix-adapter-runtime:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: adapter-http
+              containerPort: 9000
+          envFrom:
+            - configMapRef:
+                name: getsetmix-config
+          volumeMounts:
+            - name: rekordbox-library
+              mountPath: /library
+              readOnly: false
+            - name: adapter-cache
+              mountPath: /cache
       volumes:
         # User-provided PVC that points at the Rekordbox Library root.
         # Create a PVC with this name (or edit claimName) that is also used by Nextcloud.
@@ -69,3 +86,5 @@ spec:
         - name: state
           persistentVolumeClaim:
             claimName: getsetmix-state
+        - name: adapter-cache
+          emptyDir: {}

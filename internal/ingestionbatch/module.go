@@ -9,10 +9,13 @@ import (
 	"sync"
 )
 
+// BatchID is the stable identifier for a single ingestion batch.
 type BatchID string
 
+// TrackID identifies a staged track within a batch.
 type TrackID string
 
+// IngestionStatus captures the current processing step for a staged track.
 type IngestionStatus string
 
 const (
@@ -24,14 +27,21 @@ const (
 )
 
 var (
+	// ErrBatchNotFound is returned when a batch ID does not exist.
 	ErrBatchNotFound      = errors.New("ingestion batch not found")
+	// ErrBatchRunning is returned when a mutation is attempted while a batch run is active.
 	ErrBatchRunning       = errors.New("ingestion batch is running")
+	// ErrInvalidStagedTrack is returned when required fields are missing or an invalid transition is attempted.
 	ErrInvalidStagedTrack = errors.New("invalid staged track")
+	// ErrDuplicate is returned when a staged track conflicts with another by source URL or filename.
 	ErrDuplicate          = errors.New("duplicate staged track")
+	// ErrTrackNotFound is returned when a track ID is not present in the batch.
 	ErrTrackNotFound      = errors.New("staged track not found")
+	// ErrMetadataLocked is returned when metadata changes are attempted after downloading starts.
 	ErrMetadataLocked     = errors.New("track metadata is locked")
 )
 
+// TrackMetadata holds the user-visible fields that drive tagging and deduplication.
 type TrackMetadata struct {
 	Title  string
 	Artist string
@@ -39,12 +49,14 @@ type TrackMetadata struct {
 	Genre  string
 }
 
+// AddStagedTrackInput is the input required to stage a track for ingestion.
 type AddStagedTrackInput struct {
 	SourceURL string
 	Filename  string // optional: proposed output filename for filename-based duplicate detection
 	Metadata  TrackMetadata
 }
 
+// StagedTrackView is the read-only snapshot of a staged track.
 type StagedTrackView struct {
 	ID        TrackID
 	SourceURL string
@@ -54,17 +66,20 @@ type StagedTrackView struct {
 	Error     string
 }
 
+// BatchView is the read-only snapshot of a batch and its staged tracks.
 type BatchView struct {
 	ID      BatchID
 	Running bool
 	Tracks  []StagedTrackView
 }
 
+// HistoryStore reports whether a source URL or filename was already ingested.
 type HistoryStore interface {
 	SeenSourceURL(ctx context.Context, sourceURL string) (bool, error)
 	SeenFilename(ctx context.Context, filename string) (bool, error)
 }
 
+// Module manages in-memory ingestion batches and their staged tracks.
 type Module struct {
 	mu      sync.Mutex
 	history HistoryStore
@@ -78,19 +93,21 @@ type batch struct {
 }
 
 type stagedTrack struct {
-	id            TrackID
-	sourceURL     string
-	filename      string
-	metadata      TrackMetadata
-	status        IngestionStatus
-	errorMsg      string
+	id              TrackID
+	sourceURL       string
+	filename        string
+	metadata        TrackMetadata
+	status          IngestionStatus
+	errorMsg        string
 	downloadStarted bool
 }
 
+// NewModule constructs a batch manager with optional ingestion history.
 func NewModule(history HistoryStore) *Module {
 	return &Module{history: history, batches: make(map[BatchID]*batch)}
 }
 
+// CreateBatch allocates a new empty batch and returns its ID.
 func (m *Module) CreateBatch(ctx context.Context) (BatchID, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -100,6 +117,7 @@ func (m *Module) CreateBatch(ctx context.Context) (BatchID, error) {
 	return id, nil
 }
 
+// StartRun marks a batch as actively ingesting, preventing further staging edits.
 func (m *Module) StartRun(ctx context.Context, batchID BatchID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -115,6 +133,7 @@ func (m *Module) StartRun(ctx context.Context, batchID BatchID) error {
 	return nil
 }
 
+// FinishRun clears the running flag so staging edits can resume.
 func (m *Module) FinishRun(ctx context.Context, batchID BatchID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -127,6 +146,7 @@ func (m *Module) FinishRun(ctx context.Context, batchID BatchID) error {
 	return nil
 }
 
+// AddToBatch validates and stages a track, enforcing duplicate detection.
 func (m *Module) AddToBatch(ctx context.Context, batchID BatchID, in AddStagedTrackInput) (TrackID, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -179,6 +199,7 @@ func (m *Module) AddToBatch(ctx context.Context, batchID BatchID, in AddStagedTr
 	return id, nil
 }
 
+// UpdateTrackMetadata replaces title/artist/album/genre before download starts.
 func (m *Module) UpdateTrackMetadata(ctx context.Context, batchID BatchID, trackID TrackID, md TrackMetadata) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -204,6 +225,7 @@ func (m *Module) UpdateTrackMetadata(ctx context.Context, batchID BatchID, track
 	return ErrTrackNotFound
 }
 
+// SetTrackFilename assigns a proposed output filename before download starts.
 func (m *Module) SetTrackFilename(ctx context.Context, batchID BatchID, trackID TrackID, filename string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -242,6 +264,7 @@ func (m *Module) SetTrackFilename(ctx context.Context, batchID BatchID, trackID 
 	return ErrTrackNotFound
 }
 
+// MarkDownloading transitions a queued track into the downloading state.
 func (m *Module) MarkDownloading(ctx context.Context, batchID BatchID, trackID TrackID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -266,6 +289,7 @@ func (m *Module) MarkDownloading(ctx context.Context, batchID BatchID, trackID T
 	return ErrTrackNotFound
 }
 
+// MarkTagging transitions a downloading track into the tagging state.
 func (m *Module) MarkTagging(ctx context.Context, batchID BatchID, trackID TrackID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -288,6 +312,7 @@ func (m *Module) MarkTagging(ctx context.Context, batchID BatchID, trackID Track
 	return ErrTrackNotFound
 }
 
+// MarkIngested marks a tagging track as successfully ingested.
 func (m *Module) MarkIngested(ctx context.Context, batchID BatchID, trackID TrackID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -310,6 +335,7 @@ func (m *Module) MarkIngested(ctx context.Context, batchID BatchID, trackID Trac
 	return ErrTrackNotFound
 }
 
+// MarkError marks a track as failed and records a short error message.
 func (m *Module) MarkError(ctx context.Context, batchID BatchID, trackID TrackID, msg string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -333,6 +359,7 @@ func (m *Module) MarkError(ctx context.Context, batchID BatchID, trackID TrackID
 	return ErrTrackNotFound
 }
 
+// RetryTrack moves an errored track back to queued while keeping metadata locked.
 func (m *Module) RetryTrack(ctx context.Context, batchID BatchID, trackID TrackID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -356,6 +383,7 @@ func (m *Module) RetryTrack(ctx context.Context, batchID BatchID, trackID TrackI
 	return ErrTrackNotFound
 }
 
+// GetBatch returns a snapshot of the batch and staged tracks for read-only use.
 func (m *Module) GetBatch(ctx context.Context, batchID BatchID) (BatchView, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

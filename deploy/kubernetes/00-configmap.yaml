@@ -9,6 +9,10 @@ data:
   # This must match the volumeMount in 02-deployment.yaml.
   GSM_LIBRARY_ROOT: "/library"
 
+  # Optional subdirectory inside GSM_LIBRARY_ROOT for output files.
+  # Example: "Nextcloud/username/files/Music"
+  GSM_OUTPUT_SUBDIR: ""
+
   # Path to the Rekordbox XML file inside the mounted library volume.
   # Edit this to your environment.
   GSM_REKORDBOX_XML_PATH: "/library/rekordbox.xml"
