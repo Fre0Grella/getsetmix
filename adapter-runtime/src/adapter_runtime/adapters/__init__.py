@@ -3,9 +3,9 @@ from adapter_runtime.adapters.soundcloud import SoundCloudAdapter
 from adapter_runtime.adapters.youtube import YouTubeAdapter
 
 __all__ = [
-	"Adapter",
-	"DownloadResult",
-	"PreviewResult",
-	"SoundCloudAdapter",
-	"YouTubeAdapter",
+    "Adapter",
+    "DownloadResult",
+    "PreviewResult",
+    "SoundCloudAdapter",
+    "YouTubeAdapter",
 ]

@@ -28,17 +28,17 @@ const (
 
 var (
 	// ErrBatchNotFound is returned when a batch ID does not exist.
-	ErrBatchNotFound      = errors.New("ingestion batch not found")
+	ErrBatchNotFound = errors.New("ingestion batch not found")
 	// ErrBatchRunning is returned when a mutation is attempted while a batch run is active.
-	ErrBatchRunning       = errors.New("ingestion batch is running")
+	ErrBatchRunning = errors.New("ingestion batch is running")
 	// ErrInvalidStagedTrack is returned when required fields are missing or an invalid transition is attempted.
 	ErrInvalidStagedTrack = errors.New("invalid staged track")
 	// ErrDuplicate is returned when a staged track conflicts with another by source URL or filename.
-	ErrDuplicate          = errors.New("duplicate staged track")
+	ErrDuplicate = errors.New("duplicate staged track")
 	// ErrTrackNotFound is returned when a track ID is not present in the batch.
-	ErrTrackNotFound      = errors.New("staged track not found")
+	ErrTrackNotFound = errors.New("staged track not found")
 	// ErrMetadataLocked is returned when metadata changes are attempted after downloading starts.
-	ErrMetadataLocked     = errors.New("track metadata is locked")
+	ErrMetadataLocked = errors.New("track metadata is locked")
 )
 
 // TrackMetadata holds the user-visible fields that drive tagging and deduplication.

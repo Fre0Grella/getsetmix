@@ -8,8 +8,12 @@ import (
 
 type fakeHistory struct{}
 
-func (f *fakeHistory) SeenSourceURL(ctx context.Context, sourceURL string) (bool, error) { return false, nil }
-func (f *fakeHistory) SeenFilename(ctx context.Context, filename string) (bool, error)   { return false, nil }
+func (f *fakeHistory) SeenSourceURL(ctx context.Context, sourceURL string) (bool, error) {
+	return false, nil
+}
+func (f *fakeHistory) SeenFilename(ctx context.Context, filename string) (bool, error) {
+	return false, nil
+}
 
 type historyStub struct {
 	seenURLs      map[string]bool
@@ -44,7 +48,7 @@ func TestIngestionBatch_CreateAndAddSourceURL(t *testing.T) {
 
 	trackID, err := m.AddToBatch(ctx, batchID, AddStagedTrackInput{
 		SourceURL: "https://example.test/track/123",
-		Metadata: TrackMetadata{Title: "Title", Artist: "Artist"},
+		Metadata:  TrackMetadata{Title: "Title", Artist: "Artist"},
 	})
 	if err != nil {
 		t.Fatalf("AddToBatch error: %v", err)
