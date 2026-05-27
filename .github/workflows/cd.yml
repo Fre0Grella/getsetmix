@@ -42,6 +42,9 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set image repo
+        shell: bash
+        run: echo "IMAGE_REPO=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
       - name: Build and push getsetmix image
         uses: docker/build-push-action@v6
         with:
@@ -49,8 +52,8 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ${{ env.IMAGE_REPO }}:latest
+            ${{ env.IMAGE_REPO }}:${{ github.sha }}
       - name: Build and push adapter runtime image
         uses: docker/build-push-action@v6
         with:
@@ -58,5 +61,5 @@ jobs:
           file: ./adapter-runtime/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}-adapter-runtime:latest
-            ghcr.io/${{ github.repository }}-adapter-runtime:${{ github.sha }}
+            ${{ env.IMAGE_REPO }}-adapter-runtime:latest
+            ${{ env.IMAGE_REPO }}-adapter-runtime:${{ github.sha }}
