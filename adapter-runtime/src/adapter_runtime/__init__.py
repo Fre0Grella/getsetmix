@@ -1,6 +1,7 @@
 """Adapter Runtime package."""
 
 from adapter_runtime.runtime import AdapterRuntime, create_default_registry
+from adapter_runtime.adapters import SoundCloudAdapter
 from adapter_runtime.models import (
 	DownloadRequest,
 	DownloadResponse,
@@ -12,6 +13,7 @@ from adapter_runtime.models import (
 __all__ = [
 	"AdapterRuntime",
 	"create_default_registry",
+	"SoundCloudAdapter",
 	"DownloadRequest",
 	"DownloadResponse",
 	"Metadata",
