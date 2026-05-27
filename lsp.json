@@ -6,6 +6,13 @@
       "fileExtensions": {
         ".go": "go"
       }
+    },
+    "python": {
+      "command": "pyright-langserver",
+      "args": ["--stdio"],
+      "fileExtensions": {
+        ".py": "python"
+      }
     }
   }
 }

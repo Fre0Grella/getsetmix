@@ -34,3 +34,10 @@ data:
 
   # JSON logs to stdout.
   GSM_LOG_FORMAT: "json"
+
+  # Adapter Runtime NATS bus.
+  GSM_NATS_URL: "nats://nats:4222"
+  GSM_ADAPTER_PREVIEW_SUBJECT: "adapter.preview"
+  GSM_ADAPTER_DOWNLOAD_SUBJECT: "adapter.download"
+  GSM_ADAPTER_SCHEMA_VERSION: "1"
+  GSM_ADAPTER_STAGING_DIR: "/cache/staging"

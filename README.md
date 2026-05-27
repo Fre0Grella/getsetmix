@@ -19,6 +19,7 @@ kubectl apply -f deploy/kubernetes/00-configmap.yaml
 kubectl apply -f deploy/kubernetes/01-state-pvc.yaml
 kubectl apply -f deploy/kubernetes/02-deployment.yaml
 kubectl apply -f deploy/kubernetes/03-service.yaml
+kubectl apply -f deploy/kubernetes/05-nats.yaml
 ```
 
 ### Optional: static token
