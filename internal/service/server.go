@@ -44,6 +44,9 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+	if s.serveUI(w, r) {
+		return
+	}
 	if !s.authorized(r) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return

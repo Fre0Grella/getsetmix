@@ -8,6 +8,7 @@ import (
 
 	"github.com/Fre0Grella/getsetmix/internal/adapterbus"
 	"github.com/Fre0Grella/getsetmix/internal/ingestionbatch"
+	"github.com/Fre0Grella/getsetmix/internal/tagger"
 )
 
 type fakeAdapter struct {
@@ -29,6 +30,23 @@ type noopHistory struct{}
 
 func (noopHistory) Record(ctx context.Context, sourceURL, filename string) error { return nil }
 
+type noopTagger struct{}
+
+func (noopTagger) Tag(ctx context.Context, audioPath string, metadata tagger.Metadata, sourceURL, coverPath string) error {
+	return nil
+}
+
+type recordingTagger struct {
+	audioPath string
+	coverPath string
+}
+
+func (r *recordingTagger) Tag(ctx context.Context, audioPath string, metadata tagger.Metadata, sourceURL, coverPath string) error {
+	r.audioPath = audioPath
+	r.coverPath = coverPath
+	return nil
+}
+
 func TestOrchestratorCompletesBatch(t *testing.T) {
 	module := ingestionbatch.NewModule(nil)
 	batchID, err := module.CreateBatch(context.Background())
@@ -49,7 +67,7 @@ func TestOrchestratorCompletesBatch(t *testing.T) {
 		t.Fatalf("start run: %v", err)
 	}
 
-	orch := New(fakeAdapter{}, module, noopHistory{}, "mp3-320", 1)
+	orch := New(fakeAdapter{}, module, noopHistory{}, noopTagger{}, "mp3-320", 1)
 	if err := orch.EnqueueBatch(context.Background(), batchID); err != nil {
 		t.Fatalf("enqueue batch: %v", err)
 	}
@@ -76,10 +94,32 @@ func TestOrchestratorMarksError(t *testing.T) {
 	})
 	_ = module.StartRun(context.Background(), batchID)
 
-	orch := New(fakeAdapter{downloadErr: errors.New("fail")}, module, noopHistory{}, "mp3-320", 1)
+	orch := New(fakeAdapter{downloadErr: errors.New("fail")}, module, noopHistory{}, noopTagger{}, "mp3-320", 1)
 	_ = orch.EnqueueBatch(context.Background(), batchID)
 
 	waitForStatus(t, module, batchID, trackID, ingestionbatch.StatusError)
+}
+
+func TestOrchestratorTagsDownloadedAudio(t *testing.T) {
+	module := ingestionbatch.NewModule(nil)
+	batchID, _ := module.CreateBatch(context.Background())
+	trackID, _ := module.AddToBatch(context.Background(), batchID, ingestionbatch.AddStagedTrackInput{
+		SourceURL: "https://example.com",
+		Metadata: ingestionbatch.TrackMetadata{
+			Title:  "Track",
+			Artist: "Artist",
+		},
+	})
+	_ = module.StartRun(context.Background(), batchID)
+
+	tagger := &recordingTagger{}
+	orch := New(fakeAdapter{}, module, noopHistory{}, tagger, "mp3-320", 1)
+	_ = orch.EnqueueBatch(context.Background(), batchID)
+
+	waitForStatus(t, module, batchID, trackID, ingestionbatch.StatusIngested)
+	if tagger.audioPath != "/tmp/audio.mp3" {
+		t.Fatalf("expected audio path to be tagged, got %q", tagger.audioPath)
+	}
 }
 
 func waitForStatus(t *testing.T, module *ingestionbatch.Module, batchID ingestionbatch.BatchID, trackID ingestionbatch.TrackID, expected ingestionbatch.IngestionStatus) {

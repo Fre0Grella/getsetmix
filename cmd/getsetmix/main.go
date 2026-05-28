@@ -18,6 +18,7 @@ import (
 	"github.com/Fre0Grella/getsetmix/internal/ingestionbatch"
 	"github.com/Fre0Grella/getsetmix/internal/orchestrator"
 	"github.com/Fre0Grella/getsetmix/internal/service"
+	"github.com/Fre0Grella/getsetmix/internal/tagger"
 )
 
 func main() {
@@ -55,7 +56,7 @@ func main() {
 	})
 
 	module := ingestionbatch.NewModule(historyStore)
-	downloadOrchestrator := orchestrator.New(adapterClient, module, historyStore, cfg.OutputFormat, cfg.DownloadConcurrency)
+	downloadOrchestrator := orchestrator.New(adapterClient, module, historyStore, tagger.NewID3Tagger(), cfg.OutputFormat, cfg.DownloadConcurrency)
 
 	server := service.NewServer(cfg, module, historyStore, adapterClient, downloadOrchestrator)
 

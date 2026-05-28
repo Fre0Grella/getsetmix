@@ -7,6 +7,7 @@ import (
 
 	"github.com/Fre0Grella/getsetmix/internal/adapterbus"
 	"github.com/Fre0Grella/getsetmix/internal/ingestionbatch"
+	"github.com/Fre0Grella/getsetmix/internal/tagger"
 )
 
 // BatchModule defines the ingestion batch operations the orchestrator needs.
@@ -24,6 +25,11 @@ type HistoryRecorder interface {
 	Record(ctx context.Context, sourceURL, filename string) error
 }
 
+// Tagger writes metadata into downloaded audio files.
+type Tagger interface {
+	Tag(ctx context.Context, audioPath string, metadata tagger.Metadata, sourceURL, coverPath string) error
+}
+
 type task struct {
 	batchID   ingestionbatch.BatchID
 	trackID   ingestionbatch.TrackID
@@ -37,6 +43,7 @@ type Orchestrator struct {
 	client       adapterbus.Client
 	batch        BatchModule
 	history      HistoryRecorder
+	tagger       Tagger
 	outputFormat string
 
 	queue chan task
@@ -46,7 +53,7 @@ type Orchestrator struct {
 }
 
 // New creates an orchestrator and starts worker goroutines.
-func New(client adapterbus.Client, batch BatchModule, history HistoryRecorder, outputFormat string, concurrency int) *Orchestrator {
+func New(client adapterbus.Client, batch BatchModule, history HistoryRecorder, tagger Tagger, outputFormat string, concurrency int) *Orchestrator {
 	if concurrency <= 0 {
 		concurrency = 1
 	}
@@ -54,6 +61,7 @@ func New(client adapterbus.Client, batch BatchModule, history HistoryRecorder, o
 		client:        client,
 		batch:         batch,
 		history:       history,
+		tagger:        tagger,
 		outputFormat:  outputFormat,
 		queue:         make(chan task, concurrency*4),
 		activeByBatch: make(map[ingestionbatch.BatchID]int),
@@ -141,13 +149,25 @@ func (o *Orchestrator) process(t task) {
 		Metadata:     adapterbus.Metadata{Title: t.metadata.Title, Artist: t.metadata.Artist, Album: t.metadata.Album, Genre: t.metadata.Genre},
 		OutputFormat: o.outputFormat,
 	}
-	if _, err := o.client.Download(ctx, req); err != nil {
+	downloadResp, err := o.client.Download(ctx, req)
+	if err != nil {
 		_ = o.batch.MarkError(ctx, t.batchID, t.trackID, err.Error())
 		return
 	}
 	if err := o.batch.MarkTagging(ctx, t.batchID, t.trackID); err != nil {
 		_ = o.batch.MarkError(ctx, t.batchID, t.trackID, err.Error())
 		return
+	}
+	if o.tagger != nil {
+		if err := o.tagger.Tag(ctx, downloadResp.AudioPath, tagger.Metadata{
+			Title:  t.metadata.Title,
+			Artist: t.metadata.Artist,
+			Album:  t.metadata.Album,
+			Genre:  t.metadata.Genre,
+		}, t.sourceURL, downloadResp.CoverPath); err != nil {
+			_ = o.batch.MarkError(ctx, t.batchID, t.trackID, err.Error())
+			return
+		}
 	}
 	if err := o.batch.MarkIngested(ctx, t.batchID, t.trackID); err != nil {
 		_ = o.batch.MarkError(ctx, t.batchID, t.trackID, err.Error())
