@@ -173,6 +173,7 @@ func (s *Server) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	if filename == "" {
 		filename = RenderFilename(s.cfg.FilenameTemplate, req.SourceURL, string(trackID), md)
 	}
+	filename = EnsureUniqueFilename(s.cfg.OutputDir(), filename)
 	if filename != "" {
 		if err := s.batch.SetTrackFilename(r.Context(), batchID, trackID, filename); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())

@@ -3,7 +3,9 @@ package service
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // Config holds server-level configuration.
@@ -12,6 +14,8 @@ type Config struct {
 	OutputFormat        string
 	FilenameTemplate    string
 	DownloadConcurrency int
+	LibraryRoot         string
+	OutputSubdir        string
 }
 
 // LoadConfig reads configuration from environment variables.
@@ -33,5 +37,20 @@ func LoadConfig() (Config, error) {
 		OutputFormat:        outputFormat,
 		FilenameTemplate:    os.Getenv("GSM_FILENAME_TEMPLATE"),
 		DownloadConcurrency: concurrency,
+		LibraryRoot:         os.Getenv("GSM_LIBRARY_ROOT"),
+		OutputSubdir:        os.Getenv("GSM_OUTPUT_SUBDIR"),
 	}, nil
+}
+
+// OutputDir resolves the configured output directory for final filenames.
+func (c Config) OutputDir() string {
+	root := strings.TrimSpace(c.LibraryRoot)
+	if root == "" {
+		return ""
+	}
+	subdir := strings.TrimSpace(c.OutputSubdir)
+	if subdir == "" {
+		return filepath.Clean(root)
+	}
+	return filepath.Clean(filepath.Join(root, subdir))
 }
