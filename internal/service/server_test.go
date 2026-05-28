@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -140,6 +141,40 @@ func TestServerAuth(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", resp.StatusCode)
+	}
+}
+
+func TestServerUI(t *testing.T) {
+	adapter := fakeAdapterClient{
+		previewFn: func(req adapterbus.PreviewRequest) (adapterbus.PreviewResponse, error) {
+			return adapterbus.PreviewResponse{}, nil
+		},
+		downloadFn: func(req adapterbus.DownloadRequest) (adapterbus.DownloadResponse, error) {
+			return adapterbus.DownloadResponse{}, nil
+		},
+	}
+	history := newMemoryHistory()
+	module := ingestionbatch.NewModule(history)
+	orch := orchestrator.New(adapter, module, history, "mp3-320", 1)
+	server := NewServer(Config{}, module, history, adapter, orch)
+
+	ts := httptest.NewServer(server.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatalf("get ui: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("ui status: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read ui: %v", err)
+	}
+	if !bytes.Contains(body, []byte("Getsetmix")) {
+		t.Fatalf("expected UI content")
 	}
 }
 

@@ -27,6 +27,7 @@ coverage.*
 *.key
 *.p12
 *.pfx
+.state/
 
 # Python caches
 __pycache__/
