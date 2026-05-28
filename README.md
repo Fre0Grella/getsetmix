@@ -16,8 +16,11 @@ just lint
 just test
 just build
 just run
+just dev
 just adapter-run
 ```
+
+`just dev` starts local NATS, the adapter runtime, and the Go app with a local `.state` directory.
 
 ### Git pre-commit hook (manual)
 
