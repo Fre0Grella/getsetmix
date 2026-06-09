@@ -1,7 +1,0 @@
-#!/bin/sh
-set -e
-
-just format
-git add -u
-just lint
-just test
