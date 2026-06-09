@@ -1,0 +1,124 @@
+# GetSetMix — plain Kubernetes manifests (first-class deployment target)
+# kubectl apply -f getsetmix.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: getsetmix
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: getsetmix-config
+  namespace: getsetmix
+data:
+  GSM_PLAYLIST_NAME: "Inbox"
+  GSM_OUTPUT_FORMAT: "mp3"          # mp3 (320 kbps) | flac — global only
+  GSM_CONCURRENCY: "2"
+  GSM_LANGUAGE: "it"
+  GSM_XML_PATH: "/data/rekordbox/getsetmix.xml"
+---
+# Optional access protection if the Service is exposed beyond the LAN:
+# kubectl -n getsetmix create secret generic getsetmix-auth --from-literal=GSM_AUTH_TOKEN=change-me
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: getsetmix-data
+  namespace: getsetmix
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: getsetmix-music
+  namespace: getsetmix
+spec:
+  # Point this at the storage that backs your DJ library
+  # (NFS/longhorn/hostPath provisioner — whatever your homelab uses).
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: getsetmix
+  namespace: getsetmix
+  labels: { app: getsetmix }
+spec:
+  replicas: 1                # single-tenant; SQLite + queue => keep at 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: getsetmix }
+  template:
+    metadata:
+      labels: { app: getsetmix }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8765"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: getsetmix
+          image: ghcr.io/YOUR_USER/getsetmix:latest   # or your registry
+          ports:
+            - containerPort: 8765
+          envFrom:
+            - configMapRef: { name: getsetmix-config }
+            # - secretRef: { name: getsetmix-auth, optional: true }
+          env:
+            - { name: GSM_DATA_DIR, value: /data }
+            - { name: GSM_LIBRARY_ROOT, value: /music }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: music, mountPath: /music }
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { cpu: "2", memory: 1Gi }     # lightweight target: < 1 GB
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8765 }
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8765 }
+            initialDelaySeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: getsetmix-data }
+        - name: music
+          persistentVolumeClaim: { claimName: getsetmix-music }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: getsetmix
+  namespace: getsetmix
+spec:
+  selector: { app: getsetmix }
+  ports:
+    - port: 80
+      targetPort: 8765
+  # type: LoadBalancer   # or keep ClusterIP + Ingress below
+---
+# Optional Ingress — uncomment and adapt if you expose it on a domain.
+# Remember to set GSM_AUTH_TOKEN or Basic Auth when leaving the LAN.
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: getsetmix
+#   namespace: getsetmix
+# spec:
+#   rules:
+#     - host: getsetmix.your.lab
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: getsetmix
+#                 port: { number: 80 }

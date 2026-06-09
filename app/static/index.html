@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GetSetMix</title>
+  <link rel="icon" href="/static/assets/favicon.ico" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="toolbar">
+    <div class="brand">
+      <img class="brand-icon" src="/static/assets/icon.png" alt="" />
+      <span class="wordmark">getset<em>mix</em></span>
+    </div>
+
+    <button id="btnPaste" class="btn btn-primary" title="">
+      <svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span data-i18n="paste">Incolla link</span>
+    </button>
+
+    <div class="dl-group">
+      <button id="btnDownload" class="btn btn-accent">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M12 4v11m0 0l-5-5m5 5l5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span data-i18n="download">Scarica</span><span id="stagedCount" class="count-badge hidden"></span>
+      </button>
+      <select id="batchConcurrency" class="dl-conc" title="">
+        <option value="">×2</option>
+        <option value="1">×1</option>
+        <option value="2">×2</option>
+        <option value="3">×3</option>
+        <option value="4">×4</option>
+      </select>
+    </div>
+
+    <button id="btnCancel" class="btn btn-danger hidden">
+      <svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1" fill="currentColor"/></svg>
+      <span data-i18n="cancel">Annulla scaricamento</span>
+    </button>
+
+    <span id="topStatus" class="top-status"></span>
+    <div class="spacer"></div>
+
+    <button id="btnSettings" class="btn btn-ghost" title="" aria-label="Settings">
+      <svg viewBox="0 0 24 24" class="ic"><path fill="currentColor" d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5zm9 3.5a7.6 7.6 0 0 0-.12-1.32l2-1.56-2-3.46-2.36.95a7.6 7.6 0 0 0-2.28-1.32L15.86 3h-4l-.38 2.29a7.6 7.6 0 0 0-2.28 1.32l-2.36-.95-2 3.46 2 1.56A7.6 7.6 0 0 0 6.72 12c0 .45.04.89.12 1.32l-2 1.56 2 3.46 2.36-.95c.68.57 1.45 1.02 2.28 1.32L11.86 21h4l.38-2.29a7.6 7.6 0 0 0 2.28-1.32l2.36.95 2-3.46-2-1.56c.08-.43.12-.87.12-1.32z" transform="translate(-1.86 0)"/></svg>
+    </button>
+  </header>
+
+  <main id="trackList" class="track-list" aria-live="polite"></main>
+
+  <div id="emptyState" class="empty hidden">
+    <img src="/static/assets/logo.png" alt="GetSetMix" />
+    <p data-i18n="emptyHint">Copia il link di una traccia o di una playlist, poi premi “Incolla link”.</p>
+  </div>
+
+  <footer class="statusbar">
+    <div id="batchBar" class="batch hidden">
+      <span id="batchLabel" class="batch-label"></span>
+      <div class="batch-track"><div id="batchFill" class="batch-fill"></div></div>
+    </div>
+    <div id="statsBar" class="stats">
+      <span class="health-dot" id="healthDot" title="healthy"></span>
+      <span id="statsText"></span>
+    </div>
+  </footer>
+
+  <!-- Settings modal -->
+  <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 data-i18n="settings">Impostazioni</h2>
+        <button class="btn btn-ghost modal-close" data-close>✕</button>
+      </div>
+      <div class="modal-body">
+        <label><span data-i18n="outputFormat">Formato di uscita (globale)</span>
+          <select id="setFormat">
+            <option value="mp3">MP3 · 320 kbps</option>
+            <option value="flac">FLAC</option>
+          </select>
+        </label>
+        <label><span data-i18n="concurrency">Download paralleli (default globale)</span>
+          <input id="setConcurrency" type="number" min="1" max="8" />
+        </label>
+        <label><span data-i18n="template">Template nome file</span>
+          <input id="setTemplate" type="text" spellcheck="false" />
+          <small>{title} {artist} {album} {source} {id} {genre}</small>
+        </label>
+        <label><span data-i18n="libraryRoot">Cartella libreria</span>
+          <input id="setLibrary" type="text" spellcheck="false" />
+        </label>
+        <label><span data-i18n="xmlPath">Percorso XML Rekordbox</span>
+          <input id="setXml" type="text" spellcheck="false" />
+        </label>
+        <label><span data-i18n="playlist">Playlist di destinazione</span>
+          <input id="setPlaylist" type="text" />
+        </label>
+        <label><span data-i18n="language">Lingua</span>
+          <select id="setLanguage">
+            <option value="it">Italiano</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <div class="modal-actions-row">
+          <button id="btnPurgeCompleted" class="btn btn-ghost" data-i18n="purgeCompleted">Svuota elenco completati</button>
+          <button id="btnPurgeHistory" class="btn btn-ghost" data-i18n="purgeHistory">Cancella cronologia URL</button>
+        </div>
+        <p class="hint" data-i18n="rekordboxHint">Dopo l’ingestione, apri Rekordbox e ricarica la sorgente XML per vedere le nuove tracce nella playlist Inbox.</p>
+      </div>
+      <div class="modal-foot">
+        <button id="btnSaveSettings" class="btn btn-accent" data-i18n="save">Salva</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cover modal -->
+  <div id="coverModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 data-i18n="coverTitle">Copertina</h2>
+        <button class="btn btn-ghost modal-close" data-close>✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="cover-search-row">
+          <input id="coverQuery" type="text" />
+          <button id="btnCoverSearch" class="btn btn-primary" data-i18n="search">Cerca</button>
+        </div>
+        <div id="coverResults" class="cover-grid"></div>
+        <div class="cover-upload">
+          <label class="btn btn-ghost upload-label">
+            <span data-i18n="uploadCover">Carica immagine…</span>
+            <input id="coverFile" type="file" accept="image/*" hidden />
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <datalist id="genres"></datalist>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

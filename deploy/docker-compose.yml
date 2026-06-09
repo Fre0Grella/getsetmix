@@ -1,0 +1,26 @@
+services:
+  getsetmix:
+    build: ..
+    # or: image: ghcr.io/<you>/getsetmix:latest
+    container_name: getsetmix
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      GSM_PLAYLIST_NAME: "Inbox"
+      GSM_OUTPUT_FORMAT: "mp3"      # mp3 (320 kbps) | flac — global only
+      GSM_CONCURRENCY: "2"
+      GSM_LANGUAGE: "it"
+      # GSM_AUTH_TOKEN: "change-me"            # only if exposed publicly
+      # GSM_BASIC_USER: "dj"                   # alternative: Basic Auth
+      # GSM_BASIC_PASS: "change-me"
+    volumes:
+      - getsetmix-data:/data                    # DB, config, rekordbox XML
+      - /path/to/your/music/library:/music      # <- your Rekordbox library root
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+volumes:
+  getsetmix-data:

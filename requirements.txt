@@ -1,0 +1,5 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+yt-dlp>=2025.1.1
+mutagen>=1.47
+python-multipart>=0.0.9

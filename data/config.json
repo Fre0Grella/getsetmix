@@ -1,0 +1,9 @@
+{
+  "library_root": "C:\\Users\\marco\\Nextcloud\\Music\\Rekordbox",
+  "xml_path": "C:\\Users\\marco\\Nextcloud\\Music\\Rekordbox\\Inbox\\getsetmix.xml",
+  "playlist_name": "Inbox",
+  "output_format": "mp3",
+  "concurrency": 2,
+  "filename_template": "{title} - {artist}",
+  "language": "en"
+}
