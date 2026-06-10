@@ -16,7 +16,7 @@
 <header class="site-head">
   <div class="wrap">
     <a class="brand" href="./">
-      <img src="assets/icon.png" alt="">
+      <img src="assets/icon-light.png" alt="">
       <b>getset<i>mix</i></b>
     </a>
     <nav>
@@ -58,7 +58,7 @@ services:
       - getsetmix-data:/data
       - /path/to/your/music:/music
     environment:
-      GSM_LANGUAGE: it            # or en
+      GSM_LANGUAGE: en            # or it
       # GSM_AUTH_TOKEN: change-me # enable if exposed
 volumes:
   getsetmix-data:</pre>
@@ -77,7 +77,7 @@ kubectl -n getsetmix get pods</pre>
     </ul>
 
     <h2 id="local">Local app mode</h2>
-    <p>For a laptop next to your controller — starts the server and opens the browser, like a desktop app:</p>
+    <p>For a laptop next to your controller — starts the server and opens the browser, like a desktop app. Prebuilt executables for Windows, macOS and Linux are attached to every <a href="https://github.com/Fre0Grella/getsetmix/releases">GitHub Release</a> (no Python needed; data lives in <code>~/.getsetmix</code>, ffmpeg still required on PATH). Or run from source:</p>
 <pre>pip install -r requirements.txt
 # ffmpeg must be on PATH:
 #   Linux: apt install ffmpeg · macOS: brew install ffmpeg · Windows: winget install ffmpeg
@@ -86,11 +86,11 @@ python run_local.py --port 9000 --no-browser</pre>
 
     <h2 id="workflow">Daily workflow</h2>
     <ol>
-      <li><b>Incolla link</b> — the URL on your clipboard is added. Playlists fan out into one editable row per entry; duplicates of URLs you've already ingested are flagged.</li>
+      <li><b>Paste link</b> — the URL on your clipboard is added. Playlists fan out into one editable row per entry; duplicates of URLs you've already ingested are flagged.</li>
       <li>Rows resolve metadata in the background. Fix <b>title</b> and <b>artist</b> (both required), pick a <b>genre</b> from the DJ-oriented list, optionally set album. The camera button on the artwork opens cover search and upload.</li>
-      <li><b>Scarica</b> starts the batch. The <b>×N</b> selector next to it overrides download parallelism for this batch only (the global default is 2). Edits lock once a track is queued.</li>
-      <li>Watch per-track states and the batch bar. <b>Annulla scaricamento</b> stops in-flight tracks and returns them to staged. A failed track shows its error and a retry button — the rest of the batch continues.</li>
-      <li>When tracks show <b>Finito</b>, refresh the rekordbox xml tree in Rekordbox and find them in the <b>Inbox</b> playlist.</li>
+      <li><b>Download</b> starts the batch. The <b>×N</b> selector next to it overrides download parallelism for this batch only (the global default is 2). Edits lock once a track is queued.</li>
+      <li>Watch per-track states and the batch bar. <b>Cancel download</b> stops in-flight tracks and returns them to staged. A failed track shows its error and a retry button — the rest of the batch continues.</li>
+      <li>When tracks show <b>Done</b>, refresh the rekordbox xml tree in Rekordbox and find them in the <b>Inbox</b> playlist.</li>
     </ol>
 
     <h2 id="rekordbox">Rekordbox setup</h2>
@@ -102,6 +102,8 @@ python run_local.py --port 9000 --no-browser</pre>
     </ol>
     <p class="note">Run the service where Rekordbox can see the same file paths the XML contains — e.g. sync the library folder with Nextcloud/Syncthing to your DJ machine, or mount it over SMB, keeping the same drive/path layout, or set the library root to a path that matches on both machines.</p>
     <p>The writer is conservative: it appends with incrementing TrackIDs, writes atomically, and if the XML on disk is ever corrupt it backs it up as <code>*.corrupt.xml</code> and starts a fresh one rather than failing the batch.</p>
+    <h3>Keeping the inbox clean with your collection XML</h3>
+    <p>Export your full collection from Rekordbox (<i>File ▸ Export Collection in xml format</i>) and set its path as <b>Rekordbox collection XML</b> in Settings (or <code>GSM_COLLECTION_XML_PATH</code>). Before each batch, GetSetMix compares the inbox XML against the collection — matching by file location, with a title + artist fallback — and removes tracks you've already imported. The Inbox playlist then only ever lists songs still missing from your collection, instead of growing forever.</p>
 
     <h2 id="templates">Filename templates</h2>
     <p>Set the template in Settings or via <code>GSM_FILENAME_TEMPLATE</code>. Available tokens:</p>
@@ -122,12 +124,13 @@ python run_local.py --port 9000 --no-browser</pre>
       <tr><th>Variable</th><th>Default</th><th>Purpose</th></tr>
       <tr><td><code>GSM_DATA_DIR</code></td><td><code>./data</code> (<code>/data</code> in Docker)</td><td>SQLite DB, config, covers, default XML location</td></tr>
       <tr><td><code>GSM_LIBRARY_ROOT</code></td><td><code>./music</code> (<code>/music</code>)</td><td>Downloads land directly here</td></tr>
-      <tr><td><code>GSM_XML_PATH</code></td><td><code>&lt;data&gt;/rekordbox/getsetmix.xml</code></td><td>Rekordbox XML path</td></tr>
+      <tr><td><code>GSM_XML_PATH</code></td><td><code>&lt;data&gt;/rekordbox/getsetmix.xml</code></td><td>Inbox XML path (new downloads)</td></tr>
+      <tr><td><code>GSM_COLLECTION_XML_PATH</code></td><td><i>unset</i></td><td>Full Rekordbox collection XML — enables the inbox purge</td></tr>
       <tr><td><code>GSM_PLAYLIST_NAME</code></td><td><code>Inbox</code></td><td>Target playlist inside the XML</td></tr>
       <tr><td><code>GSM_OUTPUT_FORMAT</code></td><td><code>mp3</code></td><td><code>mp3</code> (320&nbsp;kbps) or <code>flac</code> — global only</td></tr>
       <tr><td><code>GSM_CONCURRENCY</code></td><td><code>2</code></td><td>Global parallel-download default (1–8)</td></tr>
       <tr><td><code>GSM_FILENAME_TEMPLATE</code></td><td><code>{artist} - {title}</code></td><td>See filename templates</td></tr>
-      <tr><td><code>GSM_LANGUAGE</code></td><td><code>it</code></td><td><code>it</code> or <code>en</code></td></tr>
+      <tr><td><code>GSM_LANGUAGE</code></td><td><code>en</code></td><td><code>en</code> or <code>it</code></td></tr>
       <tr><td><code>GSM_AUTH_TOKEN</code></td><td><i>unset</i></td><td>Static token auth</td></tr>
       <tr><td><code>GSM_BASIC_USER</code> / <code>GSM_BASIC_PASS</code></td><td><i>unset</i></td><td>HTTP Basic auth alternative</td></tr>
     </table>

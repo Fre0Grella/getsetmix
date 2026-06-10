@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -16,13 +16,13 @@
 
     <button id="btnPaste" class="btn btn-primary" title="">
       <svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      <span data-i18n="paste">Incolla link</span>
+      <span data-i18n="paste">Paste link</span>
     </button>
 
     <div class="dl-group">
       <button id="btnDownload" class="btn btn-accent">
         <svg viewBox="0 0 24 24" class="ic"><path d="M12 4v11m0 0l-5-5m5 5l5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <span data-i18n="download">Scarica</span><span id="stagedCount" class="count-badge hidden"></span>
+        <span data-i18n="download">Download</span><span id="stagedCount" class="count-badge hidden"></span>
       </button>
       <select id="batchConcurrency" class="dl-conc" title="">
         <option value="">×2</option>
@@ -35,7 +35,7 @@
 
     <button id="btnCancel" class="btn btn-danger hidden">
       <svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1" fill="currentColor"/></svg>
-      <span data-i18n="cancel">Annulla scaricamento</span>
+      <span data-i18n="cancel">Cancel download</span>
     </button>
 
     <span id="topStatus" class="top-status"></span>
@@ -50,7 +50,7 @@
 
   <div id="emptyState" class="empty hidden">
     <img src="/static/assets/logo.png" alt="GetSetMix" />
-    <p data-i18n="emptyHint">Copia il link di una traccia o di una playlist, poi premi “Incolla link”.</p>
+    <p data-i18n="emptyHint">Copy a track or playlist link, then press “Paste link”.</p>
   </div>
 
   <footer class="statusbar">
@@ -68,46 +68,59 @@
   <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-head">
-        <h2 data-i18n="settings">Impostazioni</h2>
+        <h2 data-i18n="settings">Settings</h2>
         <button class="btn btn-ghost modal-close" data-close>✕</button>
       </div>
       <div class="modal-body">
-        <label><span data-i18n="outputFormat">Formato di uscita (globale)</span>
+        <label><span data-i18n="outputFormat">Output format (global)</span>
           <select id="setFormat">
             <option value="mp3">MP3 · 320 kbps</option>
             <option value="flac">FLAC</option>
           </select>
         </label>
-        <label><span data-i18n="concurrency">Download paralleli (default globale)</span>
+        <label><span data-i18n="concurrency">Parallel downloads (global default)</span>
           <input id="setConcurrency" type="number" min="1" max="8" />
         </label>
-        <label><span data-i18n="template">Template nome file</span>
+        <label><span data-i18n="template">Filename template</span>
           <input id="setTemplate" type="text" spellcheck="false" />
           <small>{title} {artist} {album} {source} {id} {genre}</small>
         </label>
-        <label><span data-i18n="libraryRoot">Cartella libreria</span>
-          <input id="setLibrary" type="text" spellcheck="false" />
+        <label><span data-i18n="libraryRoot">Library folder</span>
+          <div class="path-row">
+            <input id="setLibrary" type="text" spellcheck="false" />
+            <button type="button" class="btn btn-ghost btn-browse" data-pick="library" data-i18n="browse">Browse…</button>
+          </div>
         </label>
-        <label><span data-i18n="xmlPath">Percorso XML Rekordbox</span>
-          <input id="setXml" type="text" spellcheck="false" />
+        <label><span data-i18n="xmlPath">Inbox XML path (new downloads)</span>
+          <div class="path-row">
+            <input id="setXml" type="text" spellcheck="false" />
+            <button type="button" class="btn btn-ghost btn-browse" data-pick="xml" data-i18n="browse">Browse…</button>
+          </div>
         </label>
-        <label><span data-i18n="playlist">Playlist di destinazione</span>
+        <label><span data-i18n="collectionXml">Rekordbox collection XML (optional)</span>
+          <div class="path-row">
+            <input id="setCollection" type="text" spellcheck="false" />
+            <button type="button" class="btn btn-ghost btn-browse" data-pick="collection" data-i18n="browse">Browse…</button>
+          </div>
+          <small data-i18n="collectionHint">When set, tracks already in your full collection are removed from the inbox XML before each batch — the inbox only lists songs you haven't imported yet.</small>
+        </label>
+        <label><span data-i18n="playlist">Target playlist</span>
           <input id="setPlaylist" type="text" />
         </label>
-        <label><span data-i18n="language">Lingua</span>
+        <label><span data-i18n="language">Language</span>
           <select id="setLanguage">
-            <option value="it">Italiano</option>
             <option value="en">English</option>
+            <option value="it">Italiano</option>
           </select>
         </label>
         <div class="modal-actions-row">
-          <button id="btnPurgeCompleted" class="btn btn-ghost" data-i18n="purgeCompleted">Svuota elenco completati</button>
-          <button id="btnPurgeHistory" class="btn btn-ghost" data-i18n="purgeHistory">Cancella cronologia URL</button>
+          <button id="btnPurgeCompleted" class="btn btn-ghost" data-i18n="purgeCompleted">Clear completed list</button>
+          <button id="btnPurgeHistory" class="btn btn-ghost" data-i18n="purgeHistory">Purge URL history</button>
         </div>
-        <p class="hint" data-i18n="rekordboxHint">Dopo l’ingestione, apri Rekordbox e ricarica la sorgente XML per vedere le nuove tracce nella playlist Inbox.</p>
+        <p class="hint" data-i18n="rekordboxHint">After ingestion, open Rekordbox and reload the XML source to see new tracks in the Inbox playlist.</p>
       </div>
       <div class="modal-foot">
-        <button id="btnSaveSettings" class="btn btn-accent" data-i18n="save">Salva</button>
+        <button id="btnSaveSettings" class="btn btn-accent" data-i18n="save">Save</button>
       </div>
     </div>
   </div>
@@ -116,21 +129,41 @@
   <div id="coverModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-head">
-        <h2 data-i18n="coverTitle">Copertina</h2>
+        <h2 data-i18n="coverTitle">Cover art</h2>
         <button class="btn btn-ghost modal-close" data-close>✕</button>
       </div>
       <div class="modal-body">
         <div class="cover-search-row">
           <input id="coverQuery" type="text" />
-          <button id="btnCoverSearch" class="btn btn-primary" data-i18n="search">Cerca</button>
+          <button id="btnCoverSearch" class="btn btn-primary" data-i18n="search">Search</button>
         </div>
         <div id="coverResults" class="cover-grid"></div>
         <div class="cover-upload">
           <label class="btn btn-ghost upload-label">
-            <span data-i18n="uploadCover">Carica immagine…</span>
+            <span data-i18n="uploadCover">Upload image…</span>
             <input id="coverFile" type="file" accept="image/*" hidden />
           </label>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Path picker modal -->
+  <div id="pickerModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 data-i18n="pickerTitle">Choose a path</h2>
+        <button class="btn btn-ghost modal-close" data-close>✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="pickerPath" class="picker-path"></div>
+        <div id="pickerList" class="picker-list"></div>
+        <label id="pickerNameRow" class="hidden"><span data-i18n="fileName">File name</span>
+          <input id="pickerName" type="text" spellcheck="false" />
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button id="btnPickerSelect" class="btn btn-accent" data-i18n="select">Select</button>
       </div>
     </div>
   </div>

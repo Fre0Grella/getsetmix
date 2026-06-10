@@ -20,10 +20,11 @@ Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or 
 - **Tagging** — ID3v2.4 / FLAC Vorbis comments: title, artist, album, genre, embedded cover, source URL in the comment field
 - **Filename templates** — `{title} {artist} {album} {source} {id} {genre}`, sanitized, missing tokens omitted, collision-safe suffixes
 - **Rekordbox XML** — tracks appended to a configurable XML and an "Inbox" playlist (name configurable); reload the XML source in Rekordbox to see new tracks
+- **Collection-aware inbox** — optionally point GetSetMix at your full Rekordbox collection XML: before each batch, tracks you've already imported are purged from the inbox XML, so it only ever lists new songs
 - **Persistence** — SQLite for tracks, URL history, and counters; manual purge from the UI
 - **Observability** — Prometheus `/metrics`: job counts by status, active downloads, download durations, errors by source, songs in last 30d / 365d / all time, health
 - **Private by default** — bind to localhost or your LAN; optional static-token or Basic Auth for public exposure
-- **i18n** — Italian (default) and English UI
+- **i18n** — English (default) and Italian UI
 - Runs comfortably under 1 GB RAM
 
 ## Quickstart — Docker Compose
@@ -38,7 +39,7 @@ services:
       - getsetmix-data:/data
       - /path/to/your/music/library:/music
     environment:
-      GSM_LANGUAGE: it          # or en
+      GSM_LANGUAGE: en          # or it
       # GSM_AUTH_TOKEN: change-me   # enable token auth if exposed
 volumes:
   getsetmix-data:
@@ -71,7 +72,7 @@ Notes:
 
 ## Local app mode (Linux / Windows / macOS)
 
-Same UI, not always-on — auto-opens your browser:
+Same UI, not always-on — auto-opens your browser. Grab a prebuilt executable from the [Releases page](https://github.com/Fre0Grella/getsetmix/releases) (no Python needed, data lives in `~/.getsetmix`), or run from source:
 
 ```bash
 pip install -r requirements.txt
@@ -82,13 +83,15 @@ python run_local.py --port 9000 --no-browser
 
 ## Using it
 
-1. Click **Incolla link** — the URL on your clipboard is added (playlists fan out into one row per entry).
+1. Click **Paste link** — the URL on your clipboard is added (playlists fan out into one row per entry).
 2. Rows resolve their metadata; fix title/artist, pick a genre, optionally set album and cover (camera button on the thumbnail → search or upload).
-3. Press **Scarica** to start the batch (the ×N selector overrides parallelism for this batch only). Edits lock once a track is queued.
+3. Press **Download** to start the batch (the ×N selector overrides parallelism for this batch only). Edits lock once a track is queued.
 4. Watch per-track progress and the batch bar; cancel anytime (in-flight tracks are stopped and re-staged).
-5. When tracks show **Finito**, open Rekordbox → **File ▸ Import collection / reload the rekordbox.xml source** and find them in the **Inbox** playlist.
+5. When tracks show **Done**, open Rekordbox → **File ▸ Import collection / reload the rekordbox.xml source** and find them in the **Inbox** playlist.
 
 In Rekordbox, point *Preferences ▸ Advanced ▸ Database ▸ rekordbox xml* at the XML path shown in Settings (default `<data>/rekordbox/getsetmix.xml`), then refresh the *rekordbox xml* tree in the sidebar after each batch.
+
+To keep the inbox tidy, export your full collection (*File ▸ Export Collection in xml format*) and set its path as **Rekordbox collection XML** in Settings (or `GSM_COLLECTION_XML_PATH`). Before each batch GetSetMix compares the inbox XML against the collection (by file location, falling back to title + artist) and removes the tracks you've already imported — the Inbox playlist only ever shows what's still missing from your collection.
 
 ## Configuration
 
@@ -98,12 +101,13 @@ Everything is editable in the UI (gear icon) and persisted to `<data>/config.jso
 |---|---|---|
 | `GSM_DATA_DIR` | `./data` (`/data` in Docker) | SQLite DB, config, covers, default XML location |
 | `GSM_LIBRARY_ROOT` | `./music` (`/music` in Docker) | Downloads land directly here (no inbox folder) |
-| `GSM_XML_PATH` | `<data>/rekordbox/getsetmix.xml` | Rekordbox XML path |
+| `GSM_XML_PATH` | `<data>/rekordbox/getsetmix.xml` | Inbox XML path (new downloads) |
+| `GSM_COLLECTION_XML_PATH` | *(unset)* | Full Rekordbox collection XML; when set, already-imported tracks are purged from the inbox XML before each batch |
 | `GSM_PLAYLIST_NAME` | `Inbox` | Target playlist inside the XML |
 | `GSM_OUTPUT_FORMAT` | `mp3` | `mp3` (320 kbps) or `flac` — global only |
 | `GSM_CONCURRENCY` | `2` | Global parallel-download default |
 | `GSM_FILENAME_TEMPLATE` | `{artist} - {title}` | Tokens: `{title} {artist} {album} {source} {id} {genre}` |
-| `GSM_LANGUAGE` | `it` | `it` or `en` |
+| `GSM_LANGUAGE` | `en` | `en` or `it` |
 | `GSM_AUTH_TOKEN` | *(unset)* | Static token auth (`X-Auth-Token`, `Authorization: Bearer`, or `?token=`) |
 | `GSM_BASIC_USER` / `GSM_BASIC_PASS` | *(unset)* | HTTP Basic Auth alternative |
 
@@ -132,12 +136,13 @@ python -m pytest tests/ -v     # unit + API tests (no network needed)
 ruff check app tests run_local.py
 ```
 
-Three GitHub Actions workflows ship with the repo (`.github/workflows/`):
+Four GitHub Actions workflows ship with the repo (`.github/workflows/`):
 
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `ci.yml` | push to `main`, every PR | ruff lint, pytest suite (with ffmpeg), and a no-push Docker build as a PR safety net |
 | `docker-publish.yml` | push to `main`, tags `v*.*.*` | builds the image for **linux/amd64 + linux/arm64** and pushes to **GHCR** with smart tags: `latest` + `main` on main; `1.2.3`, `1.2`, `1` and the commit SHA on a `v1.2.3` tag |
+| `release.yml` | tags `v*.*.*` | builds standalone **local-app executables** (Windows / macOS / Linux, PyInstaller) and attaches them to the GitHub Release |
 | `pages.yml` | push to `main` touching `site/**` | deploys the landing + docs site in `site/` to **GitHub Pages** |
 
 One-time setup after pushing to GitHub:
@@ -151,6 +156,7 @@ Releasing is just a tag:
 ```bash
 git tag v1.0.0 && git push origin v1.0.0
 # → ghcr.io/Fre0Grella/getsetmix:1.0.0 (+ :1.0, :1, :latest)
+# → GitHub Release with getsetmix-windows-x64.exe / -macos-arm64 / -linux-x64
 ```
 
 The website lives in `site/` — a static landing page (`index.html`) and documentation (`docs.html`), no build step. Edit and push; the workflow handles the rest.

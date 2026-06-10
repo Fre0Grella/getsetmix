@@ -16,16 +16,18 @@ DATA_DIR = Path(os.environ.get("GSM_DATA_DIR", "./data")).resolve()
 DEFAULTS = {
     "library_root": str(DATA_DIR / "library"),
     "xml_path": str(DATA_DIR / "rekordbox" / "getsetmix.xml"),
+    "collection_xml_path": "",          # full Rekordbox collection export (optional)
     "playlist_name": "Inbox",
     "output_format": "mp3",            # "mp3" (320 kbps) | "flac"  -- global only
     "concurrency": 2,                   # global default parallel downloads
     "filename_template": "{artist} - {title}",
-    "language": "it",                   # "it" | "en"
+    "language": "en",                   # "en" | "it"
 }
 
 ENV_MAP = {
     "GSM_LIBRARY_ROOT": "library_root",
     "GSM_XML_PATH": "xml_path",
+    "GSM_COLLECTION_XML_PATH": "collection_xml_path",
     "GSM_PLAYLIST_NAME": "playlist_name",
     "GSM_OUTPUT_FORMAT": "output_format",
     "GSM_CONCURRENCY": "concurrency",
@@ -84,7 +86,7 @@ class Settings:
         except (TypeError, ValueError):
             self.data["concurrency"] = 2
         if self.data.get("language") not in ("it", "en"):
-            self.data["language"] = "it"
+            self.data["language"] = "en"
         if not str(self.data.get("filename_template") or "").strip():
             self.data["filename_template"] = DEFAULTS["filename_template"]
 

@@ -82,6 +82,7 @@ class BatchStart(BaseModel):
 class SettingsPatch(BaseModel):
     library_root: str | None = None
     xml_path: str | None = None
+    collection_xml_path: str | None = None
     playlist_name: str | None = None
     output_format: str | None = None
     concurrency: int | None = None
@@ -279,6 +280,60 @@ async def cover_search(q: str):
         return {"results": await asyncio.to_thread(_get)}
     except Exception as exc:
         raise HTTPException(502, f"Cover search failed: {exc}")
+
+
+@app.get("/api/fs/list")
+async def fs_list(path: str = "", ext: str = ""):
+    """Server-side directory listing for the path-picker UI.
+
+    Empty path lists drives on Windows and / on POSIX. `ext` (e.g. ".xml")
+    filters the files returned; directories are always included.
+    """
+    import os
+    import string
+
+    def _list() -> dict:
+        if not path.strip():
+            if os.name == "nt":
+                drives = [
+                    {"name": f"{d}:", "path": f"{d}:\\"}
+                    for d in string.ascii_uppercase if Path(f"{d}:\\").exists()
+                ]
+                return {"path": "", "parent": None, "dirs": drives, "files": []}
+            base = Path("/")
+        else:
+            base = Path(path).expanduser()
+        try:
+            base = base.resolve()
+            if not base.is_dir():
+                base = base.parent  # tolerate file paths pasted in the inputs
+            if not base.is_dir():
+                raise HTTPException(404, "Not a directory")
+            entries = sorted(base.iterdir(), key=lambda p: p.name.lower())
+        except HTTPException:
+            raise
+        except PermissionError:
+            raise HTTPException(403, "Permission denied")
+        except OSError as exc:
+            raise HTTPException(400, str(exc).splitlines()[0])
+        dirs, files = [], []
+        for p in entries:
+            if p.name.startswith("."):
+                continue
+            try:
+                if p.is_dir():
+                    dirs.append({"name": p.name, "path": str(p)})
+                elif not ext or p.suffix.lower() == ext.lower():
+                    files.append({"name": p.name, "path": str(p)})
+            except OSError:
+                continue  # broken symlinks, unreadable entries
+        if base.parent != base:
+            parent = str(base.parent)
+        else:
+            parent = "" if os.name == "nt" else None  # drive root -> drive list
+        return {"path": str(base), "parent": parent, "dirs": dirs, "files": files}
+
+    return await asyncio.to_thread(_list)
 
 
 @app.get("/api/settings")

@@ -89,6 +89,7 @@ body {
   display: grid;
   grid-template-columns: 96px 1fr auto auto;
   align-items: center; gap: 12px;
+  flex: none; /* rows must overflow-scroll, never shrink to fit the viewport */
   background: var(--row);
   border: 1px solid var(--row-line);
   border-radius: var(--radius);
@@ -251,6 +252,31 @@ body {
 .hint { color: var(--ink-soft); font-size: .85rem; line-height: 1.45; margin: 0; }
 .modal-close { padding: 4px 10px; border-radius: 8px; }
 
+.path-row { display: flex; gap: 6px; }
+.path-row input { flex: 1; min-width: 0; }
+.btn-browse { padding: 6px 11px; white-space: nowrap; flex: none; }
+
+/* -------------------------------------------------------------- picker */
+.picker-path {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: .82rem; color: var(--ink-soft);
+  background: var(--paper); border: 1px solid var(--row-line);
+  border-radius: 8px; padding: 7px 10px; overflow-wrap: anywhere;
+}
+.picker-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 44vh; overflow-y: auto;
+  border: 1px solid var(--row-line); border-radius: 8px; padding: 4px;
+}
+.picker-row {
+  display: flex; align-items: center; gap: 8px; text-align: left;
+  border: none; background: transparent; font: inherit;
+  padding: 7px 9px; border-radius: 6px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.picker-row:hover { background: var(--selected); }
+.picker-row.file { color: var(--ink-soft); }
+
 .cover-search-row { display: flex; gap: 8px; }
 .cover-search-row input { flex: 1; font: inherit; padding: 8px 10px;
   border: 1px solid var(--row-line); border-radius: 8px; }
@@ -272,10 +298,32 @@ body {
 }
 
 /* ------------------------------------------------------------ responsive */
+@media (hover: none) {
+  .cover-btn { opacity: 1; } /* no hover reveal on touch screens */
+}
+
 @media (max-width: 780px) {
-  .track { grid-template-columns: 72px 1fr; grid-auto-rows: auto; }
-  .thumb { width: 72px; height: 44px; }
-  .side, .state { grid-column: 1 / -1; min-width: 0; justify-content: flex-start; }
-  .toolbar { flex-wrap: wrap; }
+  :root { font-size: 16px; } /* >=16px inputs stop mobile browsers auto-zooming */
+  .toolbar { flex-wrap: wrap; padding: 8px 10px; gap: 8px; }
+  .btn { padding: 8px 12px; }
   .top-status { display: none; }
+  .track-list { padding: 10px 10px 90px; gap: 7px; }
+  .track { grid-template-columns: 72px 1fr; grid-auto-rows: auto; row-gap: 6px; }
+  .thumb { width: 72px; height: 44px; }
+  .side, .state { grid-column: 1 / -1; min-width: 0; }
+  .state { justify-content: flex-end; }
+  .state .err-text { max-width: none; flex: 1; text-align: left; }
+  .icon-btn { width: 38px; height: 38px; } /* comfortable touch targets */
+  .statusbar { padding: 8px 10px; }
+  .stats { font-size: .8rem; }
+  .empty img { width: 160px; }
+  .modal { padding: 0; align-items: end; }
+  .modal-card { width: 100%; max-height: 92vh; border-radius: 14px 14px 0 0; }
+}
+
+@media (max-width: 480px) {
+  .wordmark { display: none; } /* icon-only brand frees toolbar space */
+  .brand { margin-right: 0; }
+  .dl-group { flex: 1; }
+  .dl-group .btn { flex: 1; justify-content: center; }
 }

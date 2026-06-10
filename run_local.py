@@ -7,8 +7,17 @@ window. Works on Linux, Windows and macOS (ffmpeg must be on PATH).
 """
 import argparse
 import os
+import sys
 import threading
 import webbrowser
+
+
+def default_data_dir() -> str:
+    if getattr(sys, "frozen", False):
+        # PyInstaller build: __file__ lives in a temp dir wiped on exit,
+        # so persist next to the user profile instead.
+        return os.path.join(os.path.expanduser("~"), ".getsetmix")
+    return os.path.join(os.path.dirname(__file__), "data")
 
 
 def main() -> None:
@@ -18,7 +27,7 @@ def main() -> None:
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
 
-    os.environ.setdefault("GSM_DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
+    os.environ.setdefault("GSM_DATA_DIR", default_data_dir())
 
     import uvicorn
     from app.main import app  # noqa: WPS433 (after env is set)

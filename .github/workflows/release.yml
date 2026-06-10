@@ -1,0 +1,86 @@
+name: Release executables
+
+# Standalone local-app builds (PyInstaller) attached to the GitHub Release
+# for every v*.*.* tag. ffmpeg is NOT bundled — it must be on the user's PATH.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: getsetmix-windows-x64.exe
+            built: dist/getsetmix.exe
+            sep: ";"
+            icon: "--icon app/static/assets/favicon.ico"
+          - os: macos-latest
+            artifact: getsetmix-macos-arm64
+            built: dist/getsetmix
+            sep: ":"
+            icon: ""
+          - os: ubuntu-latest
+            artifact: getsetmix-linux-x64
+            built: dist/getsetmix
+            sep: ":"
+            icon: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build executable
+        shell: bash
+        run: >
+          pyinstaller --onefile --name getsetmix
+          --add-data "app/static${{ matrix.sep }}app/static"
+          --collect-all yt_dlp
+          ${{ matrix.icon }}
+          run_local.py
+
+      - name: Smoke-test the binary
+        shell: bash
+        run: ${{ matrix.built }} --help
+
+      - name: Rename artifact
+        shell: bash
+        run: mv "${{ matrix.built }}" "dist/${{ matrix.artifact }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            Standalone **local app mode** builds — no Python required.
+            `ffmpeg` must be on your PATH (`winget install ffmpeg` / `brew install ffmpeg` / `apt install ffmpeg`).
+
+            Run the binary and the UI opens at http://127.0.0.1:8765 (data is kept in `~/.getsetmix`).

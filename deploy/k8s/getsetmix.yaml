@@ -14,8 +14,9 @@ data:
   GSM_PLAYLIST_NAME: "Inbox"
   GSM_OUTPUT_FORMAT: "mp3"          # mp3 (320 kbps) | flac — global only
   GSM_CONCURRENCY: "2"
-  GSM_LANGUAGE: "it"
+  GSM_LANGUAGE: "en"
   GSM_XML_PATH: "/data/rekordbox/getsetmix.xml"
+  # GSM_COLLECTION_XML_PATH: "/music/rekordbox-collection.xml"  # purge already-imported tracks from the inbox
 ---
 # Optional access protection if the Service is exposed beyond the LAN:
 # kubectl -n getsetmix create secret generic getsetmix-auth --from-literal=GSM_AUTH_TOKEN=change-me

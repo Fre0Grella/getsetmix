@@ -8,7 +8,12 @@ const STR = {
     outputFormat: "Formato di uscita (globale)",
     concurrency: "Download paralleli (default globale)",
     template: "Template nome file", libraryRoot: "Cartella libreria",
-    xmlPath: "Percorso XML Rekordbox", playlist: "Playlist di destinazione",
+    xmlPath: "Percorso XML inbox (nuovi download)",
+    collectionXml: "XML collezione Rekordbox (opzionale)",
+    collectionHint: "Se impostato, le tracce già presenti nella collezione completa vengono rimosse dall'XML inbox prima di ogni batch — l'inbox elenca solo i brani non ancora importati.",
+    playlist: "Playlist di destinazione",
+    browse: "Sfoglia…", select: "Seleziona", fileName: "Nome file",
+    pickerTitle: "Scegli un percorso",
     language: "Lingua", coverTitle: "Copertina", uploadCover: "Carica immagine…",
     purgeCompleted: "Svuota elenco completati", purgeHistory: "Cancella cronologia URL",
     rekordboxHint: "Dopo l’ingestione, apri Rekordbox e ricarica la sorgente XML per vedere le nuove tracce nella playlist Inbox.",
@@ -34,7 +39,12 @@ const STR = {
     outputFormat: "Output format (global)",
     concurrency: "Parallel downloads (global default)",
     template: "Filename template", libraryRoot: "Library folder",
-    xmlPath: "Rekordbox XML path", playlist: "Target playlist",
+    xmlPath: "Inbox XML path (new downloads)",
+    collectionXml: "Rekordbox collection XML (optional)",
+    collectionHint: "When set, tracks already in your full collection are removed from the inbox XML before each batch — the inbox only lists songs you haven't imported yet.",
+    playlist: "Target playlist",
+    browse: "Browse…", select: "Select", fileName: "File name",
+    pickerTitle: "Choose a path",
     language: "Language", coverTitle: "Cover art", uploadCover: "Upload image…",
     purgeCompleted: "Clear completed list", purgeHistory: "Purge URL history",
     rekordboxHint: "After ingestion, open Rekordbox and reload the XML source to see new tracks in the Inbox playlist.",
@@ -69,7 +79,7 @@ const GENRES = [
 const $ = (sel) => document.querySelector(sel);
 const list = $("#trackList");
 
-let lang = "it";
+let lang = "en";
 let T = STR[lang];
 let tracks = [];
 let busy = false;
@@ -106,7 +116,7 @@ async function api(path, opts = {}) {
 
 // ------------------------------------------------------------------- i18n
 function applyLang(next) {
-  lang = STR[next] ? next : "it";
+  lang = STR[next] ? next : "en";
   T = STR[lang];
   document.documentElement.lang = lang;
   document.querySelectorAll("[data-i18n]").forEach((el) => {
@@ -183,11 +193,11 @@ function rowHtml(t) {
   const err = t.status === "error" || t.status === "fetch_error" ? "is-error" : "";
   const thumb = t.cover_path
     ? `/api/tracks/${t.id}/cover?v=${encodeURIComponent(t.updated_at || "")}`
-    : (t.cover_url || t.thumbnail || "/static/assets/icon.png");
+    : (t.cover_url || t.thumbnail || "/static/assets/icon-light.png");
   return `<article class="track ${sel} ${err}" data-id="${t.id}">
     <div class="thumb">
       <img src="${esc(thumb)}" alt="" loading="lazy"
-           onerror="this.src='/static/assets/icon.png'">
+           onerror="this.src='/static/assets/icon-light.png'">
       ${t.duration ? `<span class="dur">${fmtDur(t.duration)}</span>` : ""}
       ${editable ? `<button class="cover-btn" data-act="cover" title="${T.coverTitle}">${I.cam}</button>` : ""}
     </div>
@@ -450,6 +460,7 @@ async function openSettings() {
   $("#setTemplate").value = settingsCache.filename_template;
   $("#setLibrary").value = settingsCache.library_root;
   $("#setXml").value = settingsCache.xml_path;
+  $("#setCollection").value = settingsCache.collection_xml_path || "";
   $("#setPlaylist").value = settingsCache.playlist_name;
   $("#setLanguage").value = settingsCache.language;
   $("#settingsModal").classList.remove("hidden");
@@ -465,6 +476,7 @@ $("#btnSaveSettings").addEventListener("click", async () => {
         filename_template: $("#setTemplate").value,
         library_root: $("#setLibrary").value,
         xml_path: $("#setXml").value,
+        collection_xml_path: $("#setCollection").value.trim(),
         playlist_name: $("#setPlaylist").value,
         language: $("#setLanguage").value,
       }),
@@ -484,6 +496,84 @@ $("#btnPurgeHistory").addEventListener("click", async () => {
   const res = await api("/api/purge", { method: "POST", body: JSON.stringify({ scope: "history" }) });
   toast(T.purged(res.purged));
 });
+
+// ------------------------------------------------------------ path picker
+const PICK = {
+  library:    { input: "#setLibrary",    mode: "dir",  ext: "" },
+  xml:        { input: "#setXml",        mode: "file", ext: ".xml" },
+  collection: { input: "#setCollection", mode: "file", ext: ".xml" },
+};
+let picker = null; // { conf, cur }
+
+function dirOf(p) {
+  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+  return i > 0 ? p.slice(0, i) : "";
+}
+function baseOf(p) {
+  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+  return i >= 0 ? p.slice(i + 1) : p;
+}
+function joinPath(dir, name) {
+  const sep = dir.includes("\\") ? "\\" : "/";
+  return dir.endsWith(sep) ? dir + name : dir + sep + name;
+}
+
+async function openPicker(kind) {
+  const conf = PICK[kind];
+  picker = { conf, cur: "" };
+  const val = $(conf.input).value.trim();
+  $("#pickerNameRow").classList.toggle("hidden", conf.mode !== "file");
+  $("#pickerName").value = conf.mode === "file" ? baseOf(val) : "";
+  $("#pickerModal").classList.remove("hidden");
+  await loadPicker(conf.mode === "file" ? dirOf(val) : val);
+}
+
+async function loadPicker(path) {
+  let res;
+  try {
+    res = await api(`/api/fs/list?path=${encodeURIComponent(path)}&ext=${encodeURIComponent(picker.conf.ext)}`);
+  } catch (e) {
+    if (path) { loadPicker(""); return; } // unreachable path -> fall back to roots
+    toast(e.message);
+    return;
+  }
+  picker.cur = res.path;
+  $("#pickerPath").textContent = res.path || "—";
+  const rows = [];
+  if (res.parent !== null) {
+    rows.push(`<button type="button" class="picker-row up" data-nav="${esc(res.parent)}">⬆️ ..</button>`);
+  }
+  rows.push(...res.dirs.map((d) =>
+    `<button type="button" class="picker-row dir" data-nav="${esc(d.path)}">📁 ${esc(d.name)}</button>`));
+  if (picker.conf.mode === "file") {
+    rows.push(...res.files.map((f) =>
+      `<button type="button" class="picker-row file" data-file="${esc(f.name)}">📄 ${esc(f.name)}</button>`));
+  }
+  $("#pickerList").innerHTML = rows.join("") || "<small>—</small>";
+}
+
+$("#pickerList").addEventListener("click", (e) => {
+  const nav = e.target.closest("[data-nav]");
+  if (nav) { loadPicker(nav.dataset.nav); return; }
+  const file = e.target.closest("[data-file]");
+  if (file) $("#pickerName").value = file.dataset.file;
+});
+
+$("#btnPickerSelect").addEventListener("click", () => {
+  if (!picker) return;
+  let value = picker.cur;
+  if (picker.conf.mode === "file") {
+    const name = $("#pickerName").value.trim();
+    if (!name || !value) return;
+    value = joinPath(value, name);
+  }
+  if (!value) return; // drive list has no selectable path
+  $(picker.conf.input).value = value;
+  $("#pickerModal").classList.add("hidden");
+});
+
+document.querySelectorAll("[data-pick]").forEach((btn) =>
+  btn.addEventListener("click", (e) => { e.preventDefault(); openPicker(btn.dataset.pick); }));
 
 // --------------------------------------------------------------- wire up
 document.querySelectorAll(".modal").forEach((m) => {
@@ -511,7 +601,7 @@ dl.innerHTML = GENRES.map((g) => `<option value="${g}">`).join("");
     const s = await api("/api/settings");
     applyLang(s.language);
     $("#batchConcurrency").options[0].text = `×${s.concurrency}`;
-  } catch { applyLang("it"); }
+  } catch { applyLang("en"); }
   poll();
   refreshStats();
 })();

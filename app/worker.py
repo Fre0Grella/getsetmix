@@ -49,6 +49,7 @@ class Worker:
     async def start_batch(self, ids: list[str], concurrency: int | None = None) -> list[str]:
         """Queue staged tracks; spin up runners. Returns the queued ids."""
         self._cancel.clear()
+        await asyncio.to_thread(self._purge_inbox)
         queued: list[str] = []
         for tid in ids:
             track = db.get_track(tid)
@@ -82,6 +83,19 @@ class Worker:
             self._queue.task_done()
             drained += 1
         return drained
+
+    def _purge_inbox(self) -> None:
+        """With a collection XML configured, drop inbox tracks the user has
+        already imported into Rekordbox, instead of appending forever."""
+        collection = str(settings.get("collection_xml_path") or "").strip()
+        if not collection:
+            return
+        try:
+            removed = rekordbox.purge_imported(settings["xml_path"], collection)
+            if removed:
+                log.info("purged %d already-imported tracks from the inbox XML", removed)
+        except Exception:
+            log.exception("inbox purge against collection XML failed")
 
     # -------------------------------------------------------------- runner
     async def _runner(self) -> None:

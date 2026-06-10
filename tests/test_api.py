@@ -74,6 +74,25 @@ def test_metrics_format(client):
     assert "{}" not in text  # no invalid empty label sets
 
 
+def test_settings_collection_xml_roundtrip(client, tmp_path):
+    p = str(tmp_path / "collection.xml")
+    r = client.put("/api/settings", json={"collection_xml_path": p})
+    assert r.status_code == 200
+    assert client.get("/api/settings").json()["collection_xml_path"] == p
+    r = client.put("/api/settings", json={"collection_xml_path": ""})
+    assert r.json()["collection_xml_path"] == ""  # clearing disables the purge
+
+
+def test_fs_list(client, tmp_path):
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "a.xml").write_text("<x/>")
+    (tmp_path / "b.txt").write_text("hi")
+    body = client.get("/api/fs/list", params={"path": str(tmp_path), "ext": ".xml"}).json()
+    assert "sub" in [d["name"] for d in body["dirs"]]
+    assert [f["name"] for f in body["files"]] == ["a.xml"]  # ext filter applied
+    assert body["parent"]
+
+
 def test_auth_blocks_api(auth_client):
     assert auth_client.get("/api/tracks").status_code == 401
     assert auth_client.get("/metrics").status_code == 401

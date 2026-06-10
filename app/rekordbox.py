@@ -10,7 +10,7 @@ import threading
 import xml.etree.ElementTree as ET
 from datetime import date
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 _lock = threading.Lock()
 
@@ -108,3 +108,68 @@ def add_track(xml_path: str, meta: dict, file_path: str, playlist_name: str) -> 
         tree.write(tmp, encoding="UTF-8", xml_declaration=True)
         tmp.replace(path)
         return track_id
+
+
+def _identity_keys(track: ET.Element) -> set[tuple]:
+    """Keys that identify the same song across XML files: the file Location
+    (case-insensitive, unquoted) and, as a fallback for moved/re-encoded
+    files, the (title, artist) pair."""
+    keys: set[tuple] = set()
+    loc = (track.get("Location") or "").strip()
+    if loc:
+        keys.add(("loc", unquote(loc).lower()))
+    name = (track.get("Name") or "").strip().lower()
+    artist = (track.get("Artist") or "").strip().lower()
+    if name and artist:
+        keys.add(("meta", name, artist))
+    return keys
+
+
+def purge_imported(inbox_xml: str, collection_xml: str) -> int:
+    """Drop inbox tracks that already exist in the user's full Rekordbox
+    collection export, so the inbox XML only lists not-yet-imported songs.
+    Returns how many tracks were removed."""
+    with _lock:
+        inbox = Path(inbox_xml)
+        collection = Path(collection_xml)
+        if not inbox.exists() or not collection.exists():
+            return 0
+        if inbox.resolve() == collection.resolve():
+            return 0  # misconfiguration guard: never purge the inbox against itself
+        try:
+            imported: set[tuple] = set()
+            for t in ET.parse(collection).getroot().iter("TRACK"):
+                if t.get("Location"):  # collection entries; playlist refs only have Key
+                    imported |= _identity_keys(t)
+        except ET.ParseError:
+            return 0  # unreadable collection -> leave the inbox untouched
+
+        tree = _load(inbox)
+        root = tree.getroot()
+        coll = root.find("COLLECTION")
+        if coll is None:
+            return 0
+        removed_ids: set[str] = set()
+        for t in list(coll.findall("TRACK")):
+            if _identity_keys(t) & imported:
+                coll.remove(t)
+                removed_ids.add(t.get("TrackID", ""))
+        if not removed_ids:
+            return 0
+        coll.set("Entries", str(len(coll.findall("TRACK"))))
+
+        playlists = root.find("PLAYLISTS")
+        if playlists is not None:
+            for node in playlists.iter("NODE"):
+                if node.get("Type") != "1":
+                    continue
+                for ref in list(node.findall("TRACK")):
+                    if ref.get("Key") in removed_ids:
+                        node.remove(ref)
+                node.set("Entries", str(len(node.findall("TRACK"))))
+
+        ET.indent(tree, space="  ")
+        tmp = inbox.with_suffix(".tmp")
+        tree.write(tmp, encoding="UTF-8", xml_declaration=True)
+        tmp.replace(inbox)
+        return len(removed_ids)
