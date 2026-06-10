@@ -15,6 +15,9 @@ const STR = {
     browse: "Sfoglia…", select: "Seleziona", fileName: "Nome file",
     pickerTitle: "Scegli un percorso",
     language: "Lingua", coverTitle: "Copertina", uploadCover: "Carica immagine…",
+    cleanInbox: "Pulisci inbox ora",
+    cleanedInbox: n => `Rimossi ${n} brani già in collezione`,
+    needCollectionXml: "Imposta prima il percorso dell'XML della collezione Rekordbox",
     purgeCompleted: "Svuota elenco completati", purgeHistory: "Cancella cronologia URL",
     rekordboxHint: "Dopo l’ingestione, apri Rekordbox e ricarica la sorgente XML per vedere le nuove tracce nella playlist Inbox.",
     emptyHint: "Copia il link di una traccia o di una playlist, poi premi “Incolla link”.",
@@ -27,6 +30,8 @@ const STR = {
     clipboardFail: "Impossibile leggere gli appunti — incolla il link qui:",
     notUrl: "Il testo copiato non è un URL valido",
     duplicate: "Nota: URL già scaricato in passato",
+    dupBadge: "Possibile duplicato",
+    dupConfirm: n => `${n} brano/i sembra già presente nella tua libreria. Scaricarli comunque?\n\n(OK = scarica comunque · Annulla = salta i duplicati)`,
     batchOf: (d, t) => `${d} di ${t}`,
     needMeta: "Titolo e artista sono obbligatori",
     purged: n => `Eliminati ${n} elementi`, saved: "Impostazioni salvate",
@@ -46,6 +51,9 @@ const STR = {
     browse: "Browse…", select: "Select", fileName: "File name",
     pickerTitle: "Choose a path",
     language: "Language", coverTitle: "Cover art", uploadCover: "Upload image…",
+    cleanInbox: "Clean inbox now",
+    cleanedInbox: n => `Removed ${n} tracks already in your collection`,
+    needCollectionXml: "Set a Rekordbox collection XML path first",
     purgeCompleted: "Clear completed list", purgeHistory: "Purge URL history",
     rekordboxHint: "After ingestion, open Rekordbox and reload the XML source to see new tracks in the Inbox playlist.",
     emptyHint: "Copy a track or playlist link, then press “Paste link”.",
@@ -58,6 +66,8 @@ const STR = {
     clipboardFail: "Couldn't read the clipboard — paste the link here:",
     notUrl: "Clipboard text is not a valid URL",
     duplicate: "Note: this URL was downloaded before",
+    dupBadge: "Possible duplicate",
+    dupConfirm: n => `${n} track(s) look like they're already in your library. Download them anyway?\n\n(OK = download anyway · Cancel = skip the duplicates)`,
     batchOf: (d, t) => `${d} of ${t}`,
     needMeta: "Title and artist are required",
     purged: n => `Removed ${n} items`, saved: "Settings saved",
@@ -191,10 +201,11 @@ function rowHtml(t) {
   const dis = editable ? "" : "disabled";
   const sel = t.status === "downloading" || t.status === "tagging" ? "is-selected" : "";
   const err = t.status === "error" || t.status === "fetch_error" ? "is-error" : "";
+  const dup = t.duplicate && t.status === "staged" ? "is-dup" : "";
   const thumb = t.cover_path
     ? `/api/tracks/${t.id}/cover?v=${encodeURIComponent(t.updated_at || "")}`
     : (t.cover_url || t.thumbnail || "/static/assets/icon-light.png");
-  return `<article class="track ${sel} ${err}" data-id="${t.id}">
+  return `<article class="track ${sel} ${err} ${dup}" data-id="${t.id}">
     <div class="thumb">
       <img src="${esc(thumb)}" alt="" loading="lazy"
            onerror="this.src='/static/assets/icon-light.png'">
@@ -212,6 +223,7 @@ function rowHtml(t) {
                placeholder="${T.artistPh}" ${dis}>
         ${!t.artist && editable ? `<span class="req-flag">*</span>` : ""}
       </div>
+      ${dup ? `<span class="dup-badge" title="${esc(t.duplicate_reason)}">⚠ ${T.dupBadge}</span>` : ""}
     </div>
     <div class="side">
       <div class="meta-line">${I.disc}
@@ -327,11 +339,23 @@ async function pasteLink() {
   } catch (e) { toast(e.message); }
 }
 
-async function startBatch(ids = null) {
+async function startBatch(ids = null, force = false) {
   const sel = $("#batchConcurrency").value;
-  const body = { ids, concurrency: sel ? Number(sel) : null };
+  const body = { ids, concurrency: sel ? Number(sel) : null, force };
   try {
     const res = await api("/api/batch/start", { method: "POST", body: JSON.stringify(body) });
+    if (res.needs_confirm) {
+      const list = res.duplicates
+        .map((d) => `• ${d.artist ? d.artist + " – " : ""}${d.title}`).join("\n");
+      if (confirm(`${T.dupConfirm(res.duplicates.length)}\n\n${list}`)) {
+        return startBatch(ids, true);                       // download anyway
+      }
+      const dupIds = new Set(res.duplicates.map((d) => d.id));
+      const base = ids || tracks.filter((t) => t.status === "staged").map((t) => t.id);
+      const rest = base.filter((id) => !dupIds.has(id));     // skip the duplicates
+      if (rest.length) return startBatch(rest, true);
+      return;
+    }
     batchTotal = res.count;
     schedulePoll(150);
   } catch (e) { toast(e.message); }
@@ -487,6 +511,14 @@ $("#btnSaveSettings").addEventListener("click", async () => {
   } catch (e) { toast(e.message); }
 });
 
+$("#btnCleanInbox").addEventListener("click", async () => {
+  const coll = $("#setCollection")?.value.trim();
+  if (!coll) { toast(T.needCollectionXml); return; }
+  try {
+    const res = await api("/api/purge", { method: "POST", body: JSON.stringify({ scope: "inbox" }) });
+    toast(T.cleanedInbox(res.purged));
+  } catch (e) { toast(e.message); }
+});
 $("#btnPurgeCompleted").addEventListener("click", async () => {
   const res = await api("/api/purge", { method: "POST", body: JSON.stringify({ scope: "completed" }) });
   toast(T.purged(res.purged));

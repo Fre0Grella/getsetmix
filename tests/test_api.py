@@ -93,6 +93,48 @@ def test_fs_list(client, tmp_path):
     assert body["parent"]
 
 
+def test_batch_start_gates_on_duplicate(client):
+    import app.main as m
+    tid = m.db.create_track(
+        "https://x/y", status="staged", title="Dup", artist="A",
+        duplicate=1, duplicate_reason="already in the inbox",
+    )
+    # Default (force=false) must not download; it asks for confirmation.
+    body = client.post("/api/batch/start", json={"ids": [tid]}).json()
+    assert body["needs_confirm"] is True
+    assert body["queued"] == []
+    assert body["duplicates"][0]["id"] == tid
+    assert body["duplicates"][0]["reason"] == "already in the inbox"
+
+
+def test_purge_inbox_requires_collection_xml(client):
+    # Without a collection XML configured, manual inbox clean is a 400.
+    r = client.post("/api/purge", json={"scope": "inbox"})
+    assert r.status_code == 400
+
+
+def test_purge_inbox_scope(client, tmp_path):
+    import xml.etree.ElementTree as ET
+
+    from app.rekordbox import add_track
+    inbox = str(tmp_path / "data" / "rekordbox" / "getsetmix.xml")
+    audio = tmp_path / "a.mp3"
+    audio.write_bytes(b"\xff\xfb\x90\x00" + b"\x00" * 64)
+    add_track(inbox, {"title": "Dup", "artist": "A"}, str(audio), "Inbox")
+
+    coll = tmp_path / "collection.xml"
+    root = ET.Element("DJ_PLAYLISTS", {"Version": "1.0.0"})
+    c = ET.SubElement(root, "COLLECTION", {"Entries": "1"})
+    ET.SubElement(c, "TRACK", {"TrackID": "1", "Name": "Dup", "Artist": "A",
+                               "Location": "file://localhost/elsewhere/dup.mp3"})
+    ET.ElementTree(root).write(coll, encoding="UTF-8", xml_declaration=True)
+
+    client.put("/api/settings", json={"xml_path": inbox, "collection_xml_path": str(coll)})
+    r = client.post("/api/purge", json={"scope": "inbox"})
+    assert r.status_code == 200
+    assert r.json() == {"purged": 1, "scope": "inbox"}
+
+
 def test_auth_blocks_api(auth_client):
     assert auth_client.get("/api/tracks").status_code == 401
     assert auth_client.get("/metrics").status_code == 401

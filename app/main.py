@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import metadata, metrics
+from . import metadata, metrics, rekordbox
 from .config import AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, ensure_dirs, settings
 from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
 from .worker import worker
@@ -77,6 +77,7 @@ class TrackEdit(BaseModel):
 class BatchStart(BaseModel):
     ids: list[str] | None = None
     concurrency: int | None = None  # optional per-batch override
+    force: bool = False             # download even tracks flagged as duplicates
 
 
 class SettingsPatch(BaseModel):
@@ -91,7 +92,27 @@ class SettingsPatch(BaseModel):
 
 
 class Purge(BaseModel):
-    scope: str  # "history" | "completed"
+    scope: str  # "history" | "completed" | "inbox"
+
+
+# ------------------------------------------------------ duplicate flagging
+def _dup_sources() -> list[tuple[str, str]]:
+    """(xml_path, label) pairs to test a song against: the inbox we write, plus
+    the user's full Rekordbox collection export when configured."""
+    sources = [(str(settings["xml_path"]), "the inbox")]
+    coll = str(settings.get("collection_xml_path") or "").strip()
+    if coll:
+        sources.append((coll, "your collection"))
+    return sources
+
+
+async def _flag_duplicate(tid: str) -> None:
+    """Mark a staged track if it already exists in the inbox/collection XML."""
+    track = db.get_track(tid)
+    if not track or track["status"] != "staged":
+        return
+    reason = await asyncio.to_thread(rekordbox.find_duplicate, track, _dup_sources())
+    db.update_track(tid, duplicate=1 if reason else 0, duplicate_reason=reason)
 
 
 # --------------------------------------------------- background meta fetch
@@ -107,6 +128,7 @@ async def _fetch_track_meta(tid: str, url: str) -> None:
                 thumbnail=meta["thumbnail"], video_id=meta["video_id"],
                 source=meta["source"], url=meta["url"] or url, error="",
             )
+            await _flag_duplicate(tid)
         except Exception as exc:
             # Metadata fetch failed -> manual entry allowed to continue.
             msg = str(exc).splitlines()[0][:300]
@@ -149,6 +171,7 @@ async def _resolve_new(tid: str, url: str) -> None:
             album=m["album"], genre=m["genre"] or "", duration=m["duration"],
             thumbnail=m["thumbnail"], video_id=m["video_id"], source=m["source"],
         )
+        await _flag_duplicate(tid)
         return
 
     db.delete_track(tid)  # placeholder replaced by one row per entry
@@ -191,6 +214,9 @@ async def edit_track(tid: str, body: TrackEdit):
             patch["status"] = "staged"
             patch["error"] = ""
         db.update_track(tid, **patch)
+        # Editing title/artist changes a track's identity -> re-check duplicates.
+        if "title" in patch or "artist" in patch:
+            await _flag_duplicate(tid)
     return db.get_track(tid)
 
 
@@ -243,6 +269,17 @@ async def retry_track(tid: str):
 @app.post("/api/batch/start")
 async def start_batch(body: BatchStart):
     ids = body.ids or [t["id"] for t in db.tracks_by_status("staged")]
+    if not body.force:
+        # Gate on duplicates: if any selected track already exists, ask the
+        # user before downloading instead of silently making a numbered copy.
+        dupes = [
+            {"id": t["id"], "title": t["title"], "artist": t["artist"],
+             "reason": t["duplicate_reason"]}
+            for t in (db.get_track(i) for i in ids)
+            if t and t["status"] == "staged" and t.get("duplicate")
+        ]
+        if dupes:
+            return {"needs_confirm": True, "duplicates": dupes, "queued": [], "count": 0}
     queued = await worker.start_batch(ids, body.concurrency)
     return {"queued": queued, "count": len(queued)}
 
@@ -373,7 +410,17 @@ async def purge(body: Purge):
         return {"purged": db.purge_history(), "scope": "history"}
     if body.scope == "completed":
         return {"purged": db.purge_completed(), "scope": "completed"}
-    raise HTTPException(400, "scope must be 'history' or 'completed'")
+    if body.scope == "inbox":
+        # Manual run of the same purge that fires automatically at batch start:
+        # drop inbox tracks already present in the full Rekordbox collection.
+        collection = str(settings.get("collection_xml_path") or "").strip()
+        if not collection:
+            raise HTTPException(400, "Set a Rekordbox collection XML path first")
+        removed = await asyncio.to_thread(
+            rekordbox.purge_imported, settings["xml_path"], collection
+        )
+        return {"purged": removed, "scope": "inbox"}
+    raise HTTPException(400, "scope must be 'history', 'completed' or 'inbox'")
 
 
 @app.get("/metrics", response_class=PlainTextResponse)

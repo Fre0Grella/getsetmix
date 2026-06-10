@@ -21,6 +21,7 @@ Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or 
 - **Filename templates** — `{title} {artist} {album} {source} {id} {genre}`, sanitized, missing tokens omitted, collision-safe suffixes
 - **Rekordbox XML** — tracks appended to a configurable XML and an "Inbox" playlist (name configurable); reload the XML source in Rekordbox to see new tracks
 - **Collection-aware inbox** — optionally point GetSetMix at your full Rekordbox collection XML: before each batch, tracks you've already imported are purged from the inbox XML, so it only ever lists new songs
+- **Duplicate detection** — right after metadata is fetched, each track is checked against the inbox XML *and* your collection XML by source URL or by normalized/fuzzy title+artist (filename-independent, so changing the naming template still counts). Duplicates get an amber badge, and starting a batch with duplicates prompts you to download anyway or skip them
 - **Persistence** — SQLite for tracks, URL history, and counters; manual purge from the UI
 - **Observability** — Prometheus `/metrics`: job counts by status, active downloads, download durations, errors by source, songs in last 30d / 365d / all time, health
 - **Private by default** — bind to localhost or your LAN; optional static-token or Basic Auth for public exposure

@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS tracks (
     status TEXT NOT NULL,
     progress REAL DEFAULT 0,
     error TEXT DEFAULT '',
+    duplicate INTEGER DEFAULT 0,
+    duplicate_reason TEXT DEFAULT '',
     file_path TEXT DEFAULT '',
     download_seconds REAL DEFAULT 0,
     created_at TEXT,
@@ -63,7 +65,18 @@ class Database:
         self._conn.row_factory = sqlite3.Row
         with self._lock:
             self._conn.executescript(SCHEMA)
+            self._migrate()
             self._conn.commit()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after a DB was first created."""
+        have = {r["name"] for r in self._conn.execute("PRAGMA table_info(tracks)")}
+        for col, ddl in (
+            ("duplicate", "duplicate INTEGER DEFAULT 0"),
+            ("duplicate_reason", "duplicate_reason TEXT DEFAULT ''"),
+        ):
+            if col not in have:
+                self._conn.execute(f"ALTER TABLE tracks ADD COLUMN {ddl}")
 
     # ------------------------------------------------------------- helpers
     def _exec(self, sql: str, params: tuple = ()):  # write

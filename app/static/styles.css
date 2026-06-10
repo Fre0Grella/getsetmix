@@ -13,6 +13,7 @@
   --selected: #e2effd;     /* concept selection blue */
   --green: #23a55a;        /* concept progress green */
   --red: #d5484a;
+  --amber: #c9821a;        /* duplicate warning */
   --radius: 10px;
   --shadow: 0 1px 2px rgba(14, 23, 38, .06), 0 4px 14px rgba(14, 23, 38, .05);
   font-size: 15px;
@@ -99,6 +100,14 @@ body {
 }
 .track.is-selected { background: var(--selected); border-color: #bcd6f5; }
 .track.is-error { border-color: color-mix(in srgb, var(--red) 45%, var(--row-line)); }
+.track.is-dup { border-color: color-mix(in srgb, var(--amber) 55%, var(--row-line)); }
+.dup-badge {
+  display: inline-flex; align-items: center; gap: 4px; width: fit-content;
+  margin-top: 1px; padding: 1px 7px; border-radius: 999px;
+  font-size: .72rem; font-weight: 700; cursor: help;
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+}
 
 .thumb {
   position: relative; width: 96px; height: 56px;
