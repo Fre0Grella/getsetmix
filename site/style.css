@@ -26,6 +26,7 @@ body {
   background: var(--paper);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip; /* safety net: no page-wide horizontal scroll on mobile */
 }
 img { max-width: 100%; }
 a { color: var(--blue); }
@@ -96,6 +97,7 @@ code, pre { font-family: var(--mono); }
   color: #8fa1bb; background: rgba(255,255,255,.05);
   border: 1px solid rgba(255,255,255,.09); border-radius: 9px;
   padding: 10px 14px; display: inline-block; user-select: all;
+  max-width: 100%; overflow-wrap: anywhere;
 }
 
 /* speed dashes — the sprinter's motion lines */
@@ -246,16 +248,21 @@ h2 {
 }
 .term .c { color: #5d7392; }
 .term .t { color: var(--teal); }
+.rel-cta { padding: 2px 20px 22px; margin-top: auto; }
+.rel-cta .btn { width: 100%; justify-content: center; font-size: 14.5px; }
 
 /* metrics strip */
 .metrics { padding: 0 0 76px; }
 .metrics .strip {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
 }
-.metrics .cell { padding: 26px 24px; border-left: 1px solid var(--line); }
+.metrics .cell { padding: 26px 24px; border-left: 1px solid var(--line); min-width: 0; }
 .metrics .cell:first-child { border-left: 0; }
-.metrics .cell b { display: block; font-family: var(--mono); font-size: 13px; color: var(--blue); }
+.metrics .cell b {
+  display: block; font-family: var(--mono); font-size: 13px; color: var(--blue);
+  overflow-wrap: anywhere; /* long metric names must wrap, not widen the page */
+}
 .metrics .cell span { font-size: 13px; color: var(--muted); }
 
 /* footer */
@@ -316,15 +323,26 @@ footer .right { margin-left: auto; }
   .hero .wrap { grid-template-columns: 1fr; gap: 44px; }
   .hero .dashes { display: none; }
   .flow, .grid, .deploy-cols { grid-template-columns: 1fr; }
-  .metrics .strip { grid-template-columns: 1fr 1fr; }
+  .metrics .strip { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .metrics .cell:nth-child(3) { border-left: 0; }
   .metrics .cell { border-top: 1px solid var(--line); }
   .metrics .cell:nth-child(-n+2) { border-top: 0; }
-  .docs-layout { grid-template-columns: 1fr; }
+  .docs-layout { grid-template-columns: 1fr; gap: 24px; padding: 32px 0 70px; }
   .docs-nav { position: static; display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .docs-nav .h { width: 100%; }
   .docs-nav a { border-left: 0; padding-left: 0; }
+  /* wide reference tables scroll inside their own box instead of the page */
+  .docs-body table { display: block; max-width: 100%; overflow-x: auto; }
   .site-head nav a:not(.gh):not(.keep) { display: none; }
+}
+@media (max-width: 560px) {
+  .wrap { padding: 0 16px; }
+  section { padding: 56px 0; }
+  .metrics .strip { grid-template-columns: 1fr; }
+  .metrics .cell, .metrics .cell:nth-child(3) { border-left: 0; border-top: 1px solid var(--line); }
+  .metrics .cell:first-child { border-top: 0; }
+  .docs-body h1 { font-size: 30px; }
+  .docs-body h2 { font-size: 21px; margin-top: 40px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .dashes span, .mock-fetch i, .mock-progress, .mock-batch .bar i::after { animation: none; }
