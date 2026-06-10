@@ -21,7 +21,7 @@ def _location(file_path: str) -> str:
     p = Path(file_path).resolve().as_posix()
     if not p.startswith("/"):
         p = "/" + p  # Windows drive paths: C:/x -> /C:/x
-    return "file://localhost" + quote(p, safe="/:()&'!$+,;=@~._- ")
+    return "file://localhost" + quote(p, safe="/:()&'!$+,;=@~._-")
 
 
 def _empty_doc() -> ET.ElementTree:

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docs — GetSetMix</title>
+<meta name="description" content="Install, configure and run GetSetMix: Docker Compose, Kubernetes, local mode, Rekordbox integration, configuration reference, API and metrics.">
+<link rel="icon" href="assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@1,900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <img src="assets/icon.png" alt="">
+      <b>getset<i>mix</i></b>
+    </a>
+    <nav>
+      <a class="keep" href="./">Home</a>
+      <a class="gh" href="https://github.com/YOUR_USER/getsetmix">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+  <nav class="docs-nav" aria-label="Documentation">
+    <span class="h">Run it</span>
+    <a href="#quickstart">Docker Compose</a>
+    <a href="#kubernetes">Kubernetes</a>
+    <a href="#local">Local app mode</a>
+    <span class="h">Use it</span>
+    <a href="#workflow">Daily workflow</a>
+    <a href="#rekordbox">Rekordbox setup</a>
+    <a href="#templates">Filename templates</a>
+    <span class="h">Reference</span>
+    <a href="#config">Configuration</a>
+    <a href="#auth">Authentication</a>
+    <a href="#api">API</a>
+    <a href="#metrics">Metrics</a>
+  </nav>
+
+  <main class="docs-body">
+    <h1>Documentation</h1>
+    <p>GetSetMix is a single-container FastAPI service with a vanilla-JS UI. State lives in SQLite under the data directory; downloads land directly in your music library; finished tracks are appended to a <code>rekordbox.xml</code> you import once in Rekordbox.</p>
+    <p class="note">Use GetSetMix only for content you have the rights to download.</p>
+
+    <h2 id="quickstart">Docker Compose</h2>
+<pre># deploy/docker-compose.yml — edit the music path first
+services:
+  getsetmix:
+    image: ghcr.io/YOUR_USER/getsetmix:latest
+    ports: ["8765:8765"]
+    volumes:
+      - getsetmix-data:/data
+      - /path/to/your/music:/music
+    environment:
+      GSM_LANGUAGE: it            # or en
+      # GSM_AUTH_TOKEN: change-me # enable if exposed
+volumes:
+  getsetmix-data:</pre>
+<pre>docker compose -f deploy/docker-compose.yml up -d
+# open http://localhost:8765</pre>
+    <p>The image bundles ffmpeg and runs as a single process well under 1&nbsp;GB of RAM. <code>/data</code> holds the SQLite database, config, covers and the default XML; <code>/music</code> is your library root — files are written straight into it.</p>
+
+    <h2 id="kubernetes">Kubernetes</h2>
+    <p>Plain manifests live in <code>deploy/k8s/getsetmix.yaml</code>: a namespace, a ConfigMap, PVCs for data and music, a Deployment with liveness/readiness probes and Prometheus scrape annotations, and a Service. An Ingress example is included commented out.</p>
+<pre>kubectl apply -f deploy/k8s/getsetmix.yaml
+kubectl -n getsetmix get pods</pre>
+    <ul>
+      <li><code>replicas: 1</code> with <code>strategy: Recreate</code> is intentional — state is SQLite on a PVC, so never scale this Deployment.</li>
+      <li>Replace the <code>music</code> PVC with <code>hostPath</code> or NFS if your library already exists on a node or NAS.</li>
+      <li>Images are published multi-arch (amd64 + arm64) to GHCR by the release workflow, so it runs on a Pi-based cluster too.</li>
+    </ul>
+
+    <h2 id="local">Local app mode</h2>
+    <p>For a laptop next to your controller — starts the server and opens the browser, like a desktop app:</p>
+<pre>pip install -r requirements.txt
+# ffmpeg must be on PATH:
+#   Linux: apt install ffmpeg · macOS: brew install ffmpeg · Windows: winget install ffmpeg
+python run_local.py             # opens http://127.0.0.1:8765
+python run_local.py --port 9000 --no-browser</pre>
+
+    <h2 id="workflow">Daily workflow</h2>
+    <ol>
+      <li><b>Incolla link</b> — the URL on your clipboard is added. Playlists fan out into one editable row per entry; duplicates of URLs you've already ingested are flagged.</li>
+      <li>Rows resolve metadata in the background. Fix <b>title</b> and <b>artist</b> (both required), pick a <b>genre</b> from the DJ-oriented list, optionally set album. The camera button on the artwork opens cover search and upload.</li>
+      <li><b>Scarica</b> starts the batch. The <b>×N</b> selector next to it overrides download parallelism for this batch only (the global default is 2). Edits lock once a track is queued.</li>
+      <li>Watch per-track states and the batch bar. <b>Annulla scaricamento</b> stops in-flight tracks and returns them to staged. A failed track shows its error and a retry button — the rest of the batch continues.</li>
+      <li>When tracks show <b>Finito</b>, refresh the rekordbox xml tree in Rekordbox and find them in the <b>Inbox</b> playlist.</li>
+    </ol>
+
+    <h2 id="rekordbox">Rekordbox setup</h2>
+    <p>One-time configuration in Rekordbox:</p>
+    <ol>
+      <li>Open <i>Preferences ▸ Advanced ▸ Database ▸ rekordbox xml</i> and point it at the XML path shown in GetSetMix settings (default <code>&lt;data&gt;/rekordbox/getsetmix.xml</code>).</li>
+      <li>In the sidebar, enable the <i>rekordbox xml</i> source (Preferences ▸ View ▸ Layout if hidden).</li>
+      <li>After each batch, right-click the xml tree and reload — new tracks appear in the configured playlist (default <b>Inbox</b>). Drag them into your collection from there.</li>
+    </ol>
+    <p class="note">Run the service where Rekordbox can see the same file paths the XML contains — e.g. sync the library folder with Nextcloud/Syncthing to your DJ machine, or mount it over SMB, keeping the same drive/path layout, or set the library root to a path that matches on both machines.</p>
+    <p>The writer is conservative: it appends with incrementing TrackIDs, writes atomically, and if the XML on disk is ever corrupt it backs it up as <code>*.corrupt.xml</code> and starts a fresh one rather than failing the batch.</p>
+
+    <h2 id="templates">Filename templates</h2>
+    <p>Set the template in Settings or via <code>GSM_FILENAME_TEMPLATE</code>. Available tokens:</p>
+    <table>
+      <tr><th>Token</th><th>Value</th></tr>
+      <tr><td><code>{title}</code></td><td>Track title (after your edits)</td></tr>
+      <tr><td><code>{artist}</code></td><td>Artist</td></tr>
+      <tr><td><code>{album}</code></td><td>Album, omitted when empty</td></tr>
+      <tr><td><code>{genre}</code></td><td>Genre, omitted when empty</td></tr>
+      <tr><td><code>{source}</code></td><td>Source site, e.g. <code>youtube</code></td></tr>
+      <tr><td><code>{id}</code></td><td>Source video/track ID</td></tr>
+    </table>
+    <p>Illegal filesystem characters are stripped, separators left behind by empty tokens are collapsed, and name collisions get a <code>(2)</code>-style suffix with a warning on the track.</p>
+
+    <h2 id="config">Configuration</h2>
+    <p>Everything is editable from the gear icon and persisted to <code>&lt;data&gt;/config.json</code>. Environment variables override on boot:</p>
+    <table>
+      <tr><th>Variable</th><th>Default</th><th>Purpose</th></tr>
+      <tr><td><code>GSM_DATA_DIR</code></td><td><code>./data</code> (<code>/data</code> in Docker)</td><td>SQLite DB, config, covers, default XML location</td></tr>
+      <tr><td><code>GSM_LIBRARY_ROOT</code></td><td><code>./music</code> (<code>/music</code>)</td><td>Downloads land directly here</td></tr>
+      <tr><td><code>GSM_XML_PATH</code></td><td><code>&lt;data&gt;/rekordbox/getsetmix.xml</code></td><td>Rekordbox XML path</td></tr>
+      <tr><td><code>GSM_PLAYLIST_NAME</code></td><td><code>Inbox</code></td><td>Target playlist inside the XML</td></tr>
+      <tr><td><code>GSM_OUTPUT_FORMAT</code></td><td><code>mp3</code></td><td><code>mp3</code> (320&nbsp;kbps) or <code>flac</code> — global only</td></tr>
+      <tr><td><code>GSM_CONCURRENCY</code></td><td><code>2</code></td><td>Global parallel-download default (1–8)</td></tr>
+      <tr><td><code>GSM_FILENAME_TEMPLATE</code></td><td><code>{artist} - {title}</code></td><td>See filename templates</td></tr>
+      <tr><td><code>GSM_LANGUAGE</code></td><td><code>it</code></td><td><code>it</code> or <code>en</code></td></tr>
+      <tr><td><code>GSM_AUTH_TOKEN</code></td><td><i>unset</i></td><td>Static token auth</td></tr>
+      <tr><td><code>GSM_BASIC_USER</code> / <code>GSM_BASIC_PASS</code></td><td><i>unset</i></td><td>HTTP Basic auth alternative</td></tr>
+    </table>
+
+    <h2 id="auth">Authentication</h2>
+    <p>GetSetMix is private by default — run it on your LAN or tailnet with no auth. If you expose it, set either a static token or Basic credentials. With auth enabled, the API and <code>/metrics</code> return <code>401</code> without credentials; the UI asks for the token once and keeps it in the browser.</p>
+<pre># any of these work with GSM_AUTH_TOKEN=sekret
+curl -H "X-Auth-Token: sekret"        http://host:8765/api/tracks
+curl -H "Authorization: Bearer sekret" http://host:8765/api/tracks
+curl "http://host:8765/metrics?token=sekret"   # for Prometheus scrape_configs</pre>
+
+    <h2 id="api">API</h2>
+    <table>
+      <tr><th>Endpoint</th><th>Purpose</th></tr>
+      <tr><td><code>POST /api/tracks {url}</code></td><td>Add a URL; playlists fan out. Returns created ids and a duplicate flag.</td></tr>
+      <tr><td><code>GET /api/tracks</code></td><td>All rows plus active download count and busy flag.</td></tr>
+      <tr><td><code>PATCH /api/tracks/{id}</code></td><td>Edit metadata — only while staged or after an error (409 once queued).</td></tr>
+      <tr><td><code>DELETE /api/tracks/{id}</code></td><td>Remove a row.</td></tr>
+      <tr><td><code>POST /api/tracks/{id}/cover</code> · <code>GET …/cover</code></td><td>Upload / fetch the cover override.</td></tr>
+      <tr><td><code>GET /api/cover-search?q=</code></td><td>Cover candidates from the iTunes search API.</td></tr>
+      <tr><td><code>POST /api/tracks/{id}/retry</code></td><td>Re-queue a failed track.</td></tr>
+      <tr><td><code>POST /api/batch/start {ids?, concurrency?}</code></td><td>Start a batch; omit ids to take everything staged.</td></tr>
+      <tr><td><code>POST /api/batch/cancel</code></td><td>Cancel; in-flight tracks return to staged.</td></tr>
+      <tr><td><code>GET/PUT /api/settings</code></td><td>Read / update settings (validated).</td></tr>
+      <tr><td><code>GET /api/stats</code> · <code>GET /api/history</code> · <code>POST /api/purge</code></td><td>Counters, URL history, manual purge.</td></tr>
+      <tr><td><code>GET /healthz</code></td><td>Probe endpoint, always unauthenticated.</td></tr>
+    </table>
+
+    <h2 id="metrics">Metrics</h2>
+    <p><code>GET /metrics</code> serves Prometheus text format. The Kubernetes manifests already carry scrape annotations.</p>
+<pre>getsetmix_jobs{status="staged|queued|downloading|tagging|ingested|error|…"}
+getsetmix_active_downloads
+getsetmix_download_duration_seconds_sum / _count
+getsetmix_errors_total{source="youtube|soundcloud|…"}
+getsetmix_songs_downloaded{window="30d"|"365d"|"all"}
+getsetmix_healthy</pre>
+    <p>Handy Grafana starters: songs per month from <code>getsetmix_songs_downloaded</code>, error rate by source, and average download time from the duration sum/count pair.</p>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>GetSetMix — open source, MIT.</span>
+    <a href="./">Home</a>
+    <a href="https://github.com/YOUR_USER/getsetmix">GitHub</a>
+    <span class="right">Use it only for content you have the rights to download.</span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -289,6 +289,14 @@ async def get_settings():
 @app.put("/api/settings")
 async def put_settings(body: SettingsPatch):
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "output_format" in patch and patch["output_format"] not in ("mp3", "flac"):
+        raise HTTPException(400, "output_format must be 'mp3' or 'flac'")
+    if "language" in patch and patch["language"] not in ("it", "en"):
+        raise HTTPException(400, "language must be 'it' or 'en'")
+    if "concurrency" in patch and not 1 <= int(patch["concurrency"]) <= 8:
+        raise HTTPException(400, "concurrency must be between 1 and 8")
+    if "filename_template" in patch and not patch["filename_template"].strip():
+        raise HTTPException(400, "filename_template cannot be empty")
     settings.update(patch)
     ensure_dirs()
     return settings.data

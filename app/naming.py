@@ -23,7 +23,7 @@ def render_filename(template: str, meta: dict) -> str:
     for token in TOKENS:
         out = out.replace("{%s}" % token, sanitize_component(str(meta.get(token) or "")))
     # collapse separators left behind by empty tokens
-    out = re.sub(r"\s*[-–—_]\s*(?=[-–—_])", "", out)          # "- -" -> "-"
+    out = re.sub(r"\s*[-–—_]\s*(?=[-–—_])", " ", out)          # "- -" -> "-"
     out = re.sub(r"(\(\s*\)|\[\s*\]|\{\s*\})", "", out)        # empty brackets
     out = re.sub(r"\s{2,}", " ", out)
     out = out.strip(" -–—_.,")

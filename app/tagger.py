@@ -69,12 +69,16 @@ def _tag_mp3(path: str, meta: dict) -> None:
     if audio.tags is None:
         audio.add_tags()
     tags: ID3 = audio.tags  # type: ignore[assignment]
-    tags.delall("TIT2"); tags.add(TIT2(encoding=3, text=meta.get("title") or ""))
-    tags.delall("TPE1"); tags.add(TPE1(encoding=3, text=meta.get("artist") or ""))
+    tags.delall("TIT2")
+    tags.add(TIT2(encoding=3, text=meta.get("title") or ""))
+    tags.delall("TPE1")
+    tags.add(TPE1(encoding=3, text=meta.get("artist") or ""))
     if meta.get("album"):
-        tags.delall("TALB"); tags.add(TALB(encoding=3, text=meta["album"]))
+        tags.delall("TALB")
+        tags.add(TALB(encoding=3, text=meta["album"]))
     if meta.get("genre"):
-        tags.delall("TCON"); tags.add(TCON(encoding=3, text=meta["genre"]))
+        tags.delall("TCON")
+        tags.add(TCON(encoding=3, text=meta["genre"]))
     tags.delall("COMM")
     tags.add(COMM(encoding=3, lang="eng", desc="", text=comment_text(meta)))
     cover = load_cover(meta)

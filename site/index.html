@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GetSetMix — self-hosted DJ ingestion for your homelab</title>
+<meta name="description" content="Paste a link, fix the tags, and land tracks straight in your Rekordbox library. Self-hosted, Kubernetes-ready, under 1 GB of RAM.">
+<link rel="icon" href="assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@1,900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <img src="assets/icon.png" alt="">
+      <b>getset<i>mix</i></b>
+    </a>
+    <nav>
+      <a href="#flow">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#deploy">Deploy</a>
+      <a class="keep" href="docs.html">Docs</a>
+      <a class="gh" href="https://github.com/YOUR_USER/getsetmix">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="dashes" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="wrap">
+    <div>
+      <h1>From link to<br>the <span class="t">DJ booth.</span></h1>
+      <p class="lead">GetSetMix is a self-hosted ingestion service for DJs. Paste a track or a whole set, fix the tags while it fetches, and batch-download straight into your Rekordbox library — tagged, covered, playlisted.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="docs.html">Get started</a>
+        <a class="btn ghost" href="https://github.com/YOUR_USER/getsetmix">Source on GitHub</a>
+      </div>
+      <code class="pull">docker run -p 8765:8765 ghcr.io/YOUR_USER/getsetmix:latest</code>
+    </div>
+
+    <div class="mock" role="img" aria-label="The GetSetMix track list with one finished track, one downloading and one still fetching metadata">
+      <div class="mock-bar">
+        <img src="assets/icon.png" alt="">
+        <span class="mb-btn">Incolla link</span>
+        <span class="mb-btn accent">Scarica ·2</span>
+      </div>
+      <div class="mock-row">
+        <div class="mock-thumb t3" data-dur="6:42"></div>
+        <div class="mock-meta">
+          <div class="t">Voices In My Head (Extended Mix)</div>
+          <div class="a">KREAM</div>
+        </div>
+        <div class="mock-state done">✓ Finito</div>
+      </div>
+      <div class="mock-row">
+        <div class="mock-thumb t2" data-dur="7:15"></div>
+        <div class="mock-meta">
+          <div class="t">Lose My Mind</div>
+          <div class="a">Dom Dolla &amp; MK</div>
+        </div>
+        <div class="mock-state dl">Elaborazione 64%</div>
+        <div class="mock-progress"></div>
+      </div>
+      <div class="mock-row">
+        <div class="mock-thumb" data-dur="–:––"></div>
+        <div class="mock-meta">
+          <div class="t" style="color:var(--muted)">Reperimento info…</div>
+          <div class="a">youtube.com/watch?v=…</div>
+        </div>
+        <div class="mock-state"><span class="mock-fetch" aria-hidden="true"><i></i><i></i><i></i></span></div>
+      </div>
+      <div class="mock-row">
+        <div class="mock-thumb t2" data-dur="5:58"></div>
+        <div class="mock-meta">
+          <div class="t">San Frandisco</div>
+          <div class="a">Dom Dolla</div>
+        </div>
+        <div class="mock-state"><span class="chip">In coda</span></div>
+      </div>
+      <div class="mock-batch">
+        <span>Batch</span>
+        <div class="bar"><i></i></div>
+        <span>2 / 3</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="flow">
+  <div class="wrap">
+    <span class="eyebrow">The flow</span>
+    <h2>Paste. Review. Ingest.</h2>
+    <p class="sub">Built around how DJs actually collect music: grab links during the week, clean the metadata once, and find everything waiting in an Inbox playlist at the next session.</p>
+    <div class="flow">
+      <div class="step">
+        <span class="k">01 · paste</span>
+        <h3>Drop a link, or a whole playlist</h3>
+        <p>Single videos and full playlists fan out into individual rows. The server fetches title, artist, duration and artwork while you keep pasting.</p>
+      </div>
+      <div class="step">
+        <span class="k">02 · review</span>
+        <h3>Fix tags before they touch disk</h3>
+        <p>Edit title and artist inline, pick the genre from a DJ-oriented list, swap the cover via search or upload. Nothing downloads until you say so.</p>
+      </div>
+      <div class="step">
+        <span class="k">03 · ingest</span>
+        <h3>Batch-download into Rekordbox</h3>
+        <p>Parallel downloads to MP3 320 or FLAC, ID3 tags and embedded artwork, filenames from your template, and an entry in your rekordbox.xml Inbox.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="wrap">
+    <span class="eyebrow">Why GetSetMix</span>
+    <h2>Homelab-grade, DJ-shaped.</h2>
+    <p class="sub">A single small container that does one job well, designed to live in a Kubernetes cluster or on the laptop next to your controller.</p>
+    <div class="grid">
+      <div class="feat"><h3>Rekordbox XML built in</h3><p>Every finished track is appended to your rekordbox.xml and an Inbox playlist. Reload the XML source in Rekordbox and play.</p></div>
+      <div class="feat"><h3>Proper tagging</h3><p>ID3v2.4 or FLAC Vorbis comments: title, artist, album, genre, embedded cover, and the source URL kept in the comment field.</p></div>
+      <div class="feat"><h3>Batches that don't break</h3><p>Per-track states, overall progress, cancel anytime. A failed track never halts the batch — retry it on its own.</p></div>
+      <div class="feat"><h3>Filename templates</h3><p>{artist} - {title} or anything you like, sanitized for every filesystem, with collision-safe suffixes.</p></div>
+      <div class="feat"><h3>Kubernetes first-class</h3><p>Plain manifests with PVCs, probes and Prometheus annotations. Multi-arch images (amd64 + arm64) published to GHCR.</p></div>
+      <div class="feat"><h3>Private by default</h3><p>Runs on your network for you alone. Optional token or Basic auth when you expose it, full Prometheus metrics either way.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="deploy">
+  <div class="wrap">
+    <span class="eyebrow">Deploy</span>
+    <h2>Three ways to run it.</h2>
+    <p class="sub">Same service, same UI everywhere — pick what fits your setup.</p>
+    <div class="deploy-cols">
+      <div class="deploy-card">
+        <h3>Docker Compose</h3>
+        <p>The two-minute start for any box with Docker.</p>
+<pre class="term"><span class="c"># point /music at your library</span>
+docker compose \
+  -f deploy/docker-compose.yml \
+  up -d --build</pre>
+      </div>
+      <div class="deploy-card">
+        <h3>Kubernetes</h3>
+        <p>Plain manifests: namespace, PVCs, probes, metrics annotations.</p>
+<pre class="term">kubectl apply \
+  -f deploy/k8s/getsetmix.yaml
+<span class="c"># image from GHCR, amd64+arm64</span></pre>
+      </div>
+      <div class="deploy-card">
+        <h3>Local app mode</h3>
+        <p>Not always-on: launches and opens your browser like a desktop app.</p>
+<pre class="term">pip install -r requirements.txt
+python run_local.py
+<span class="t">→ http://127.0.0.1:8765</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="metrics">
+  <div class="wrap">
+    <div class="strip">
+      <div class="cell"><b>getsetmix_jobs</b><span>per-status job counts</span></div>
+      <div class="cell"><b>getsetmix_songs_downloaded</b><span>30 days · 365 days · all time</span></div>
+      <div class="cell"><b>getsetmix_errors_total</b><span>failures broken down by source</span></div>
+      <div class="cell"><b>getsetmix_healthy</b><span>for your Grafana green dot</span></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>GetSetMix — open source, MIT.</span>
+    <a href="docs.html">Documentation</a>
+    <a href="https://github.com/YOUR_USER/getsetmix">GitHub</a>
+    <span class="right">Use it only for content you have the rights to download.</span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,5 +1,10 @@
 # GetSetMix
 
+[![CI](https://github.com/YOUR_USER/getsetmix/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USER/getsetmix/actions/workflows/ci.yml)
+[![Publish image](https://github.com/YOUR_USER/getsetmix/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/YOUR_USER/getsetmix/actions/workflows/docker-publish.yml)
+[![Deploy site](https://github.com/YOUR_USER/getsetmix/actions/workflows/pages.yml/badge.svg)](https://github.com/YOUR_USER/getsetmix/actions/workflows/pages.yml)
+
+
 Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or playlist), review and edit the metadata, batch-download to MP3 320 kbps or FLAC, auto-tag with cover art, and ingest straight into your Rekordbox library via XML — all from a fast, MediaHuman-inspired web UI.
 
 ![GetSetMix](app/static/assets/logo.png)
@@ -119,6 +124,37 @@ getsetmix_healthy
 
 `GET /healthz` returns `ok` for probes.
 
+## Development, CI/CD & releases
+
+```bash
+pip install -r requirements.txt pytest httpx ruff
+python -m pytest tests/ -v     # unit + API tests (no network needed)
+ruff check app tests run_local.py
+```
+
+Three GitHub Actions workflows ship with the repo (`.github/workflows/`):
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `ci.yml` | push to `main`, every PR | ruff lint, pytest suite (with ffmpeg), and a no-push Docker build as a PR safety net |
+| `docker-publish.yml` | push to `main`, tags `v*.*.*` | builds the image for **linux/amd64 + linux/arm64** and pushes to **GHCR** with smart tags: `latest` + `main` on main; `1.2.3`, `1.2`, `1` and the commit SHA on a `v1.2.3` tag |
+| `pages.yml` | push to `main` touching `site/**` | deploys the landing + docs site in `site/` to **GitHub Pages** |
+
+One-time setup after pushing to GitHub:
+
+1. Replace `YOUR_USER` with your GitHub username in `deploy/k8s/getsetmix.yaml`, `site/*.html`, and this README (`grep -rl YOUR_USER .`).
+2. **Settings ▸ Pages ▸ Source: GitHub Actions** to enable the site.
+3. After the first publish, **Packages ▸ getsetmix ▸ Package settings ▸ Change visibility** if you want the image public (no `imagePullSecrets` needed in K8s).
+
+Releasing is just a tag:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+# → ghcr.io/YOUR_USER/getsetmix:1.0.0 (+ :1.0, :1, :latest)
+```
+
+The website lives in `site/` — a static landing page (`index.html`) and documentation (`docs.html`), no build step. Edit and push; the workflow handles the rest.
+
 ## Project layout
 
 ```
@@ -136,6 +172,9 @@ app/
 deploy/
   docker-compose.yml
   k8s/getsetmix.yaml
+site/            # landing + docs, deployed to GitHub Pages
+tests/           # pytest suite run by CI
+.github/workflows/   # ci.yml · docker-publish.yml · pages.yml
 run_local.py     # local app mode
 ```
 
