@@ -1,8 +1,8 @@
 # GetSetMix
 
-[![CI](https://github.com/YOUR_USER/getsetmix/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USER/getsetmix/actions/workflows/ci.yml)
-[![Publish image](https://github.com/YOUR_USER/getsetmix/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/YOUR_USER/getsetmix/actions/workflows/docker-publish.yml)
-[![Deploy site](https://github.com/YOUR_USER/getsetmix/actions/workflows/pages.yml/badge.svg)](https://github.com/YOUR_USER/getsetmix/actions/workflows/pages.yml)
+[![CI](https://github.com/Fre0Grella/getsetmix/actions/workflows/ci.yml/badge.svg)](https://github.com/Fre0Grella/getsetmix/actions/workflows/ci.yml)
+[![Publish image](https://github.com/Fre0Grella/getsetmix/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Fre0Grella/getsetmix/actions/workflows/docker-publish.yml)
+[![Deploy site](https://github.com/Fre0Grella/getsetmix/actions/workflows/pages.yml/badge.svg)](https://github.com/Fre0Grella/getsetmix/actions/workflows/pages.yml)
 
 
 Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or playlist), review and edit the metadata, batch-download to MP3 320 kbps or FLAC, auto-tag with cover art, and ingest straight into your Rekordbox library via XML — all from a fast, MediaHuman-inspired web UI.
@@ -55,8 +55,8 @@ Plain manifests live in `deploy/k8s/getsetmix.yaml` (Namespace, ConfigMap, PVCs 
 
 ```bash
 # 1. build & push the image, then point the Deployment at it
-docker build -t ghcr.io/YOUR_USER/getsetmix:latest .
-docker push ghcr.io/YOUR_USER/getsetmix:latest
+docker build -t ghcr.io/Fre0Grella/getsetmix:latest .
+docker push ghcr.io/Fre0Grella/getsetmix:latest
 
 # 2. apply
 kubectl apply -f deploy/k8s/getsetmix.yaml
@@ -142,7 +142,7 @@ Three GitHub Actions workflows ship with the repo (`.github/workflows/`):
 
 One-time setup after pushing to GitHub:
 
-1. Replace `YOUR_USER` with your GitHub username in `deploy/k8s/getsetmix.yaml`, `site/*.html`, and this README (`grep -rl YOUR_USER .`).
+1. Replace `Fre0Grella` with your GitHub username in `deploy/k8s/getsetmix.yaml`, `site/*.html`, and this README (`grep -rl Fre0Grella .`).
 2. **Settings ▸ Pages ▸ Source: GitHub Actions** to enable the site.
 3. After the first publish, **Packages ▸ getsetmix ▸ Package settings ▸ Change visibility** if you want the image public (no `imagePullSecrets` needed in K8s).
 
@@ -150,7 +150,7 @@ Releasing is just a tag:
 
 ```bash
 git tag v1.0.0 && git push origin v1.0.0
-# → ghcr.io/YOUR_USER/getsetmix:1.0.0 (+ :1.0, :1, :latest)
+# → ghcr.io/Fre0Grella/getsetmix:1.0.0 (+ :1.0, :1, :latest)
 ```
 
 The website lives in `site/` — a static landing page (`index.html`) and documentation (`docs.html`), no build step. Edit and push; the workflow handles the rest.

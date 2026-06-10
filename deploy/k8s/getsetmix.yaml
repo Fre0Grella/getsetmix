@@ -65,7 +65,7 @@ spec:
     spec:
       containers:
         - name: getsetmix
-          image: ghcr.io/YOUR_USER/getsetmix:latest   # or your registry
+          image: ghcr.io/Fre0Grella/getsetmix:latest   # or your registry
           ports:
             - containerPort: 8765
           envFrom:
