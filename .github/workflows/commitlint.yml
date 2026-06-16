@@ -25,4 +25,4 @@ jobs:
       - name: Validate commit messages
         uses: wagoid/commitlint-github-action@v6
         with:
-          configFile: commitlint.config.js
+          configFile: commitlint.config.mjs
