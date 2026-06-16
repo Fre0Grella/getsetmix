@@ -106,13 +106,23 @@ spec:
   # type: LoadBalancer   # or keep ClusterIP + Ingress below
 ---
 # Optional Ingress — uncomment and adapt if you expose it on a domain.
-# Remember to set GSM_AUTH_TOKEN or Basic Auth when leaving the LAN.
+# HTTPS is REQUIRED for the "Share to GetSetMix" Android feature: the Web Share
+# Target only works once the site is installed as a PWA, which browsers allow
+# only over a secure (TLS) origin. The tls: block below terminates HTTPS via
+# cert-manager; drop the annotation and supply your own secret if you issue
+# certs another way. Remember to set GSM_AUTH_TOKEN or Basic Auth when leaving
+# the LAN.
 # apiVersion: networking.k8s.io/v1
 # kind: Ingress
 # metadata:
 #   name: getsetmix
 #   namespace: getsetmix
+#   annotations:
+#     cert-manager.io/cluster-issuer: letsencrypt-prod   # or your issuer
 # spec:
+#   tls:
+#     - hosts: [getsetmix.your.lab]
+#       secretName: getsetmix-tls                          # cert-manager fills this
 #   rules:
 #     - host: getsetmix.your.lab
 #       http:

@@ -99,6 +99,12 @@ body {
   position: relative; overflow: hidden;
 }
 .track.is-selected { background: var(--selected); border-color: #bcd6f5; }
+/* shared/just-added row flashes once so you can spot it after a share-in */
+.track--new { animation: track-flash 1.6s ease-out; }
+@keyframes track-flash {
+  0%   { box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 70%, transparent); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
 .track.is-error { border-color: color-mix(in srgb, var(--red) 45%, var(--row-line)); }
 .track.is-dup { border-color: color-mix(in srgb, var(--amber) 55%, var(--row-line)); }
 .dup-badge {

@@ -97,6 +97,7 @@ let batchTotal = 0;
 let settingsCache = {};
 let coverTrackId = null;
 let pollTimer = null;
+let highlightId = null; // newly added (e.g. shared) track to scroll to + flash
 const dirtyFields = new Set(); // "id:field" being edited right now
 
 // ------------------------------------------------------------------ fetch
@@ -254,6 +255,16 @@ function render() {
     if (el) { el.focus(); try { el.setSelectionRange(focusPos, focusPos); } catch { /* noop */ } }
   }
 
+  if (highlightId) {
+    const row = list.querySelector(`.track[data-id="${highlightId}"]`);
+    if (row) {
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.classList.add("track--new");
+      row.addEventListener("animationend", () => row.classList.remove("track--new"), { once: true });
+      highlightId = null; // one-shot once the row exists
+    }
+  }
+
   // toolbar
   const staged = tracks.filter((t) => t.status === "staged").length;
   const badge = $("#stagedCount");
@@ -326,17 +337,35 @@ function toast(msg) {
   toast._t = setTimeout(() => el.classList.add("hidden"), 2600);
 }
 
+async function addUrl(url) {
+  if (!/^https?:\/\//i.test(url)) { toast(T.notUrl); return null; }
+  try {
+    const res = await api("/api/tracks", { method: "POST", body: JSON.stringify({ url }) });
+    if (res.duplicate) toast(T.duplicate);
+    if (res.ids && res.ids.length) highlightId = res.ids[0];
+    schedulePoll(150);
+    return res;
+  } catch (e) { toast(e.message); return null; }
+}
+
 async function pasteLink() {
   let text = "";
   try { text = (await navigator.clipboard.readText()).trim(); } catch { /* blocked */ }
   if (!text) text = (prompt(T.clipboardFail) || "").trim();
   if (!text) return;
-  if (!/^https?:\/\//i.test(text)) { toast(T.notUrl); return; }
-  try {
-    const res = await api("/api/tracks", { method: "POST", body: JSON.stringify({ url: text }) });
-    if (res.duplicate) toast(T.duplicate);
-    schedulePoll(150);
-  } catch (e) { toast(e.message); }
+  await addUrl(text);
+}
+
+// Web Share Target landing (/share?…). Android share sheets from YouTube /
+// SoundCloud drop the link inside the text/title field rather than a bare url,
+// so pull the first http(s) URL out of whatever we were handed.
+async function consumeShare() {
+  if (location.pathname !== "/share") return;
+  const p = new URLSearchParams(location.search);
+  const blob = [p.get("url"), p.get("text"), p.get("title")].filter(Boolean).join(" ");
+  const match = blob.match(/https?:\/\/\S+/i);
+  history.replaceState({}, "", "/"); // strip params so a reload won't re-add
+  if (match) await addUrl(match[0]);
 }
 
 async function startBatch(ids = null, force = false) {
@@ -628,6 +657,10 @@ $("#btnSettings").addEventListener("click", openSettings);
 const dl = $("#genres");
 dl.innerHTML = GENRES.map((g) => `<option value="${g}">`).join("");
 
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => { /* PWA install optional */ });
+}
+
 (async function init() {
   try {
     const s = await api("/api/settings");
@@ -636,4 +669,5 @@ dl.innerHTML = GENRES.map((g) => `<option value="${g}">`).join("");
   } catch { applyLang("en"); }
   poll();
   refreshStats();
+  consumeShare();
 })();

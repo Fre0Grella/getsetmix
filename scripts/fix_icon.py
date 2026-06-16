@@ -8,6 +8,8 @@ Produces:
   - icon.png        transparent bg, dark figure  (for light surfaces)
   - icon-light.png  transparent bg, white figure (for dark surfaces)
   - favicon.ico     multi-size, from the dark variant
+  - icon-192.png    square maskable PWA icon (white figure on brand navy)
+  - icon-512.png    square maskable PWA icon (white figure on brand navy)
 """
 from collections import deque
 from pathlib import Path
@@ -21,6 +23,9 @@ INK_MIN = 5          # any channel above this = silhouette edge or teal art
 SEAL = 5             # MaxFilter size used to close gaps in the edge ring
 MIN_BLOB = 400       # noise components smaller than this are dropped
 NEUTRAL_SPREAD = 40  # max-min below this = grey/neutral pixel (the figure)
+
+BRAND_NAVY = (14, 23, 38, 255)   # --ink #0e1726; PWA icon/splash background
+PWA_SAFE = 0.66                  # figure occupies this fraction of the canvas
 
 
 def channel_max(im: Image.Image) -> Image.Image:
@@ -87,12 +92,27 @@ def build_variants(src: Path) -> tuple[Image.Image, Image.Image]:
     return dark, light
 
 
+def build_pwa_icon(light: Image.Image, size: int) -> Image.Image:
+    """Square maskable icon: the white figure centered on the brand navy, with
+    padding inside the maskable safe zone so launchers can crop the corners."""
+    canvas = Image.new("RGBA", (size, size), BRAND_NAVY)
+    fig = light.copy()
+    target = int(size * PWA_SAFE)
+    fig.thumbnail((target, target), Image.LANCZOS)
+    canvas.alpha_composite(fig, ((size - fig.width) // 2, (size - fig.height) // 2))
+    return canvas
+
+
 def main() -> None:
     dark, light = build_variants(ROOT / "app" / "static" / "assets" / "icon.png")
+    icon512 = build_pwa_icon(light, 512)
+    icon192 = build_pwa_icon(light, 192)
     for assets in TARGETS:
         dark.save(assets / "icon.png")
         light.save(assets / "icon-light.png")
         dark.save(assets / "favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)])
+        icon512.save(assets / "icon-512.png")
+        icon192.save(assets / "icon-192.png")
         print("updated", assets)
 
 

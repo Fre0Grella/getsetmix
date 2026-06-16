@@ -442,6 +442,26 @@ async def index():
     return FileResponse(STATIC / "index.html")
 
 
+@app.get("/share")
+async def share():
+    # Web Share Target landing (Android PWA). The shared link arrives in the
+    # query string; the SPA reads it on boot and stages the track. Same
+    # document as "/" so all the existing UI/edit/download flow applies.
+    return FileResponse(STATIC / "index.html")
+
+
+@app.get("/manifest.webmanifest")
+async def manifest():
+    return FileResponse(STATIC / "manifest.webmanifest",
+                        media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+async def service_worker():
+    # Served from the root so its scope covers the whole app.
+    return FileResponse(STATIC / "sw.js", media_type="application/javascript")
+
+
 @app.get("/favicon.ico")
 async def favicon():
     return FileResponse(STATIC / "assets" / "favicon.ico")

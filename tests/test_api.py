@@ -48,6 +48,26 @@ def test_index_served(client):
     assert r.status_code == 200 and "getsetmix" in r.text.lower()
 
 
+def test_manifest_served(client):
+    r = client.get("/manifest.webmanifest")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/manifest+json")
+    body = r.json()
+    assert body["share_target"]["action"] == "/share"
+
+
+def test_service_worker_served(client):
+    r = client.get("/sw.js")
+    assert r.status_code == 200
+    assert "javascript" in r.headers["content-type"]
+
+
+def test_share_serves_index(client):
+    # Web Share Target landing returns the SPA; the link is read client-side.
+    r = client.get("/share", params={"text": "https://youtu.be/dQw4w9WgXcQ"})
+    assert r.status_code == 200 and "getsetmix" in r.text.lower()
+
+
 def test_settings_roundtrip(client):
     r = client.put("/api/settings", json={"output_format": "flac", "concurrency": 3})
     assert r.status_code == 200

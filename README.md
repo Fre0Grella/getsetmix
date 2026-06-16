@@ -22,6 +22,7 @@ Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or 
 - **Rekordbox XML** — tracks appended to a configurable XML and an "Inbox" playlist (name configurable); reload the XML source in Rekordbox to see new tracks
 - **Collection-aware inbox** — optionally point GetSetMix at your full Rekordbox collection XML: before each batch, tracks you've already imported are purged from the inbox XML, so it only ever lists new songs
 - **Duplicate detection** — right after metadata is fetched, each track is checked against the inbox XML *and* your collection XML by source URL or by normalized/fuzzy title+artist (filename-independent, so changing the naming template still counts). Duplicates get an amber badge, and starting a batch with duplicates prompts you to download anyway or skip them
+- **Share to GetSetMix (Android)** — install the web UI as a PWA and it shows up in the Android share sheet, so you can share a link straight from the YouTube or SoundCloud app; the track lands staged and ready to review
 - **Persistence** — SQLite for tracks, URL history, and counters; manual purge from the UI
 - **Observability** — Prometheus `/metrics`: job counts by status, active downloads, download durations, errors by source, songs in last 30d / 365d / all time, health
 - **Private by default** — bind to localhost or your LAN; optional static-token or Basic Auth for public exposure
@@ -93,6 +94,19 @@ python run_local.py --port 9000 --no-browser
 In Rekordbox, point *Preferences ▸ Advanced ▸ Database ▸ rekordbox xml* at the XML path shown in Settings (default `<data>/rekordbox/getsetmix.xml`), then refresh the *rekordbox xml* tree in the sidebar after each batch.
 
 To keep the inbox tidy, export your full collection (*File ▸ Export Collection in xml format*) and set its path as **Rekordbox collection XML** in Settings (or `GSM_COLLECTION_XML_PATH`). Before each batch GetSetMix compares the inbox XML against the collection (by file location, falling back to title + artist) and removes the tracks you've already imported — the Inbox playlist only ever shows what's still missing from your collection.
+
+## Share to GetSetMix (Android)
+
+GetSetMix ships as an installable PWA with a [Web Share Target](https://developer.mozilla.org/en-US/docs/Web/Manifest/share_target), so you can push a link into it straight from the YouTube or SoundCloud share sheet instead of copy-pasting.
+
+1. **Expose the instance over HTTPS.** Browsers only let a site install (and register a share target) from a secure origin. The simplest route is the Kubernetes deployment behind a TLS Ingress — uncomment and adapt the Ingress block in `deploy/k8s/getsetmix.yaml` (it includes a cert-manager `tls:` example). Any HTTPS reverse proxy works too.
+2. **Install it.** Open the HTTPS URL in **Chrome/Edge on your Android phone** → menu → **Install app / Add to Home screen**.
+3. **Share.** In the YouTube or SoundCloud app, tap **Share → GetSetMix**. The app opens, the link is fetched, and the track appears staged in the list — edit metadata and hit **Download** as usual.
+
+Notes:
+
+- **Android only.** iOS Safari doesn't implement the Web Share Target API, so GetSetMix can't appear in the iPhone share sheet (paste-link still works).
+- If you've enabled `GSM_AUTH_TOKEN` / Basic Auth, open the installed app and authenticate once first — the token is stored in the browser and reused when you share.
 
 ## Configuration
 
