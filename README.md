@@ -180,6 +180,17 @@ One-time setup after pushing to GitHub:
 2. **Settings ▸ Pages ▸ Source: GitHub Actions** to enable the site.
 3. After the first publish, **Packages ▸ getsetmix ▸ Package settings ▸ Change visibility** if you want the image public (no `imagePullSecrets` needed in K8s).
 4. *(optional)* **Settings ▸ Branches** → protect `main` and require the **Commit lint** check so only Conventional Commits can land.
+5. **If `main` requires signed commits**, give the release bot a signing key so its version-bump commit is accepted (run once, locally, with `gh` authenticated):
+
+   ```bash
+   ssh-keygen -t ed25519 -C "getsetmix-release-bot" -f gsm_release_key -N ""
+   gh ssh-key add gsm_release_key.pub --type signing --title "getsetmix release bot"
+   gh secret set SSH_SIGNING_PRIVATE_KEY < gsm_release_key
+   gh secret set SSH_SIGNING_PUBLIC_KEY  < gsm_release_key.pub
+   rm gsm_release_key gsm_release_key.pub   # the keys now live in GitHub
+   ```
+
+   Set `git_committer_email` in `release.yml` to a verified email on the account that owns the signing key so the bot's commits show as **Verified**.
 
 Releasing is automatic — just merge Conventional Commits to `main`:
 

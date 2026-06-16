@@ -35,6 +35,14 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           build: "false"
+          # main requires signed commits (branch protection), so the bot's
+          # version-bump commit is SSH-signed with a key registered on the
+          # repo owner's account. Committer email must be a verified email on
+          # that account for the commit to show as "Verified".
+          git_committer_name: "Marco Galeri"
+          git_committer_email: "marcogaleri2002@gmail.com"
+          ssh_public_signing_key: ${{ secrets.SSH_SIGNING_PUBLIC_KEY }}
+          ssh_private_signing_key: ${{ secrets.SSH_SIGNING_PRIVATE_KEY }}
 
   executables:
     needs: release
