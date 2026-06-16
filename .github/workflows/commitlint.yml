@@ -1,0 +1,28 @@
+name: Commit lint
+
+# Make Conventional Commits mandatory: validate every commit message on pull
+# requests and on pushes to main. Automated semantic versioning depends on this
+# format, so a non-conforming message fails the build. To hard-block bad commits
+# from ever reaching main, enable branch protection on main and require this
+# check (Settings -> Branches -> Branch protection rules).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need history to validate the pushed commit range
+
+      - name: Validate commit messages
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: commitlint.config.js

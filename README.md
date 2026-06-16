@@ -146,18 +146,32 @@ getsetmix_healthy
 ## Development, CI/CD & releases
 
 ```bash
-pip install -r requirements.txt pytest httpx ruff
+pip install -r requirements.txt pytest httpx ruff pre-commit
 python -m pytest tests/ -v     # unit + API tests (no network needed)
 ruff check app tests run_local.py
+pre-commit install --hook-type commit-msg --hook-type pre-commit   # local guard rails
 ```
 
-Four GitHub Actions workflows ship with the repo (`.github/workflows/`):
+### Conventional Commits are mandatory
+
+Commit messages **must** follow [Conventional Commits](https://www.conventionalcommits.org/) — versioning is fully automated from them, so a non-conforming message fails CI:
+
+| Commit | Example | Version bump |
+|---|---|---|
+| `fix:` | `fix: stop crash on empty playlist` | patch — `1.0.0 → 1.0.1` |
+| `feat:` | `feat: share target for YouTube` | minor — `1.0.0 → 1.1.0` |
+| `feat!:` / `BREAKING CHANGE:` footer | `feat!: drop Python 3.10` | major — `1.0.0 → 2.0.0` |
+
+Other types (`chore`, `docs`, `ci`, `refactor`, `test`, …) are valid and release nothing on their own. The local `commit-msg` hook (from `pre-commit install` above) and the `commitlint.yml` workflow both enforce the format; to hard-block bad commits, enable branch protection on `main` and require the **Commit lint** check.
+
+### CI/CD workflows (`.github/workflows/`)
 
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `ci.yml` | push to `main`, every PR | ruff lint, pytest suite (with ffmpeg), and a no-push Docker build as a PR safety net |
-| `docker-publish.yml` | push to `main`, tags `v*.*.*` | builds the image for **linux/amd64 + linux/arm64** and pushes to **GHCR** with smart tags: `latest` + `main` on main; `1.2.3`, `1.2`, `1` and the commit SHA on a `v1.2.3` tag |
-| `release.yml` | tags `v*.*.*` | builds standalone **local-app executables** (Windows / macOS / Linux, PyInstaller) and attaches them to the GitHub Release |
+| `commitlint.yml` | push to `main`, every PR | validates commit messages against Conventional Commits |
+| `docker-publish.yml` | push to `main` | builds the image for **linux/amd64 + linux/arm64** and pushes to **GHCR** as `latest`, `main`, and the commit SHA |
+| `release.yml` | push to `main` | **automated semantic versioning**: bumps the version from the commits, tags `vX.Y.Z`, creates the GitHub Release, builds the standalone executables (Windows / macOS / Linux, PyInstaller) and the immutable versioned images (`:1.2.3`, `:1.2`, `:1`) |
 | `pages.yml` | push to `main` touching `site/**` | deploys the landing + docs site in `site/` to **GitHub Pages** |
 
 One-time setup after pushing to GitHub:
@@ -165,13 +179,14 @@ One-time setup after pushing to GitHub:
 1. Replace `Fre0Grella` with your GitHub username in `deploy/k8s/getsetmix.yaml`, `site/*.html`, and this README (`grep -rl Fre0Grella .`).
 2. **Settings ▸ Pages ▸ Source: GitHub Actions** to enable the site.
 3. After the first publish, **Packages ▸ getsetmix ▸ Package settings ▸ Change visibility** if you want the image public (no `imagePullSecrets` needed in K8s).
+4. *(optional)* **Settings ▸ Branches** → protect `main` and require the **Commit lint** check so only Conventional Commits can land.
 
-Releasing is just a tag:
+Releasing is automatic — just merge Conventional Commits to `main`:
 
-```bash
-git tag v1.0.0 && git push origin v1.0.0
-# → ghcr.io/Fre0Grella/getsetmix:1.0.0 (+ :1.0, :1, :latest)
-# → GitHub Release with getsetmix-windows-x64.exe / -macos-arm64 / -linux-x64
+```text
+feat: …  →  semantic-release tags v1.1.0, publishes the GitHub Release with
+            getsetmix-windows-x64.exe / -macos-arm64 / -linux-x64, and pushes
+            ghcr.io/Fre0Grella/getsetmix:1.1.0 (+ :1.1, :1)
 ```
 
 The website lives in `site/` — a static landing page (`index.html`) and documentation (`docs.html`), no build step. Edit and push; the workflow handles the rest.

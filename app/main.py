@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import metadata, metrics, rekordbox
+from . import __version__, metadata, metrics, rekordbox
 from .config import AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, ensure_dirs, settings
 from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
 from .worker import worker
@@ -23,7 +23,7 @@ from .worker import worker
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 log = logging.getLogger("getsetmix")
 
-app = FastAPI(title="GetSetMix", version="1.0.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="GetSetMix", version=__version__, docs_url=None, redoc_url=None)
 STATIC = Path(__file__).parent / "static"
 
 FETCH_CONCURRENCY = asyncio.Semaphore(2)

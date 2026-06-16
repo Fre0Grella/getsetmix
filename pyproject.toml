@@ -1,0 +1,23 @@
+[project]
+name = "getsetmix"
+version = "1.1.1"
+description = "Self-hosted DJ ingestion service for your homelab."
+requires-python = ">=3.11"
+
+# --------------------------------------------------------------------------
+# python-semantic-release: version is derived from Conventional Commits on main.
+#   fix:              -> patch   (1.0.0 -> 1.0.1)
+#   feat:             -> minor   (1.0.0 -> 1.1.0)
+#   feat!/BREAKING    -> major   (1.0.0 -> 2.0.0)
+# It bumps the version below + app/__init__.py, commits, tags vX.Y.Z, and
+# creates the GitHub Release. See .github/workflows/release.yml.
+# --------------------------------------------------------------------------
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+version_variables = ["app/__init__.py:__version__"]
+commit_message = "chore(release): {version} [skip ci]"
+tag_format = "v{version}"
+build_command = ""
+
+[tool.semantic_release.branches.main]
+match = "main"

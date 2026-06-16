@@ -48,6 +48,16 @@ def test_index_served(client):
     assert r.status_code == 200 and "getsetmix" in r.text.lower()
 
 
+def test_app_version_is_semver(client):
+    # The FastAPI version is wired to app.__version__, which semantic-release
+    # bumps; guard that the wiring yields a valid X.Y.Z string.
+    import re
+
+    import app
+    assert re.fullmatch(r"\d+\.\d+\.\d+", app.__version__)
+    assert client.app.version == app.__version__
+
+
 def test_manifest_served(client):
     r = client.get("/manifest.webmanifest")
     assert r.status_code == 200

@@ -1,9 +1,12 @@
 name: Publish image
 
+# Rolling images for the main branch. Versioned, immutable image tags
+# (:1.2.3, :1.2, :1) are built by the Release workflow on each semantic-release
+# tag — see .github/workflows/release.yml.
+
 on:
   push:
     branches: [main]
-    tags: ["v*.*.*"]
 
 env:
   REGISTRY: ghcr.io
@@ -37,10 +40,6 @@ jobs:
             # main -> :latest and :main
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
-            # v1.2.3 -> :1.2.3, :1.2, :1
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=sha
 
       - name: Build & push (amd64 + arm64)

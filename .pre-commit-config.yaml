@@ -1,0 +1,17 @@
+# Local guard rails — install once after cloning:
+#   pip install pre-commit
+#   pre-commit install --hook-type commit-msg --hook-type pre-commit
+#
+# This rejects non-Conventional-Commit messages at author time (same rule the
+# CI commitlint job and semantic-release enforce) and runs ruff before commit.
+repos:
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff

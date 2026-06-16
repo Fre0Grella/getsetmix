@@ -1,17 +1,44 @@
-name: Release executables
+name: Release
 
-# Standalone local-app builds (PyInstaller) attached to the GitHub Release
-# for every v*.*.* tag. ffmpeg is NOT bundled — it must be on the user's PATH.
+# Automated semantic versioning. On every push to main, python-semantic-release
+# reads the Conventional Commits since the last release and, when warranted,
+# bumps the version (fix -> patch, feat -> minor, breaking change -> major),
+# commits the bump, tags vX.Y.Z, and creates the GitHub Release. The downstream
+# jobs then build the standalone executables and the versioned container images
+# for that release — all in this one run, so no PAT / tag-trigger workarounds
+# are needed. The release commit carries [skip ci], so it doesn't re-trigger.
 
 on:
   push:
-    tags: ["v*.*.*"]
+    branches: [main]
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
-  build:
+  release:
+    runs-on: ubuntu-latest
+    concurrency: release
+    outputs:
+      released: ${{ steps.psr.outputs.released }}
+      version: ${{ steps.psr.outputs.version }}
+      tag: ${{ steps.psr.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so PSR can read commits + previous tags
+
+      - name: Python Semantic Release
+        id: psr
+        uses: python-semantic-release/python-semantic-release@v9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          build: "false"
+
+  executables:
+    needs: release
+    if: needs.release.outputs.released == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -34,6 +61,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}   # build the freshly tagged code
 
       - uses: actions/setup-python@v5
         with:
@@ -66,8 +95,9 @@ jobs:
           path: dist/${{ matrix.artifact }}
           if-no-files-found: error
 
-  release:
-    needs: build
+  attach:
+    needs: [release, executables]
+    if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -77,10 +107,55 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.release.outputs.tag }}
           files: dist/*
-          generate_release_notes: true
+          fail_on_unmatched_files: true
           body: |
             Standalone **local app mode** builds — no Python required.
             `ffmpeg` must be on your PATH (`winget install ffmpeg` / `brew install ffmpeg` / `apt install ffmpeg`).
 
             Run the binary and the UI opens at http://127.0.0.1:8765 (data is kept in `~/.getsetmix`).
+
+  image:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract tags & labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # v1.2.3 -> :1.2.3, :1.2, :1
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.release.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release.outputs.tag }}
+            type=semver,pattern={{major}},value=${{ needs.release.outputs.tag }}
+
+      - name: Build & push (amd64 + arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
