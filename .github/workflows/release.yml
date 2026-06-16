@@ -110,6 +110,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: getsetmix-*   # only the executables, not the buildx .dockerbuild artifact
           path: dist
           merge-multiple: true
 
