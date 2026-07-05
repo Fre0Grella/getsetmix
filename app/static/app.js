@@ -99,6 +99,7 @@ let coverTrackId = null;
 let pollTimer = null;
 let highlightId = null; // newly added (e.g. shared) track to scroll to + flash
 const dirtyFields = new Set(); // "id:field" being edited right now
+const rowCache = new Map(); // id -> last-rendered row HTML, to skip untouched DOM
 
 // ------------------------------------------------------------------ fetch
 function authHeaders() {
@@ -240,19 +241,64 @@ function rowHtml(t) {
   </article>`;
 }
 
+function nodeFromHtml(html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  return tpl.content.firstElementChild;
+}
+
 function render() {
   const focused = document.activeElement;
-  const focusKey = focused && focused.dataset && focused.dataset.field
-    ? `${focused.closest(".track")?.dataset.id}:${focused.dataset.field}` : null;
-  const focusPos = focusKey ? focused.selectionStart : 0;
+  const focusField = focused && focused.dataset && focused.dataset.field ? focused.dataset.field : null;
+  const focusId = focusField ? focused.closest(".track")?.dataset.id : null;
+  const focusPos = focusField ? focused.selectionStart : 0;
 
-  list.innerHTML = tracks.map(rowHtml).join("");
+  // Reconcile rows keyed by id instead of rebuilding the whole list every poll.
+  // Wholesale innerHTML replacement tore down (and repainted) even the input the
+  // user was editing — the genre field flickered teal->white each cycle. Reusing
+  // untouched nodes, and never replacing the row currently being edited, kills it.
+  const byId = new Map();
+  for (const node of list.children) byId.set(node.dataset.id, node);
+
+  let cursor = list.firstElementChild;
+  for (const t of tracks) {
+    const html = rowHtml(t);
+    const existing = byId.get(t.id);
+    let node;
+    if (existing) {
+      byId.delete(t.id);
+      // Reuse the node unless its HTML actually changed. Never rebuild the row
+      // being edited: its typed values are already in the DOM, and replacing it
+      // would blur the field and re-blink the datalist popup.
+      if (t.id !== focusId && rowCache.get(t.id) !== html) {
+        node = nodeFromHtml(html);
+        rowCache.set(t.id, html);
+      } else {
+        node = existing;
+      }
+    } else {
+      node = nodeFromHtml(html);
+      rowCache.set(t.id, html);
+    }
+    if (cursor === existing) {
+      if (node !== existing) cursor.replaceWith(node); // swap in place, keep order
+      cursor = node.nextElementSibling;
+    } else {
+      list.insertBefore(node, cursor); // new (or reordered) node goes before cursor
+    }
+  }
+  for (const [id, node] of byId) { rowCache.delete(id); node.remove(); }
+
   $("#emptyState").classList.toggle("hidden", tracks.length > 0);
 
-  if (focusKey) {
-    const [id, field] = focusKey.split(":");
-    const el = list.querySelector(`.track[data-id="${id}"] input[data-field="${field}"]`);
-    if (el) { el.focus(); try { el.setSelectionRange(focusPos, focusPos); } catch { /* noop */ } }
+  // Safety net: if a replace/insert stole focus, restore it. Guard against
+  // re-focusing the already-focused input — focus() itself re-triggers the datalist.
+  if (focusId && focusField) {
+    const el = list.querySelector(`.track[data-id="${focusId}"] input[data-field="${focusField}"]`);
+    if (el && document.activeElement !== el) {
+      el.focus();
+      try { el.setSelectionRange(focusPos, focusPos); } catch { /* noop */ }
+    }
   }
 
   if (highlightId) {
