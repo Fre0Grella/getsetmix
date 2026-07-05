@@ -1,6 +1,6 @@
 [project]
 name = "getsetmix"
-version = "1.2.0"
+version = "1.2.1"
 description = "Self-hosted DJ ingestion service for your homelab."
 requires-python = ">=3.11"
 

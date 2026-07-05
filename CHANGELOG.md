@@ -1,6 +1,34 @@
 # CHANGELOG
 
 
+## v1.2.1 (2026-07-05)
+
+### Bug Fixes
+
+- **ui**: Fix genre textbox flickering
+  ([`1a4a8ac`](https://github.com/Fre0Grella/getsetmix/commit/1a4a8ac3ff0aabe26fc1086a99c018c18d141073))
+
+### Continuous Integration
+
+- Scope release asset download to executables
+  ([`7f02307`](https://github.com/Fre0Grella/getsetmix/commit/7f023076a6e8c47652c252f19f84e10f834c27ab))
+
+The attach job downloaded all run artifacts, which now includes the buildx .dockerbuild artifact
+  from the image job, causing the download to fail. Filter to getsetmix-* so only the executables
+  are pulled and attached.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+
+- Use .mjs commitlint config required by commitlint-github-action
+  ([`d6c663c`](https://github.com/Fre0Grella/getsetmix/commit/d6c663c8b06bb99f4df6f77153c9dee9ae2f7ab3))
+
+wagoid/commitlint-github-action v6 rejects a .js configFile with ".js extension is not allowed for
+  the configFile, please use .mjs instead", which made the Commit lint job red on every push.
+  Convert the config to an ESM commitlint.config.mjs and point the workflow at it.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+
+
 ## v1.2.0 (2026-06-16)
 
 ### Chores
