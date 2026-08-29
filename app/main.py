@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from . import (
     __version__,
     health,
+    link,
     metadata,
     metrics,
     profiles as profiles_mod,
@@ -33,7 +34,7 @@ from .config import (
     ensure_dirs,
     settings,
 )
-from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
+from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db, now_iso
 from .worker import worker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
@@ -43,6 +44,9 @@ app = FastAPI(title="GetSetMix", version=__version__, docs_url=None, redoc_url=N
 STATIC = Path(__file__).parent / "static"
 
 FETCH_CONCURRENCY = asyncio.Semaphore(2)
+
+# Endpoints the gsm-link companion reaches with its own credentials.
+AGENT_PATHS = {"/api/link/pair", "/api/link/sync"}
 
 
 # --------------------------------------------------------------------- auth
@@ -61,6 +65,10 @@ def _basic_ok(header: str) -> bool:
 async def auth_middleware(request: Request, call_next):
     # Private-by-default; optional static token or Basic Auth when exposed.
     protected = request.url.path.startswith("/api") or request.url.path == "/metrics"
+    # The companion agent authenticates with its own per-profile token (or, for
+    # the very first call, a short-lived pairing code), never with the UI's.
+    if request.url.path in AGENT_PATHS:
+        protected = False
     if protected and request.url.path != "/api/ping":
         if AUTH_TOKEN:
             supplied = (
@@ -124,6 +132,20 @@ class ProfilePatch(BaseModel):
     server_xml_path: str | None = None
     collection_xml_path: str | None = None
     enabled: bool | None = None
+
+
+class PairRequest(BaseModel):
+    code: str
+    machine: dict = {}
+
+
+class SyncRequest(BaseModel):
+    machine: dict = {}
+    report: dict = {}
+
+
+class CodeRequest(BaseModel):
+    profile_id: str | None = None
 
 
 class PathPreview(BaseModel):
@@ -502,6 +524,38 @@ async def put_settings(body: SettingsPatch):
     settings.update(patch)
     ensure_dirs()
     return settings.data
+
+
+# ---------------------------------------------------------------- link API
+@app.post("/api/link/code")
+async def issue_pairing_code(body: CodeRequest):
+    """Wizard-side: mint a short-lived code the companion can claim."""
+    pid = (body.profile_id or "").strip()
+    if pid and not settings.get_profile(pid):
+        raise HTTPException(404, "No such profile")
+    entry = link.codes.issue(pid)
+    return {"code": entry.code, "expires_in": link.CODE_TTL_SECONDS}
+
+
+@app.post("/api/link/pair")
+async def pair_agent(body: PairRequest):
+    """Companion-side: claim a code, receive a profile and an agent token."""
+    result = link.pair(body.code, body.machine or {})
+    if result is None:
+        raise HTTPException(403, "Invalid or expired pairing code")
+    profile, token = result
+    ensure_dirs()
+    return {"token": token, "profile": profile.public(), "config": link.profile_config(profile)}
+
+
+@app.post("/api/link/sync")
+async def sync_agent(request: Request, body: SyncRequest):
+    """Companion-side heartbeat: push findings, pull the desired config."""
+    profile = link.authenticate(request.headers.get("x-gsm-agent-token", "").strip())
+    if profile is None:
+        raise HTTPException(401, "Unknown agent token")
+    profile = link.record_sync(profile, body.machine or {}, body.report or {}, now_iso())
+    return {"config": link.profile_config(profile), "profile": profile.public()}
 
 
 @app.get("/api/health/link")
