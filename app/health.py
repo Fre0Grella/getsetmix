@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import config, rekordbox, targets
+from . import config, delivery, rekordbox, targets
 from .profiles import Profile, path_from_location
 
 OK, WARN, ERROR = "ok", "warn", "error"
@@ -271,6 +271,23 @@ def _check_agent(report: Report, profile: Profile) -> None:
         ))
 
 
+def _check_delivery(report: Report) -> None:
+    if not delivery.enabled():
+        if config.settings.get("delivery_mode") == "webdav":
+            report.add(Check(
+                "delivery", ERROR, "WebDAV delivery is selected but not configured", "",
+                "Set the WebDAV URL, user and app password, or switch delivery back "
+                "to a shared folder.",
+            ))
+        return
+    ok, detail = delivery.check()
+    report.add(Check(
+        "delivery", OK if ok else ERROR,
+        "Nextcloud is reachable" if ok else "Nextcloud is not reachable", detail,
+        "" if ok else "Check the WebDAV URL and app password in Settings.",
+    ))
+
+
 def _check_setup(report: Report) -> None:
     if config.settings.get("setup_complete"):
         return
@@ -285,6 +302,7 @@ def run() -> dict:
     report = Report()
     _check_setup(report)
     _check_library(report)
+    _check_delivery(report)
 
     profiles = config.settings.active_profiles()
     if not profiles and config.settings.profiles():

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yt_dlp
 
-from . import rekordbox, tagger, targets
+from . import delivery, rekordbox, tagger, targets
 from .config import DATA_DIR, settings
 from .db import db, now_iso
 from .naming import render_filename, unique_path
@@ -96,6 +96,16 @@ class Worker:
             except Exception:
                 log.exception("inbox purge against collection XML failed for %s", inbox)
 
+    def _deliver(self, final: Path) -> None:
+        """Push the audio to the sync target before the XML references it, so
+        the XML never points at a file that hasn't arrived yet."""
+        try:
+            delivery.deliver_file(str(final))
+        except Exception as exc:
+            # An upload failure must not lose the track: it is on disk, tagged,
+            # and the XML still describes it. Surface it and carry on.
+            raise RuntimeError(f"Upload failed: {exc}") from exc
+
     def _write_xml(self, track: dict, final: Path) -> None:
         """Append the finished file to every machine's XML, each with a
         Location valid on that machine. A failure on one profile must not lose
@@ -111,6 +121,7 @@ class Worker:
                     target.xml_path, track, str(final),
                     settings["playlist_name"], location=target.location(str(final)),
                 )
+                delivery.deliver_xml(target.xml_path)
             except Exception:
                 log.exception("could not write %s into %s", final.name, target.xml_path)
 
@@ -151,6 +162,7 @@ class Worker:
             db.update_track(tid, status="tagging", progress=100)
             final = self._place_in_library(track, audio)
             tagger.tag_file(str(final), {**track, "file_path": str(final)})
+            self._deliver(final)
             self._write_xml(track, final)
 
             elapsed = time.monotonic() - started
