@@ -196,11 +196,11 @@ function rowHtml(t) {
   const dup = t.duplicate && t.status === "staged" ? "is-dup" : "";
   const thumb = t.cover_path
     ? `/api/tracks/${t.id}/cover?v=${encodeURIComponent(t.updated_at || "")}`
-    : (t.cover_url || t.thumbnail || "/static/assets/icon-light.png");
+    : (t.cover_url || t.thumbnail || "/static/assets/mark-light.svg");
   return `<article class="track ${sel} ${err} ${dup}" data-id="${t.id}">
     <div class="thumb">
       <img src="${esc(thumb)}" alt="" loading="lazy"
-           onerror="this.src='/static/assets/icon-light.png'">
+           onerror="this.src='/static/assets/mark-light.svg'">
       ${t.duration ? `<span class="dur">${fmtDur(t.duration)}</span>` : ""}
       ${editable ? `<button class="cover-btn" data-act="cover" title="${T.coverTitle}">${I.cam}</button>` : ""}
     </div>

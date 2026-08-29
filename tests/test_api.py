@@ -291,3 +291,21 @@ def test_static_front_end_assets_are_served(client):
     for path in ("/static/common.js", "/static/setup.js", "/static/app.js",
                  "/static/styles.css"):
         assert client.get(path).status_code == 200, path
+
+
+def test_brand_vectors_are_served(client):
+    """The icons are vector now; a missing one shows as a broken brand mark."""
+    for name in ("icon.svg", "icon-maskable.svg", "mark.svg",
+                 "mark-light.svg", "mark-dark.svg"):
+        r = client.get(f"/static/assets/{name}")
+        assert r.status_code == 200, name
+        assert r.text.lstrip().startswith("<svg"), name
+    assert client.get("/static/assets/favicon.ico").status_code == 200
+
+
+def test_manifest_icons_exist_and_declare_purposes(client):
+    icons = client.get("/manifest.webmanifest").json()["icons"]
+    purposes = {i["purpose"] for i in icons}
+    assert "maskable" in purposes and "any" in purposes
+    for icon in icons:
+        assert client.get(icon["src"]).status_code == 200, icon["src"]

@@ -7,7 +7,10 @@
 
 Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or playlist), review and edit the metadata, batch-download to MP3 320 kbps or FLAC, auto-tag with cover art, and ingest straight into your Rekordbox library via XML — all from a fast, MediaHuman-inspired web UI.
 
-![GetSetMix](app/static/assets/logo.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="app/static/assets/mark-light.svg">
+  <img alt="GetSetMix" src="app/static/assets/mark-dark.svg" width="420">
+</picture>
 
 > Use GetSetMix only for content you have the rights to download.
 
@@ -223,6 +226,18 @@ Commit messages **must** follow [Conventional Commits](https://www.conventionalc
 
 Other types (`chore`, `docs`, `ci`, `refactor`, `test`, …) are valid and release nothing on their own. The local `commit-msg` hook (from `pre-commit install` above) and the `commitlint.yml` workflow both enforce the format; to hard-block bad commits, enable branch protection on `main` and require the **Commit lint** check.
 
+### Icons
+
+The vectors in `app/static/assets/` are the source of truth — `icon.svg` (the
+rounded tile), `icon-maskable.svg` (full-bleed, for PWA safe-zone cropping) and
+`mark.svg` (the transparent silhouette, `currentColor`). Every raster is
+generated:
+
+```bash
+pip install cairosvg pillow
+python scripts/build_icons.py     # favicon.ico, icon-192/512.png, icon.png, baked mark variants
+```
+
 ### CI/CD workflows (`.github/workflows/`)
 
 | Workflow | Trigger | What it does |
@@ -280,6 +295,7 @@ app/
   metrics.py     # Prometheus exposition
   config.py      # settings + env overrides
   static/        # the UI (vanilla JS, no build step) — common.js · app.js · setup.js
+  static/assets/ # SVG sources of truth + generated rasters (scripts/build_icons.py)
 agent/
   gsm_link.py    # the companion that runs on the Rekordbox machine
 deploy/

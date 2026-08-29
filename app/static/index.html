@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GetSetMix</title>
-  <link rel="icon" href="/static/assets/favicon.ico" />
+  <link rel="icon" href="/static/assets/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/static/assets/favicon.ico" sizes="any" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#0c111c" />
   <link rel="apple-touch-icon" href="/static/assets/icon-192.png" />
@@ -13,7 +14,7 @@
 <body>
   <header class="toolbar">
     <div class="brand">
-      <img class="brand-icon" src="/static/assets/icon.png" alt="" />
+      <span class="brand-icon" role="img" aria-label="GetSetMix"></span>
       <span class="wordmark">getset<em>mix</em></span>
     </div>
 
@@ -56,7 +57,7 @@
   <main id="trackList" class="track-list" aria-live="polite"></main>
 
   <div id="emptyState" class="empty hidden">
-    <img src="/static/assets/logo.png" alt="GetSetMix" />
+    <span class="empty-mark" role="img" aria-label="GetSetMix"></span>
     <p data-i18n="emptyHint">Copy a track or playlist link, then press “Paste link”.</p>
   </div>
 

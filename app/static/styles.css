@@ -58,6 +58,10 @@
     --on-ink: #ffffff;
     --shadow: 0 1px 2px rgba(14, 23, 38, .06), 0 4px 14px rgba(14, 23, 38, .05);
   }
+  :root:not([data-theme="dark"]) .empty-mark,
+  :root:not([data-theme="dark"]) .brand-icon {
+    background-image: url("/static/assets/mark-dark.svg");
+  }
 }
 
 :root[data-theme="light"] {
@@ -80,6 +84,10 @@
   --overlay: rgba(14, 23, 38, .45);
   --on-ink: #ffffff;
   --shadow: 0 1px 2px rgba(14, 23, 38, .06), 0 4px 14px rgba(14, 23, 38, .05);
+}
+:root[data-theme="light"] .empty-mark,
+:root[data-theme="light"] .brand-icon {
+  background-image: url("/static/assets/mark-dark.svg");
 }
 
 * { box-sizing: border-box; }
@@ -105,7 +113,12 @@ body {
   box-shadow: var(--shadow);
 }
 .brand { display: flex; align-items: center; gap: 9px; margin-right: 8px; }
-.brand-icon { width: 34px; height: 34px; border-radius: 9px; object-fit: cover; }
+/* The wide mark beside the wordmark, not a cropped square: the silhouette is
+   3:2, so a 34px tile squeezed it into illegibility. */
+.brand-icon {
+  width: 46px; height: 31px; flex: none;
+  background: url("/static/assets/mark-light.svg") center/contain no-repeat;
+}
 .wordmark {
   font-style: italic; font-weight: 800; font-size: 1.25rem;
   letter-spacing: -.02em; color: var(--ink); user-select: none;
@@ -276,7 +289,13 @@ select { color-scheme: inherit; }
   flex: 1; display: flex; flex-direction: column; align-items: center;
   justify-content: center; gap: 6px; color: var(--ink-soft); padding: 30px;
 }
-.empty img { width: 220px; max-width: 60vw; mix-blend-mode: multiply; }
+/* Was an opaque white-background logo held together by mix-blend-mode:multiply
+   — which is a white card on the dark theme. The mark is a vector with a real
+   alpha channel, swapped per theme like every other token below. */
+.empty-mark {
+  width: 240px; max-width: 62vw; aspect-ratio: 512 / 344;
+  background: url("/static/assets/mark-light.svg") center/contain no-repeat;
+}
 .empty p { max-width: 420px; text-align: center; line-height: 1.45; }
 
 /* ------------------------------------------------------------ status bar */
@@ -405,7 +424,7 @@ details.set-section[open] > summary { margin-bottom: 10px; }
   .icon-btn { width: 38px; height: 38px; } /* comfortable touch targets */
   .statusbar { padding: 8px 10px; }
   .stats { font-size: .8rem; }
-  .empty img { width: 160px; }
+  .empty-mark { width: 170px; }
   .modal { padding: 0; align-items: end; }
   .modal-card { width: 100%; max-height: 92vh; border-radius: 14px 14px 0 0; }
 }
@@ -510,7 +529,7 @@ details.set-section[open] > summary { margin-bottom: 10px; }
   border: 1px solid var(--row-line); border-radius: 5px; padding: 1px 5px;
 }
 .wizard-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.wizard-head .brand-icon { width: 40px; height: 40px; border-radius: 10px; }
+.wizard-head .brand-icon { width: 58px; height: 39px; }
 .wizard-head h1 { font-size: 1.35rem; margin: 0; letter-spacing: -.02em; }
 .wizard-sub { color: var(--ink-soft); margin: 0 0 22px; }
 
