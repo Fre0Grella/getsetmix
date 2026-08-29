@@ -37,6 +37,16 @@ const STR = {
     purged: n => `Eliminati ${n} elementi`, saved: "Impostazioni salvate",
     copyPath: "Percorso copiato", tokenPrompt: "Token di accesso:",
     coverSet: "Copertina aggiornata",
+    theme: "Tema", themeDark: "Scuro", themeLight: "Chiaro", themeAuto: "Come il sistema",
+    secRekordbox: "Collegamento Rekordbox", secDownloads: "Download",
+    secAppearance: "Aspetto", secAdvanced: "Percorsi avanzati",
+    advNote: "La configurazione guidata li imposta per te. Cambiali solo se sai perché.",
+    xmlHint: "Usato solo se non è configurata nessuna macchina; altrimenti ogni macchina ha il suo XML.",
+    openWizard: "Apri la configurazione guidata", recheck: "Ricontrolla",
+    linkTitle: "Collegamento Rekordbox", linkChecking: "Controllo…",
+    linkOk: "Collegamento a posto", linkWarn: "Da sistemare", linkError: "Collegamento interrotto",
+    noMachines: "Nessuna macchina configurata — l'XML usa i percorsi del server.",
+    machineCount: n => `${n} macchina/e configurate`,
   },
   en: {
     paste: "Paste link", download: "Download", cancel: "Cancel download",
@@ -73,6 +83,16 @@ const STR = {
     purged: n => `Removed ${n} items`, saved: "Settings saved",
     copyPath: "Path copied", tokenPrompt: "Access token:",
     coverSet: "Cover updated",
+    theme: "Theme", themeDark: "Dark", themeLight: "Light", themeAuto: "Match system",
+    secRekordbox: "Rekordbox link", secDownloads: "Downloads",
+    secAppearance: "Appearance", secAdvanced: "Advanced paths",
+    advNote: "The wizard sets these for you. Change them only if you know why.",
+    xmlHint: "Used only when no machine is configured; otherwise each machine gets its own XML.",
+    openWizard: "Open the setup wizard", recheck: "Re-check now",
+    linkTitle: "Rekordbox link", linkChecking: "Checking…",
+    linkOk: "Link healthy", linkWarn: "Needs attention", linkError: "Link broken",
+    noMachines: "No machines configured — the XML uses the server's own paths.",
+    machineCount: n => `${n} machine(s) configured`,
   },
 };
 
@@ -86,7 +106,6 @@ const GENRES = [
   "Tech House", "Techno", "Trance", "Trap", "Tropical House", "UK Garage",
 ];
 
-const $ = (sel) => document.querySelector(sel);
 const list = $("#trackList");
 
 let lang = "en";
@@ -98,33 +117,10 @@ let settingsCache = {};
 let coverTrackId = null;
 let pollTimer = null;
 let highlightId = null; // newly added (e.g. shared) track to scroll to + flash
+let linkHealth = null;
+let profiles = [];
 const dirtyFields = new Set(); // "id:field" being edited right now
 const rowCache = new Map(); // id -> last-rendered row HTML, to skip untouched DOM
-
-// ------------------------------------------------------------------ fetch
-function authHeaders() {
-  const tok = localStorage.getItem("gsm_token");
-  return tok ? { "X-Auth-Token": tok } : {};
-}
-
-async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    ...opts,
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) },
-  });
-  if (res.status === 401) {
-    const tok = prompt(T.tokenPrompt);
-    if (tok) { localStorage.setItem("gsm_token", tok); return api(path, opts); }
-    throw new Error("unauthorized");
-  }
-  if (!res.ok) {
-    let detail = res.statusText;
-    try { detail = (await res.json()).detail || detail; } catch { /* noop */ }
-    throw new Error(detail);
-  }
-  if (res.status === 204) return null;
-  return res.json();
-}
 
 // ------------------------------------------------------------------- i18n
 function applyLang(next) {
@@ -159,12 +155,6 @@ function fmtDur(sec) {
   if (!sec) return "";
   const m = Math.floor(sec / 60), s = sec % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => (
-    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-  ));
 }
 
 const EDITABLE = new Set(["staged", "fetch_error", "error"]);
@@ -366,6 +356,35 @@ function schedulePoll(ms) {
   pollTimer = setTimeout(poll, ms);
 }
 
+// ------------------------------------------------------------- link status
+// The setup used to fail invisibly — you learned about it from a red icon in
+// Rekordbox. The chip answers the same question continuously.
+async function refreshLinkHealth() {
+  try {
+    linkHealth = await api("/api/health/link");
+  } catch { linkHealth = null; }
+  const chip = $("#linkChip");
+  const text = $("#linkChipText");
+  if (!chip) return;
+  chip.classList.remove("is-ok", "is-warn", "is-error");
+  if (!linkHealth) { text.textContent = T.linkChecking; return; }
+  chip.classList.add(`is-${linkHealth.status}`);
+  text.textContent = { ok: T.linkOk, warn: T.linkWarn, error: T.linkError }[linkHealth.status];
+  const failing = linkHealth.checks.filter((c) => c.level !== "ok");
+  chip.title = failing.map((c) => c.title).join(" · ") || T.linkOk;
+  const box = $("#linkChecks");
+  if (box && !$("#linkModal").classList.contains("hidden")) {
+    box.innerHTML = checksHtml(linkHealth.checks);
+  }
+}
+
+async function openLinkModal() {
+  $("#linkChecks").innerHTML = checksHtml((linkHealth && linkHealth.checks) || []);
+  $("#linkModal").classList.remove("hidden");
+  await refreshLinkHealth();
+  $("#linkChecks").innerHTML = checksHtml((linkHealth && linkHealth.checks) || []);
+}
+
 async function refreshStats() {
   try {
     const s = await api("/api/stats");
@@ -374,15 +393,12 @@ async function refreshStats() {
   setTimeout(refreshStats, 15000);
 }
 
-// ---------------------------------------------------------------- actions
-function toast(msg) {
-  const el = $("#toast");
-  el.textContent = msg;
-  el.classList.remove("hidden");
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.add("hidden"), 2600);
+async function linkHealthLoop() {
+  await refreshLinkHealth();
+  setTimeout(linkHealthLoop, 60000);
 }
 
+// ---------------------------------------------------------------- actions
 async function addUrl(url) {
   if (!/^https?:\/\//i.test(url)) { toast(T.notUrl); return null; }
   try {
@@ -562,7 +578,25 @@ async function openSettings() {
   $("#setCollection").value = settingsCache.collection_xml_path || "";
   $("#setPlaylist").value = settingsCache.playlist_name;
   $("#setLanguage").value = settingsCache.language;
+  $("#setTheme").value = settingsCache.theme || "dark";
+  renderMachines(settingsCache.profiles || []);
   $("#settingsModal").classList.remove("hidden");
+  refreshLinkHealth();
+}
+
+function renderMachines(items) {
+  profiles = items;
+  $("#linkSummary").textContent = items.length ? T.machineCount(items.length) : T.noMachines;
+  $("#machineList").innerHTML = items.map((p) => `
+    <div class="machine">
+      <div class="machine-head">
+        <strong>${esc(p.name || p.id)}</strong>
+        <span class="machine-os">${esc(p.os)}</span>
+        ${p.paired ? '<span class="machine-os">paired</span>' : ""}
+      </div>
+      <div class="machine-path">${esc(p.library_root || "—")}</div>
+      <div class="machine-path">${esc(p.dj_xml_path || "")}</div>
+    </div>`).join("");
 }
 
 $("#btnSaveSettings").addEventListener("click", async () => {
@@ -578,11 +612,14 @@ $("#btnSaveSettings").addEventListener("click", async () => {
         collection_xml_path: $("#setCollection").value.trim(),
         playlist_name: $("#setPlaylist").value,
         language: $("#setLanguage").value,
+        theme: $("#setTheme").value,
       }),
     });
     $("#settingsModal").classList.add("hidden");
     toast(T.saved);
+    applyTheme(data.theme);
     applyLang(data.language);
+    refreshLinkHealth();
   } catch (e) { toast(e.message); }
 });
 
@@ -604,92 +641,12 @@ $("#btnPurgeHistory").addEventListener("click", async () => {
   toast(T.purged(res.purged));
 });
 
-// ------------------------------------------------------------ path picker
-const PICK = {
+// --------------------------------------------------------------- wire up
+wireModals();
+wirePicker({
   library:    { input: "#setLibrary",    mode: "dir",  ext: "" },
   xml:        { input: "#setXml",        mode: "file", ext: ".xml" },
   collection: { input: "#setCollection", mode: "file", ext: ".xml" },
-};
-let picker = null; // { conf, cur }
-
-function dirOf(p) {
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i > 0 ? p.slice(0, i) : "";
-}
-function baseOf(p) {
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(i + 1) : p;
-}
-function joinPath(dir, name) {
-  const sep = dir.includes("\\") ? "\\" : "/";
-  return dir.endsWith(sep) ? dir + name : dir + sep + name;
-}
-
-async function openPicker(kind) {
-  const conf = PICK[kind];
-  picker = { conf, cur: "" };
-  const val = $(conf.input).value.trim();
-  $("#pickerNameRow").classList.toggle("hidden", conf.mode !== "file");
-  $("#pickerName").value = conf.mode === "file" ? baseOf(val) : "";
-  $("#pickerModal").classList.remove("hidden");
-  await loadPicker(conf.mode === "file" ? dirOf(val) : val);
-}
-
-async function loadPicker(path) {
-  let res;
-  try {
-    res = await api(`/api/fs/list?path=${encodeURIComponent(path)}&ext=${encodeURIComponent(picker.conf.ext)}`);
-  } catch (e) {
-    if (path) { loadPicker(""); return; } // unreachable path -> fall back to roots
-    toast(e.message);
-    return;
-  }
-  picker.cur = res.path;
-  $("#pickerPath").textContent = res.path || "—";
-  const rows = [];
-  if (res.parent !== null) {
-    rows.push(`<button type="button" class="picker-row up" data-nav="${esc(res.parent)}">⬆️ ..</button>`);
-  }
-  rows.push(...res.dirs.map((d) =>
-    `<button type="button" class="picker-row dir" data-nav="${esc(d.path)}">📁 ${esc(d.name)}</button>`));
-  if (picker.conf.mode === "file") {
-    rows.push(...res.files.map((f) =>
-      `<button type="button" class="picker-row file" data-file="${esc(f.name)}">📄 ${esc(f.name)}</button>`));
-  }
-  $("#pickerList").innerHTML = rows.join("") || "<small>—</small>";
-}
-
-$("#pickerList").addEventListener("click", (e) => {
-  const nav = e.target.closest("[data-nav]");
-  if (nav) { loadPicker(nav.dataset.nav); return; }
-  const file = e.target.closest("[data-file]");
-  if (file) $("#pickerName").value = file.dataset.file;
-});
-
-$("#btnPickerSelect").addEventListener("click", () => {
-  if (!picker) return;
-  let value = picker.cur;
-  if (picker.conf.mode === "file") {
-    const name = $("#pickerName").value.trim();
-    if (!name || !value) return;
-    value = joinPath(value, name);
-  }
-  if (!value) return; // drive list has no selectable path
-  $(picker.conf.input).value = value;
-  $("#pickerModal").classList.add("hidden");
-});
-
-document.querySelectorAll("[data-pick]").forEach((btn) =>
-  btn.addEventListener("click", (e) => { e.preventDefault(); openPicker(btn.dataset.pick); }));
-
-// --------------------------------------------------------------- wire up
-document.querySelectorAll(".modal").forEach((m) => {
-  m.addEventListener("click", (e) => {
-    if (e.target === m || e.target.closest("[data-close]")) m.classList.add("hidden");
-  });
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") document.querySelectorAll(".modal").forEach((m) => m.classList.add("hidden"));
 });
 
 $("#btnPaste").addEventListener("click", pasteLink);
@@ -699,6 +656,12 @@ $("#btnCancel").addEventListener("click", async () => {
   schedulePoll(150);
 });
 $("#btnSettings").addEventListener("click", openSettings);
+$("#linkChip").addEventListener("click", openLinkModal);
+$("#btnLinkRecheck").addEventListener("click", openLinkModal);
+$("#btnRecheck").addEventListener("click", async () => {
+  await refreshLinkHealth();
+  toast({ ok: T.linkOk, warn: T.linkWarn, error: T.linkError }[linkHealth?.status] || T.linkChecking);
+});
 
 const dl = $("#genres");
 dl.innerHTML = GENRES.map((g) => `<option value="${g}">`).join("");
@@ -710,10 +673,18 @@ if ("serviceWorker" in navigator) {
 (async function init() {
   try {
     const s = await api("/api/settings");
+    applyTheme(s.theme || "dark");
     applyLang(s.language);
     $("#batchConcurrency").options[0].text = `×${s.concurrency}`;
+    // First run lands in the wizard rather than an app that cannot reach
+    // Rekordbox yet. /share is exempt: a shared link must never be swallowed.
+    if (!s.setup_complete && location.pathname === "/") {
+      location.replace("/setup");
+      return;
+    }
   } catch { applyLang("en"); }
   poll();
   refreshStats();
+  linkHealthLoop();
   consumeShare();
 })();

@@ -152,6 +152,7 @@ class CodeRequest(BaseModel):
 class PathPreview(BaseModel):
     os: str = "windows"
     library_root: str = ""
+    name: str = ""          # so the previewed XML filename matches the real one
     sample: str = "Artist - Title.mp3"
 
 
@@ -482,7 +483,11 @@ async def preview_profile_path(body: PathPreview):
     settings actually produce? Seeing the real string is what turns the path
     mapping from guesswork into something you can eyeball."""
     os_style = profiles_mod.normalize_os(body.os)
-    probe = profiles_mod.Profile(id="preview", os=os_style, library_root=body.library_root)
+    # Use the id the profile would really get, so the previewed XML filename is
+    # the one that ends up on disk rather than a placeholder.
+    pid = profiles_mod.unique_id(body.name or "my-dj-machine",
+                                 [p.id for p in settings.profiles()])
+    probe = profiles_mod.Profile(id=pid, os=os_style, library_root=body.library_root)
     server_path = profiles_mod.join_relative(
         str(settings["library_root"]), body.sample.strip() or "Artist - Title.mp3",
         profiles_mod.host_os(),
@@ -612,6 +617,13 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 @app.get("/")
 async def index():
     return FileResponse(STATIC / "index.html")
+
+
+@app.get("/setup")
+async def setup_page():
+    """The wizard is served by the server but opened from the DJ machine's
+    browser — one UI, and it still works when they are the same computer."""
+    return FileResponse(STATIC / "setup.html")
 
 
 @app.get("/share")

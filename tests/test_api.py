@@ -205,12 +205,15 @@ def test_profile_names_collide_into_distinct_ids(client):
 
 def test_path_preview_shows_the_real_location_string(client):
     r = client.post("/api/profiles/preview", json={
-        "os": "windows", "library_root": "C:\\Music", "sample": "Artist - Title.mp3",
+        "os": "windows", "library_root": "C:\\Music", "name": "Studio PC",
+        "sample": "Artist - Title.mp3",
     })
     body = r.json()
     assert body["mapped"] is True
     assert body["dj_path"] == "C:\\Music\\Artist - Title.mp3"
     assert body["location"] == "file://localhost/C:/Music/Artist%20-%20Title.mp3"
+    # The previewed XML filename must be the one the profile will really get.
+    assert body["dj_xml_path"] == "C:\\Music\\getsetmix-studio-pc.xml"
 
 
 def test_path_preview_flags_a_root_it_cannot_map(client):
@@ -276,3 +279,15 @@ def test_agent_script_is_served(client):
     assert r.status_code == 200
     assert "gsm-link" in r.text
     assert "def verify_xml" in r.text
+
+
+def test_setup_wizard_is_served(client):
+    r = client.get("/setup")
+    assert r.status_code == 200
+    assert "setup.js" in r.text and "common.js" in r.text
+
+
+def test_static_front_end_assets_are_served(client):
+    for path in ("/static/common.js", "/static/setup.js", "/static/app.js",
+                 "/static/styles.css"):
+        assert client.get(path).status_code == 200, path

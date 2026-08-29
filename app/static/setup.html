@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GetSetMix — Setup</title>
+  <link rel="icon" href="/static/assets/favicon.ico" />
+  <meta name="theme-color" content="#0c111c" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<div class="wizard">
+  <header class="wizard-head">
+    <img class="brand-icon" src="/static/assets/icon.png" alt="" />
+    <div>
+      <h1 data-i18n="wizTitle">Set up the Rekordbox link</h1>
+    </div>
+  </header>
+  <p class="wizard-sub" data-i18n="wizSub">
+    Four questions, then it checks the whole path end to end — so you find out
+    here rather than in Rekordbox five minutes before a set.
+  </p>
+
+  <ol class="steps" id="steps">
+    <li data-step="0" data-i18n="stepLibrary">Library</li>
+    <li data-step="1" data-i18n="stepDelivery">Delivery</li>
+    <li data-step="2" data-i18n="stepMachine">DJ machine</li>
+    <li data-step="3" data-i18n="stepVerify">Verify</li>
+  </ol>
+
+  <!-- 1 ------------------------------------------------------- library -->
+  <section class="step" data-step="0">
+    <h2 data-i18n="libTitle">Where do downloads land on the server?</h2>
+    <p data-i18n="libIntro">
+      This is the server's own view of the library. If GetSetMix runs in Docker
+      this is the path inside the container — usually <code>/music</code> — not
+      the path on your NAS.
+    </p>
+    <label><span data-i18n="libraryRoot">Library folder</span>
+      <div class="path-row">
+        <input id="setLibrary" type="text" spellcheck="false" />
+        <button type="button" class="btn btn-ghost btn-browse" data-pick="library" data-i18n="browse">Browse…</button>
+      </div>
+      <small data-i18n="libBrowseHint">Browse shows the server's filesystem, not this computer's.</small>
+    </label>
+    <div id="libCheck" class="checks"></div>
+  </section>
+
+  <!-- 2 ------------------------------------------------------ delivery -->
+  <section class="step" data-step="1">
+    <h2 data-i18n="delTitle">How do the files reach the machine with Rekordbox?</h2>
+    <p data-i18n="delIntro">
+      This is the part that used to break. GetSetMix needs to know how the two
+      machines see the same files so it can write paths Rekordbox can open.
+    </p>
+    <div class="choices" id="deliveryChoices">
+      <label class="choice"><input type="radio" name="delivery" value="same" />
+        <div><b data-i18n="delSameT">Same machine</b>
+        <span data-i18n="delSameD">Rekordbox runs on this computer. Nothing to sync.</span></div></label>
+      <label class="choice"><input type="radio" name="delivery" value="sync" />
+        <div><b data-i18n="delSyncT">Nextcloud or Syncthing already syncs the folder</b>
+        <span data-i18n="delSyncD">The library folder is inside a folder that syncs itself. GetSetMix just writes into it.</span></div></label>
+      <label class="choice"><input type="radio" name="delivery" value="webdav" />
+        <div><b data-i18n="delDavT">Upload to Nextcloud over WebDAV</b>
+        <span data-i18n="delDavD">The server pushes each file to Nextcloud itself — no sync client or mount needed. Best for Docker and Kubernetes.</span></div></label>
+      <label class="choice"><input type="radio" name="delivery" value="mount" />
+        <div><b data-i18n="delMountT">A network share (SMB/NFS)</b>
+        <span data-i18n="delMountD">Both machines mount the same share at different paths.</span></div></label>
+    </div>
+    <div id="webdavFields" class="hidden">
+      <label><span data-i18n="davUrl">WebDAV URL</span>
+        <input id="setDavUrl" type="text" spellcheck="false"
+               placeholder="https://cloud.example.com/remote.php/dav/files/marco" />
+      </label>
+      <label><span data-i18n="davUser">Nextcloud user</span>
+        <input id="setDavUser" type="text" spellcheck="false" /></label>
+      <label><span data-i18n="davPass">App password</span>
+        <input id="setDavPass" type="password" />
+        <small data-i18n="davPassHint">Settings ▸ Security ▸ Create new app password. Not your login password.</small>
+      </label>
+      <label><span data-i18n="davRoot">Remote folder</span>
+        <input id="setDavRoot" type="text" spellcheck="false" placeholder="Music/DJ" />
+        <small data-i18n="davRootHint">Where the library lives inside Nextcloud. The companion uses this to work out the local folder on your DJ machine by itself.</small>
+      </label>
+    </div>
+  </section>
+
+  <!-- 3 ------------------------------------------------------- machine -->
+  <section class="step" data-step="2">
+    <h2 data-i18n="machTitle">Tell GetSetMix about the machine running Rekordbox</h2>
+    <p data-i18n="machIntro">
+      Either pair the companion — it reads your sync folders and fills this in
+      itself — or type the paths by hand. Pairing is also what lets GetSetMix
+      confirm the files really arrived.
+    </p>
+
+    <div class="choices" id="machineChoices">
+      <label class="choice"><input type="radio" name="machmode" value="pair" />
+        <div><b data-i18n="machPairT">Pair the companion (recommended)</b>
+        <span data-i18n="machPairD">One file, no install, standard library only. It detects the paths and verifies them from that side.</span></div></label>
+      <label class="choice"><input type="radio" name="machmode" value="manual" />
+        <div><b data-i18n="machManT">Enter the paths myself</b>
+        <span data-i18n="machManD">Works fine — you just don't get the automatic verification.</span></div></label>
+    </div>
+
+    <div id="pairPane" class="hidden">
+      <p data-i18n="pairRun">On the machine with Rekordbox, run:</p>
+      <code class="snippet" id="pairSnippet"></code>
+      <p data-i18n="pairCode">Then enter this code:</p>
+      <div class="pair-code" id="pairCode">------</div>
+      <div class="waiting" id="pairWaiting">
+        <span class="dashes"><i></i><i></i><i></i></span>
+        <span data-i18n="pairWaiting">Waiting for the companion to check in…</span>
+      </div>
+      <div id="pairedList"></div>
+    </div>
+
+    <div id="manualPane" class="hidden">
+      <label><span data-i18n="machName">Machine name</span>
+        <input id="setMachName" type="text" placeholder="Studio PC" /></label>
+      <label><span data-i18n="machOs">Operating system</span>
+        <select id="setMachOs">
+          <option value="windows">Windows</option>
+          <option value="macos">macOS</option>
+          <option value="linux">Linux</option>
+        </select>
+      </label>
+      <label><span data-i18n="machRoot">The library folder as that machine sees it</span>
+        <input id="setMachRoot" type="text" spellcheck="false"
+               placeholder="C:\Users\you\Nextcloud\Music" />
+        <small data-i18n="machRootHint">The same files as the server's library folder, at that machine's own path.</small>
+      </label>
+      <div class="preview" id="pathPreview"></div>
+      <button id="btnAddMachine" class="btn btn-accent" data-i18n="machAdd">Add this machine</button>
+      <div id="machineList"></div>
+    </div>
+  </section>
+
+  <!-- 4 -------------------------------------------------------- verify -->
+  <section class="step" data-step="3">
+    <h2 data-i18n="verTitle">Check the whole path</h2>
+    <p data-i18n="verIntro">
+      Every one of these has to be true for a track to reach Rekordbox. Anything
+      that fails says what to do about it.
+    </p>
+    <div id="verifyChecks" class="checks"></div>
+    <p class="set-note" id="rekordboxTodo"></p>
+  </section>
+
+  <footer class="wizard-foot">
+    <button id="btnBack" class="btn btn-ghost" data-i18n="back">Back</button>
+    <div class="spacer"></div>
+    <button id="btnSkip" class="btn btn-ghost" data-i18n="skipSetup">Skip for now</button>
+    <button id="btnNext" class="btn btn-accent" data-i18n="next">Next</button>
+  </footer>
+</div>
+
+<!-- Path picker (shared with the main UI) -->
+<div id="pickerModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2 data-i18n="pickerTitle">Choose a path</h2>
+      <button class="btn btn-ghost modal-close" data-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="pickerPath" class="picker-path"></div>
+      <div id="pickerList" class="picker-list"></div>
+      <label id="pickerNameRow" class="hidden"><span data-i18n="fileName">File name</span>
+        <input id="pickerName" type="text" spellcheck="false" />
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button id="btnPickerSelect" class="btn btn-accent" data-i18n="select">Select</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script src="/static/common.js"></script>
+<script src="/static/setup.js"></script>
+</body>
+</html>

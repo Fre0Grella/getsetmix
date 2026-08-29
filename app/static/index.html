@@ -6,7 +6,7 @@
   <title>GetSetMix</title>
   <link rel="icon" href="/static/assets/favicon.ico" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#0e1726" />
+  <meta name="theme-color" content="#0c111c" />
   <link rel="apple-touch-icon" href="/static/assets/icon-192.png" />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
@@ -44,6 +44,10 @@
     <span id="topStatus" class="top-status"></span>
     <div class="spacer"></div>
 
+    <button id="linkChip" class="link-chip" title="">
+      <span class="dot"></span><span id="linkChipText" data-i18n="linkChecking">Checking…</span>
+    </button>
+
     <button id="btnSettings" class="btn btn-ghost" title="" aria-label="Settings">
       <svg viewBox="0 0 24 24" class="ic"><path fill="currentColor" d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5zm9 3.5a7.6 7.6 0 0 0-.12-1.32l2-1.56-2-3.46-2.36.95a7.6 7.6 0 0 0-2.28-1.32L15.86 3h-4l-.38 2.29a7.6 7.6 0 0 0-2.28 1.32l-2.36-.95-2 3.46 2 1.56A7.6 7.6 0 0 0 6.72 12c0 .45.04.89.12 1.32l-2 1.56 2 3.46 2.36-.95c.68.57 1.45 1.02 2.28 1.32L11.86 21h4l.38-2.29a7.6 7.6 0 0 0 2.28-1.32l2.36.95 2-3.46-2-1.56c.08-.43.12-.87.12-1.32z" transform="translate(-1.86 0)"/></svg>
     </button>
@@ -75,53 +79,82 @@
         <button class="btn btn-ghost modal-close" data-close>✕</button>
       </div>
       <div class="modal-body">
-        <label><span data-i18n="outputFormat">Output format (global)</span>
-          <select id="setFormat">
-            <option value="mp3">MP3 · 320 kbps</option>
-            <option value="flac">FLAC</option>
-          </select>
-        </label>
-        <label><span data-i18n="concurrency">Parallel downloads (global default)</span>
-          <input id="setConcurrency" type="number" min="1" max="8" />
-        </label>
-        <label><span data-i18n="template">Filename template</span>
-          <input id="setTemplate" type="text" spellcheck="false" />
-          <small>{title} {artist} {album} {source} {id} {genre}</small>
-        </label>
-        <label><span data-i18n="libraryRoot">Library folder</span>
-          <div class="path-row">
-            <input id="setLibrary" type="text" spellcheck="false" />
-            <button type="button" class="btn btn-ghost btn-browse" data-pick="library" data-i18n="browse">Browse…</button>
+        <div class="set-section">
+          <h3 data-i18n="secRekordbox">Rekordbox link</h3>
+          <p class="set-note" id="linkSummary"></p>
+          <div id="machineList"></div>
+          <div class="modal-actions-row">
+            <a class="btn btn-accent" href="/setup" data-i18n="openWizard">Open the setup wizard</a>
+            <button id="btnRecheck" class="btn btn-ghost" data-i18n="recheck">Re-check now</button>
           </div>
-        </label>
-        <label><span data-i18n="xmlPath">Inbox XML path (new downloads)</span>
-          <div class="path-row">
-            <input id="setXml" type="text" spellcheck="false" />
-            <button type="button" class="btn btn-ghost btn-browse" data-pick="xml" data-i18n="browse">Browse…</button>
-          </div>
-        </label>
-        <label><span data-i18n="collectionXml">Rekordbox collection XML (optional)</span>
-          <div class="path-row">
-            <input id="setCollection" type="text" spellcheck="false" />
-            <button type="button" class="btn btn-ghost btn-browse" data-pick="collection" data-i18n="browse">Browse…</button>
-          </div>
-          <small data-i18n="collectionHint">When set, tracks already in your full collection are removed from the inbox XML before each batch — the inbox only lists songs you haven't imported yet.</small>
-        </label>
-        <label><span data-i18n="playlist">Target playlist</span>
-          <input id="setPlaylist" type="text" />
-        </label>
-        <label><span data-i18n="language">Language</span>
-          <select id="setLanguage">
-            <option value="en">English</option>
-            <option value="it">Italiano</option>
-          </select>
-        </label>
-        <div class="modal-actions-row">
-          <button id="btnCleanInbox" class="btn btn-ghost" data-i18n="cleanInbox">Clean inbox now</button>
-          <button id="btnPurgeCompleted" class="btn btn-ghost" data-i18n="purgeCompleted">Clear completed list</button>
-          <button id="btnPurgeHistory" class="btn btn-ghost" data-i18n="purgeHistory">Purge URL history</button>
         </div>
-        <p class="hint" data-i18n="rekordboxHint">After ingestion, open Rekordbox and reload the XML source to see new tracks in the Inbox playlist.</p>
+
+        <div class="set-section">
+          <h3 data-i18n="secDownloads">Downloads</h3>
+          <label><span data-i18n="outputFormat">Output format (global)</span>
+            <select id="setFormat">
+              <option value="mp3">MP3 · 320 kbps</option>
+              <option value="flac">FLAC</option>
+            </select>
+          </label>
+          <label><span data-i18n="concurrency">Parallel downloads (global default)</span>
+            <input id="setConcurrency" type="number" min="1" max="8" />
+          </label>
+          <label><span data-i18n="template">Filename template</span>
+            <input id="setTemplate" type="text" spellcheck="false" />
+            <small>{title} {artist} {album} {source} {id} {genre}</small>
+          </label>
+        </div>
+
+        <div class="set-section">
+          <h3 data-i18n="secAppearance">Appearance</h3>
+          <label><span data-i18n="theme">Theme</span>
+            <select id="setTheme">
+              <option value="dark" data-i18n="themeDark">Dark</option>
+              <option value="light" data-i18n="themeLight">Light</option>
+              <option value="auto" data-i18n="themeAuto">Match system</option>
+            </select>
+          </label>
+          <label><span data-i18n="language">Language</span>
+            <select id="setLanguage">
+              <option value="en">English</option>
+              <option value="it">Italiano</option>
+            </select>
+          </label>
+        </div>
+
+        <details class="set-section">
+          <summary data-i18n="secAdvanced">Advanced paths</summary>
+          <p class="set-note" data-i18n="advNote">The wizard sets these for you. Change them only if you know why.</p>
+          <label><span data-i18n="libraryRoot">Library folder</span>
+            <div class="path-row">
+              <input id="setLibrary" type="text" spellcheck="false" />
+              <button type="button" class="btn btn-ghost btn-browse" data-pick="library" data-i18n="browse">Browse…</button>
+            </div>
+          </label>
+          <label><span data-i18n="xmlPath">Inbox XML path (new downloads)</span>
+            <div class="path-row">
+              <input id="setXml" type="text" spellcheck="false" />
+              <button type="button" class="btn btn-ghost btn-browse" data-pick="xml" data-i18n="browse">Browse…</button>
+            </div>
+            <small data-i18n="xmlHint">Used only when no machine is configured; otherwise each machine gets its own XML.</small>
+          </label>
+          <label><span data-i18n="collectionXml">Rekordbox collection XML (optional)</span>
+            <div class="path-row">
+              <input id="setCollection" type="text" spellcheck="false" />
+              <button type="button" class="btn btn-ghost btn-browse" data-pick="collection" data-i18n="browse">Browse…</button>
+            </div>
+            <small data-i18n="collectionHint">When set, tracks already in your full collection are removed from the inbox XML before each batch — the inbox only lists songs you haven't imported yet.</small>
+          </label>
+          <label><span data-i18n="playlist">Target playlist</span>
+            <input id="setPlaylist" type="text" />
+          </label>
+          <div class="modal-actions-row">
+            <button id="btnCleanInbox" class="btn btn-ghost" data-i18n="cleanInbox">Clean inbox now</button>
+            <button id="btnPurgeCompleted" class="btn btn-ghost" data-i18n="purgeCompleted">Clear completed list</button>
+            <button id="btnPurgeHistory" class="btn btn-ghost" data-i18n="purgeHistory">Purge URL history</button>
+          </div>
+        </details>
       </div>
       <div class="modal-foot">
         <button id="btnSaveSettings" class="btn btn-accent" data-i18n="save">Save</button>
@@ -172,9 +205,27 @@
     </div>
   </div>
 
+  <!-- Link status -->
+  <div id="linkModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 data-i18n="linkTitle">Rekordbox link</h2>
+        <button class="btn btn-ghost modal-close" data-close>✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="linkChecks" class="checks"></div>
+      </div>
+      <div class="modal-foot">
+        <a class="btn btn-ghost" href="/setup" data-i18n="openWizard">Open the setup wizard</a>
+        <button id="btnLinkRecheck" class="btn btn-accent" data-i18n="recheck">Re-check now</button>
+      </div>
+    </div>
+  </div>
+
   <datalist id="genres"></datalist>
   <div id="toast" class="toast hidden"></div>
 
+  <script src="/static/common.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
