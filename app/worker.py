@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yt_dlp
 
-from . import rekordbox, tagger
+from . import rekordbox, tagger, targets
 from .config import DATA_DIR, settings
 from .db import db, now_iso
 from .naming import render_filename, unique_path
@@ -86,16 +86,33 @@ class Worker:
 
     def _purge_inbox(self) -> None:
         """With a collection XML configured, drop inbox tracks the user has
-        already imported into Rekordbox, instead of appending forever."""
-        collection = str(settings.get("collection_xml_path") or "").strip()
-        if not collection:
-            return
-        try:
-            removed = rekordbox.purge_imported(settings["xml_path"], collection)
-            if removed:
-                log.info("purged %d already-imported tracks from the inbox XML", removed)
-        except Exception:
-            log.exception("inbox purge against collection XML failed")
+        already imported into Rekordbox, instead of appending forever. Runs per
+        machine profile: each has its own inbox and its own collection export."""
+        for inbox, collection in targets.purge_pairs():
+            try:
+                removed = rekordbox.purge_imported(inbox, collection)
+                if removed:
+                    log.info("purged %d already-imported tracks from %s", removed, inbox)
+            except Exception:
+                log.exception("inbox purge against collection XML failed for %s", inbox)
+
+    def _write_xml(self, track: dict, final: Path) -> None:
+        """Append the finished file to every machine's XML, each with a
+        Location valid on that machine. A failure on one profile must not lose
+        the track from the others."""
+        for target in targets.write_targets():
+            try:
+                if not target.maps_cleanly(str(final)):
+                    log.warning(
+                        "%s is outside the library root — %s gets an unmapped Location",
+                        final, target.label,
+                    )
+                rekordbox.add_track(
+                    target.xml_path, track, str(final),
+                    settings["playlist_name"], location=target.location(str(final)),
+                )
+            except Exception:
+                log.exception("could not write %s into %s", final.name, target.xml_path)
 
     # -------------------------------------------------------------- runner
     async def _runner(self) -> None:
@@ -134,9 +151,7 @@ class Worker:
             db.update_track(tid, status="tagging", progress=100)
             final = self._place_in_library(track, audio)
             tagger.tag_file(str(final), {**track, "file_path": str(final)})
-            rekordbox.add_track(
-                settings["xml_path"], track, str(final), settings["playlist_name"]
-            )
+            self._write_xml(track, final)
 
             elapsed = time.monotonic() - started
             db.update_track(

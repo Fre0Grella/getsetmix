@@ -248,3 +248,46 @@ def test_shared_word_is_not_a_duplicate(tmp_path: Path):
         {"title": "Hardtechno Tacata", "artist": "Dustin Hertz, Tiago Garcia-Arenas"},
         [(str(coll), "your collection")],
     ) == ""
+
+
+# ------------------------------------------------- per-machine path mapping
+def test_location_override_writes_dj_side_path(tmp_path: Path):
+    """The whole point: the XML carries a path valid on the DJ machine, not the
+    server path the file actually lives at."""
+    xml = tmp_path / "rb.xml"
+    audio = _audio(tmp_path, "a.mp3")
+    add_track(str(xml), META, str(audio), "Inbox",
+              location="file://localhost/C:/Music/a.mp3")
+    loc = ET.parse(xml).getroot().find("COLLECTION/TRACK").get("Location")
+    assert loc == "file://localhost/C:/Music/a.mp3"
+
+
+def test_location_does_not_follow_symlinks(tmp_path: Path):
+    """resolve() used to rewrite a symlinked library root into its target,
+    producing a Location the user never configured."""
+    real = tmp_path / "real"
+    real.mkdir()
+    audio = real / "a.mp3"
+    audio.write_bytes(b"\xff\xfb\x90\x00")
+    link = tmp_path / "library"
+    link.symlink_to(real)
+    xml = tmp_path / "rb.xml"
+    add_track(str(xml), META, str(link / "a.mp3"), "Inbox")
+    loc = ET.parse(xml).getroot().find("COLLECTION/TRACK").get("Location")
+    assert "/library/" in loc and "/real/" not in loc
+
+
+def test_sample_locations_and_count(tmp_path: Path):
+    xml = tmp_path / "rb.xml"
+    add_track(str(xml), META, str(_audio(tmp_path, "a.mp3")), "Inbox")
+    add_track(str(xml), META, str(_audio(tmp_path, "b.mp3")), "Inbox")
+    from app.rekordbox import sample_locations, track_count
+    assert len(sample_locations(str(xml))) == 2
+    assert track_count(str(xml)) == 2
+    assert track_count(str(tmp_path / "nope.xml")) == -1
+
+
+def test_loc_key_matches_across_separator_styles():
+    from app.rekordbox import _loc_key
+    win = "file://localhost/C:/Music/A%20Track.mp3"
+    assert _loc_key(win) == "c:/music/a track.mp3"

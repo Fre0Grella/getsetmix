@@ -1,4 +1,5 @@
 import importlib
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,8 +13,8 @@ def client(tmp_path, monkeypatch):
     # fresh module state per test
     import app.config
     import app.db
-    import app.worker
     import app.main
+    import app.worker
     importlib.reload(app.config)
     importlib.reload(app.db)
     importlib.reload(app.worker)
@@ -29,8 +30,8 @@ def auth_client(tmp_path, monkeypatch):
     monkeypatch.setenv("GSM_AUTH_TOKEN", "sekret")
     import app.config
     import app.db
-    import app.worker
     import app.main
+    import app.worker
     importlib.reload(app.config)
     importlib.reload(app.db)
     importlib.reload(app.worker)
@@ -173,3 +174,92 @@ def test_auth_blocks_api(auth_client):
     assert ok.status_code == 200
     bearer = auth_client.get("/api/tracks", headers={"Authorization": "Bearer sekret"})
     assert bearer.status_code == 200
+
+
+# ----------------------------------------------------------- machine profiles
+def test_profile_crud(client):
+    r = client.post("/api/profiles", json={
+        "name": "Studio PC", "os": "windows",
+        "library_root": "C:\\Users\\marco\\Nextcloud\\Music",
+    })
+    assert r.status_code == 201
+    pid = r.json()["id"]
+    assert pid == "studio-pc"
+    assert r.json()["dj_xml_path"].endswith("getsetmix-studio-pc.xml")
+
+    assert [p["id"] for p in client.get("/api/profiles").json()["profiles"]] == [pid]
+
+    r = client.put(f"/api/profiles/{pid}", json={"library_root": "D:\\DJ"})
+    assert r.json()["library_root"] == "D:\\DJ"
+
+    assert client.delete(f"/api/profiles/{pid}").status_code == 204
+    assert client.get("/api/profiles").json()["profiles"] == []
+    assert client.put(f"/api/profiles/{pid}", json={"name": "x"}).status_code == 404
+
+
+def test_profile_names_collide_into_distinct_ids(client):
+    a = client.post("/api/profiles", json={"name": "Laptop", "library_root": "/a"}).json()
+    b = client.post("/api/profiles", json={"name": "Laptop", "library_root": "/b"}).json()
+    assert a["id"] == "laptop" and b["id"] == "laptop-2"
+
+
+def test_path_preview_shows_the_real_location_string(client):
+    r = client.post("/api/profiles/preview", json={
+        "os": "windows", "library_root": "C:\\Music", "sample": "Artist - Title.mp3",
+    })
+    body = r.json()
+    assert body["mapped"] is True
+    assert body["dj_path"] == "C:\\Music\\Artist - Title.mp3"
+    assert body["location"] == "file://localhost/C:/Music/Artist%20-%20Title.mp3"
+
+
+def test_path_preview_flags_a_root_it_cannot_map(client):
+    body = client.post("/api/profiles/preview",
+                       json={"os": "windows", "library_root": ""}).json()
+    assert body["mapped"] is False
+
+
+def test_ingest_fans_out_one_xml_per_profile(client, tmp_path):
+    """One download, two machines, two XMLs, each with its own path space."""
+    import xml.etree.ElementTree as ET
+
+    import app.config
+    import app.worker
+
+    client.post("/api/profiles", json={
+        "name": "Studio", "os": "windows", "library_root": "C:\\DJ",
+        "server_xml_path": str(tmp_path / "studio.xml"),
+    })
+    client.post("/api/profiles", json={
+        "name": "Laptop", "os": "macos", "library_root": "/Users/m/Music",
+        "server_xml_path": str(tmp_path / "laptop.xml"),
+    })
+
+    library = app.config.settings["library_root"]
+    audio = Path(library) / "Sub" / "A - B.mp3"
+    audio.parent.mkdir(parents=True, exist_ok=True)
+    audio.write_bytes(b"\xff\xfb\x90\x00")
+
+    app.worker.worker._write_xml({"title": "B", "artist": "A"}, audio)
+
+    win = ET.parse(tmp_path / "studio.xml").getroot().find("COLLECTION/TRACK")
+    mac = ET.parse(tmp_path / "laptop.xml").getroot().find("COLLECTION/TRACK")
+    assert win.get("Location") == "file://localhost/C:/DJ/Sub/A%20-%20B.mp3"
+    assert mac.get("Location") == "file://localhost/Users/m/Music/Sub/A%20-%20B.mp3"
+
+
+def test_secrets_are_never_echoed_back(client):
+    client.put("/api/settings", json={"webdav_pass": "app-password"})
+    s = client.get("/api/settings").json()
+    assert "webdav_pass" not in s
+    assert s["webdav_pass_set"] is True
+    # A blank on save means "unchanged", not "delete".
+    client.put("/api/settings", json={"webdav_pass": "", "webdav_user": "marco"})
+    assert client.get("/api/settings").json()["webdav_pass_set"] is True
+
+
+def test_theme_and_setup_flag_roundtrip(client):
+    client.put("/api/settings", json={"theme": "light", "setup_complete": True})
+    s = client.get("/api/settings").json()
+    assert s["theme"] == "light" and s["setup_complete"] is True
+    assert client.put("/api/settings", json={"theme": "neon"}).status_code in (400, 422)

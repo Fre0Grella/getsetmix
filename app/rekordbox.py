@@ -6,23 +6,32 @@ to the COLLECTION and referenced from the configured playlist (default
 """
 from __future__ import annotations
 
+import os
 import re
 import threading
 import xml.etree.ElementTree as ET
 from datetime import date
 from pathlib import Path
-from urllib.parse import quote, unquote
+
+from .profiles import location_uri, path_from_location
 
 _lock = threading.Lock()
 
-KIND_BY_EXT = {".mp3": "MP3 File", ".flac": "FLAC File"}
+KIND_BY_EXT = {
+    ".mp3": "MP3 File", ".flac": "FLAC File", ".wav": "WAV File",
+    ".aiff": "AIFF File", ".aif": "AIFF File", ".m4a": "M4A File",
+}
 
 
 def _location(file_path: str) -> str:
-    p = Path(file_path).resolve().as_posix()
-    if not p.startswith("/"):
-        p = "/" + p  # Windows drive paths: C:/x -> /C:/x
-    return "file://localhost" + quote(p, safe="/:()&'!$+,;=@~._-")
+    """Location URI for a path on *this* machine.
+
+    Note: deliberately `abspath`, not `resolve()`. Resolving follows symlinks,
+    which silently rewrites a configured library root into some other path and
+    is one of the ways the XML used to end up with Locations Rekordbox could
+    not match. Cross-machine mapping lives in `profiles.py`.
+    """
+    return location_uri(os.path.abspath(file_path), "windows" if os.name == "nt" else "linux")
 
 
 def _empty_doc() -> ET.ElementTree:
@@ -64,8 +73,18 @@ def _playlist_node(tree: ET.ElementTree, name: str) -> ET.Element:
     return node
 
 
-def add_track(xml_path: str, meta: dict, file_path: str, playlist_name: str) -> int:
-    """Append one track to collection + playlist. Returns the TrackID."""
+def add_track(
+    xml_path: str,
+    meta: dict,
+    file_path: str,
+    playlist_name: str,
+    location: str | None = None,
+) -> int:
+    """Append one track to collection + playlist. Returns the TrackID.
+
+    `location` overrides the Location URI, so one download can be written into
+    several per-machine XMLs with paths valid on each of them.
+    """
     with _lock:
         path = Path(xml_path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -96,7 +115,7 @@ def add_track(xml_path: str, meta: dict, file_path: str, playlist_name: str) -> 
             "TotalTime": str(int(round(float(meta.get("duration") or 0)))),
             "DateAdded": date.today().isoformat(),
             "Comments": f"Source: {meta.get('url', '')}",
-            "Location": _location(file_path),
+            "Location": location or _location(file_path),
         })
         collection.set("Entries", str(len(collection.findall("TRACK"))))
 
@@ -196,7 +215,12 @@ def _norm_url(value: str) -> str:
 
 
 def _loc_key(location: str) -> str:
-    return unquote(location).strip().lower() if location else ""
+    """Comparable form of a Location. Normalises separators so a Windows XML
+    and a POSIX one agree about the same file, and lowercases because the
+    filesystems that matter here are case-insensitive."""
+    if not location:
+        return ""
+    return path_from_location(location).replace("\\", "/").strip().lower()
 
 
 def _source_url(track: ET.Element) -> str:
@@ -290,3 +314,28 @@ def find_duplicate(meta: dict, sources: list[tuple[str, str]]) -> str:
                 label = f'{rec["artist"]} – {rec["name"]}'.strip(" –")
                 return f'“{label}” already in {where}'
     return ""
+
+
+def sample_locations(xml_path: str, limit: int = 25) -> list[str]:
+    """Up to `limit` Location URIs from a collection, for resolution checks."""
+    out: list[str] = []
+    try:
+        for t in ET.parse(Path(xml_path)).getroot().iter("TRACK"):
+            loc = t.get("Location")
+            if loc:
+                out.append(loc)
+            if len(out) >= limit:
+                break
+    except (ET.ParseError, OSError):
+        return []
+    return out
+
+
+def track_count(xml_path: str) -> int:
+    """Number of COLLECTION entries, or -1 when the file is unreadable."""
+    try:
+        root = ET.parse(Path(xml_path)).getroot()
+    except (ET.ParseError, OSError):
+        return -1
+    coll = root.find("COLLECTION")
+    return len(coll.findall("TRACK")) if coll is not None else 0

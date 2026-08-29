@@ -15,8 +15,16 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, metadata, metrics, rekordbox
-from .config import AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, ensure_dirs, settings
+from . import __version__, metadata, metrics, profiles as profiles_mod, rekordbox, targets
+from .config import (
+    AUTH_TOKEN,
+    BASIC_PASS,
+    BASIC_USER,
+    DATA_DIR,
+    SECRET_KEYS,
+    ensure_dirs,
+    settings,
+)
 from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
 from .worker import worker
 
@@ -89,6 +97,31 @@ class SettingsPatch(BaseModel):
     concurrency: int | None = None
     filename_template: str | None = None
     language: str | None = None
+    theme: str | None = None
+    setup_complete: bool | None = None
+    delivery_mode: str | None = None
+    webdav_url: str | None = None
+    webdav_user: str | None = None
+    webdav_pass: str | None = None
+    webdav_root: str | None = None
+
+
+class ProfilePatch(BaseModel):
+    """One machine that runs Rekordbox. `library_root` is that machine's view
+    of the library — the whole point of the profile."""
+    name: str | None = None
+    os: str | None = None
+    library_root: str | None = None
+    xml_path: str | None = None
+    server_xml_path: str | None = None
+    collection_xml_path: str | None = None
+    enabled: bool | None = None
+
+
+class PathPreview(BaseModel):
+    os: str = "windows"
+    library_root: str = ""
+    sample: str = "Artist - Title.mp3"
 
 
 class Purge(BaseModel):
@@ -97,13 +130,9 @@ class Purge(BaseModel):
 
 # ------------------------------------------------------ duplicate flagging
 def _dup_sources() -> list[tuple[str, str]]:
-    """(xml_path, label) pairs to test a song against: the inbox we write, plus
-    the user's full Rekordbox collection export when configured."""
-    sources = [(str(settings["xml_path"]), "the inbox")]
-    coll = str(settings.get("collection_xml_path") or "").strip()
-    if coll:
-        sources.append((coll, "your collection"))
-    return sources
+    """(xml_path, label) pairs to test a song against: every inbox we write,
+    plus each machine's full Rekordbox collection export when configured."""
+    return targets.dup_sources()
 
 
 async def _flag_duplicate(tid: str) -> None:
@@ -373,9 +402,73 @@ async def fs_list(path: str = "", ext: str = ""):
     return await asyncio.to_thread(_list)
 
 
+# ------------------------------------------------------------ profiles API
+def _apply_profile_patch(profile: profiles_mod.Profile, body: ProfilePatch) -> profiles_mod.Profile:
+    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "os" in patch:
+        patch["os"] = profiles_mod.normalize_os(patch["os"])
+    for key, value in patch.items():
+        setattr(profile, key, value)
+    return profile
+
+
+@app.get("/api/profiles")
+async def list_profiles():
+    return {"profiles": [p.public() for p in settings.profiles()]}
+
+
+@app.post("/api/profiles", status_code=201)
+async def create_profile(body: ProfilePatch):
+    name = (body.name or "").strip() or "My DJ machine"
+    pid = profiles_mod.unique_id(name, [p.id for p in settings.profiles()])
+    profile = _apply_profile_patch(profiles_mod.Profile(id=pid, name=name), body)
+    profile.name = name
+    settings.upsert_profile(profile)
+    ensure_dirs()
+    return profile.public()
+
+
+@app.put("/api/profiles/{pid}")
+async def update_profile(pid: str, body: ProfilePatch):
+    profile = settings.get_profile(pid)
+    if not profile:
+        raise HTTPException(404, "No such profile")
+    settings.upsert_profile(_apply_profile_patch(profile, body))
+    ensure_dirs()
+    return profile.public()
+
+
+@app.delete("/api/profiles/{pid}", status_code=204)
+async def delete_profile(pid: str):
+    if not settings.delete_profile(pid):
+        raise HTTPException(404, "No such profile")
+    return Response(status_code=204)
+
+
+@app.post("/api/profiles/preview")
+async def preview_profile_path(body: PathPreview):
+    """Live preview for the wizard: what Location string would this machine's
+    settings actually produce? Seeing the real string is what turns the path
+    mapping from guesswork into something you can eyeball."""
+    os_style = profiles_mod.normalize_os(body.os)
+    probe = profiles_mod.Profile(id="preview", os=os_style, library_root=body.library_root)
+    server_path = profiles_mod.join_relative(
+        str(settings["library_root"]), body.sample.strip() or "Artist - Title.mp3",
+        profiles_mod.host_os(),
+    )
+    mapped, ok = probe.map_path(server_path, str(settings["library_root"]))
+    return {
+        "server_path": server_path,
+        "dj_path": mapped,
+        "location": probe.location_for(server_path, str(settings["library_root"])),
+        "mapped": ok,
+        "dj_xml_path": probe.dj_xml_path(),
+    }
+
+
 @app.get("/api/settings")
 async def get_settings():
-    return settings.data
+    return settings.public()
 
 
 @app.put("/api/settings")
@@ -389,6 +482,15 @@ async def put_settings(body: SettingsPatch):
         raise HTTPException(400, "concurrency must be between 1 and 8")
     if "filename_template" in patch and not patch["filename_template"].strip():
         raise HTTPException(400, "filename_template cannot be empty")
+    if "theme" in patch and patch["theme"] not in ("dark", "light", "auto"):
+        raise HTTPException(400, "theme must be 'dark', 'light' or 'auto'")
+    if "delivery_mode" in patch and patch["delivery_mode"] not in ("filesystem", "webdav"):
+        raise HTTPException(400, "delivery_mode must be 'filesystem' or 'webdav'")
+    # An empty secret means "leave it alone" — the UI never receives the stored
+    # value, so echoing a blank back must not wipe it.
+    for key in SECRET_KEYS:
+        if key in patch and not str(patch[key]).strip():
+            patch.pop(key)
     settings.update(patch)
     ensure_dirs()
     return settings.data
@@ -413,12 +515,12 @@ async def purge(body: Purge):
     if body.scope == "inbox":
         # Manual run of the same purge that fires automatically at batch start:
         # drop inbox tracks already present in the full Rekordbox collection.
-        collection = str(settings.get("collection_xml_path") or "").strip()
-        if not collection:
+        pairs = targets.purge_pairs()
+        if not pairs:
             raise HTTPException(400, "Set a Rekordbox collection XML path first")
-        removed = await asyncio.to_thread(
-            rekordbox.purge_imported, settings["xml_path"], collection
-        )
+        removed = 0
+        for inbox, collection in pairs:
+            removed += await asyncio.to_thread(rekordbox.purge_imported, inbox, collection)
         return {"purged": removed, "scope": "inbox"}
     raise HTTPException(400, "scope must be 'history', 'completed' or 'inbox'")
 
