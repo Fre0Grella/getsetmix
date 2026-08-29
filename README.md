@@ -19,14 +19,18 @@ Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or 
 - **Failures don't halt the batch** — failed tracks are flagged with per-track retry
 - **Tagging** — ID3v2.4 / FLAC Vorbis comments: title, artist, album, genre, embedded cover, source URL in the comment field
 - **Filename templates** — `{title} {artist} {album} {source} {id} {genre}`, sanitized, missing tokens omitted, collision-safe suffixes
-- **Rekordbox XML** — tracks appended to a configurable XML and an "Inbox" playlist (name configurable); reload the XML source in Rekordbox to see new tracks
+- **Rekordbox link that actually resolves** — a track's identity is its path *relative to the library root*, so the XML written for each machine carries paths valid **on that machine**: `/music/x.mp3` on the server becomes `C:\DJ\x.mp3` in the studio PC's XML and `/Users/m/Music/x.mp3` in the laptop's. One XML per machine, no more "imported but the file is missing"
+- **Setup wizard** — `/setup` walks the library, delivery method and DJ machine, then verifies the whole path end to end and tells you the fix for anything that fails
+- **Continuous verification** — a link-status chip runs the same checks every minute: library writable, XMLs valid, sampled Locations actually resolving, collection export not stale, companion online
+- **`gsm-link` companion** *(optional)* — one stdlib-only file on the Rekordbox machine that reads your Nextcloud/Syncthing folder map, so the DJ-side path is derived rather than typed, and confirms from that side that the files really arrived
+- **Nextcloud over WebDAV** — the server can push files (and the XML) straight into Nextcloud, so it needs no mount and no sync client of its own
 - **Collection-aware inbox** — optionally point GetSetMix at your full Rekordbox collection XML: before each batch, tracks you've already imported are purged from the inbox XML, so it only ever lists new songs
 - **Duplicate detection** — right after metadata is fetched, each track is checked against the inbox XML *and* your collection XML by source URL or by normalized/fuzzy title+artist (filename-independent, so changing the naming template still counts). Duplicates get an amber badge, and starting a batch with duplicates prompts you to download anyway or skip them
 - **Share to GetSetMix (Android)** — install the web UI as a PWA and it shows up in the Android share sheet, so you can share a link straight from the YouTube or SoundCloud app; the track lands staged and ready to review
 - **Persistence** — SQLite for tracks, URL history, and counters; manual purge from the UI
 - **Observability** — Prometheus `/metrics`: job counts by status, active downloads, download durations, errors by source, songs in last 30d / 365d / all time, health
 - **Private by default** — bind to localhost or your LAN; optional static-token or Basic Auth for public exposure
-- **i18n** — English (default) and Italian UI
+- **i18n** — English (default) and Italian UI · **dark by default**, with light and match-system themes
 - Runs comfortably under 1 GB RAM
 
 ## Quickstart — Docker Compose
@@ -89,11 +93,61 @@ python run_local.py --port 9000 --no-browser
 2. Rows resolve their metadata; fix title/artist, pick a genre, optionally set album and cover (camera button on the thumbnail → search or upload).
 3. Press **Download** to start the batch (the ×N selector overrides parallelism for this batch only). Edits lock once a track is queued.
 4. Watch per-track progress and the batch bar; cancel anytime (in-flight tracks are stopped and re-staged).
-5. When tracks show **Done**, open Rekordbox → **File ▸ Import collection / reload the rekordbox.xml source** and find them in the **Inbox** playlist.
+5. When tracks show **Done**, refresh the *rekordbox xml* tree in Rekordbox and find them in the **Inbox** playlist.
 
-In Rekordbox, point *Preferences ▸ Advanced ▸ Database ▸ rekordbox xml* at the XML path shown in Settings (default `<data>/rekordbox/getsetmix.xml`), then refresh the *rekordbox xml* tree in the sidebar after each batch.
+## Setting up the Rekordbox link
 
-To keep the inbox tidy, export your full collection (*File ▸ Export Collection in xml format*) and set its path as **Rekordbox collection XML** in Settings (or `GSM_COLLECTION_XML_PATH`). Before each batch GetSetMix compares the inbox XML against the collection (by file location, falling back to title + artist) and removes the tracks you've already imported — the Inbox playlist only ever shows what's still missing from your collection.
+Run the wizard once — **open `http://<server>:8765/setup` from the machine that
+has Rekordbox**. It is served by the server but meant to be read from there, so
+the paths it shows you are the ones you need to paste.
+
+It asks four things and then checks its own work:
+
+1. **Where downloads land on the server** — in Docker this is the path *inside*
+   the container (usually `/music`), not the path on your NAS.
+2. **How the files reach the DJ machine** — same machine · a folder Nextcloud or
+   Syncthing already syncs · upload to Nextcloud over WebDAV (no mount needed —
+   best under Docker/Kubernetes) · an SMB/NFS share.
+3. **The machine running Rekordbox** — either pair the companion, or type the
+   library folder *as that machine sees it*. Either way the wizard previews the
+   exact `Location` string the XML will contain before you commit to it.
+4. **Verify** — library writable, XML valid, sampled paths resolving, collection
+   export present and current, companion reachable. Anything red says what to do.
+
+Then in Rekordbox: **Preferences ▸ Advanced ▸ Database ▸ rekordbox xml** → the
+path the wizard shows (it defaults inside the library folder so your sync tool
+carries it along with the music). Refresh the *rekordbox xml* tree after each
+batch — nothing can make Rekordbox reload it automatically.
+
+### Why the XML used to be broken
+
+The old writer stamped the **server's** absolute path into every `Location`.
+The server's truth is `/music/…`; Rekordbox's is `C:\Users\you\Nextcloud\Music\…`.
+Nothing reconciled them, so tracks imported as missing files and there was no
+setting that could fix it. Machine profiles are that reconciliation, and the
+health checks mean you find out at setup rather than before a set.
+
+### The companion (optional but recommended)
+
+```bash
+# on the machine with Rekordbox — one file, stdlib only, Python 3.9+
+curl -fsSLO http://<server>:8765/link/gsm_link.py
+python3 gsm_link.py detect                                      # what it sees
+python3 gsm_link.py pair --server http://<server>:8765 --code 123456
+python3 gsm_link.py doctor                                      # verify now
+python3 gsm_link.py run                                         # keep reporting
+```
+
+It reads your Nextcloud/Syncthing folder map so you never type the DJ-side path,
+and it verifies from that side that the XML's paths open real files. See
+[`agent/README.md`](agent/README.md) for service setup and the `--apply` rules
+around Rekordbox's preferences file.
+
+### Multiple machines
+
+Add a profile per machine. Each gets its own XML with its own path space, so a
+Windows studio PC and a macOS laptop can share one library without either
+seeing the other's paths.
 
 ## Share to GetSetMix (Android)
 
@@ -110,19 +164,24 @@ Notes:
 
 ## Configuration
 
-Everything is editable in the UI (gear icon) and persisted to `<data>/config.json`. Environment variables override on boot:
+Everything is editable in the UI (gear icon) and persisted to `<data>/config.json`. Machine profiles live in the same file and are managed by the wizard rather than by environment variables. Environment variables override on boot:
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `GSM_DATA_DIR` | `./data` (`/data` in Docker) | SQLite DB, config, covers, default XML location |
 | `GSM_LIBRARY_ROOT` | `./music` (`/music` in Docker) | Downloads land directly here (no inbox folder) |
-| `GSM_XML_PATH` | `<data>/rekordbox/getsetmix.xml` | Inbox XML path (new downloads) |
+| `GSM_XML_PATH` | `<data>/rekordbox/getsetmix.xml` | Inbox XML path — used only when no machine profile is configured |
 | `GSM_COLLECTION_XML_PATH` | *(unset)* | Full Rekordbox collection XML; when set, already-imported tracks are purged from the inbox XML before each batch |
 | `GSM_PLAYLIST_NAME` | `Inbox` | Target playlist inside the XML |
 | `GSM_OUTPUT_FORMAT` | `mp3` | `mp3` (320 kbps) or `flac` — global only |
 | `GSM_CONCURRENCY` | `2` | Global parallel-download default |
 | `GSM_FILENAME_TEMPLATE` | `{artist} - {title}` | Tokens: `{title} {artist} {album} {source} {id} {genre}` |
 | `GSM_LANGUAGE` | `en` | `en` or `it` |
+| `GSM_THEME` | `dark` | `dark`, `light` or `auto` |
+| `GSM_DELIVERY_MODE` | `filesystem` | `filesystem` (shared folder/mount) or `webdav` |
+| `GSM_WEBDAV_URL` | *(unset)* | e.g. `https://cloud.example.com/remote.php/dav/files/marco` |
+| `GSM_WEBDAV_USER` / `GSM_WEBDAV_PASS` | *(unset)* | Nextcloud user + **app password** |
+| `GSM_WEBDAV_ROOT` | *(unset)* | Remote folder the library maps onto, e.g. `Music/DJ` |
 | `GSM_AUTH_TOKEN` | *(unset)* | Static token auth (`X-Auth-Token`, `Authorization: Bearer`, or `?token=`) |
 | `GSM_BASIC_USER` / `GSM_BASIC_PASS` | *(unset)* | HTTP Basic Auth alternative |
 
@@ -148,7 +207,7 @@ getsetmix_healthy
 ```bash
 pip install -r requirements.txt pytest httpx ruff pre-commit
 python -m pytest tests/ -v     # unit + API tests (no network needed)
-ruff check app tests run_local.py
+ruff check app agent tests run_local.py
 pre-commit install --hook-type commit-msg --hook-type pre-commit   # local guard rails
 ```
 
@@ -211,11 +270,18 @@ app/
   metadata.py    # server-side metadata fetch, playlist fan-out
   tagger.py      # ID3v2.4 / FLAC tagging + cover embedding
   rekordbox.py   # DJ_PLAYLISTS XML writer (atomic, corruption-safe)
+  profiles.py    # machine profiles + library-relative path mapping
+  targets.py     # which XML(s) a finished download is written to
+  health.py      # link self-diagnosis (the checks behind the status chip)
+  link.py        # pairing + sync API for the companion
+  delivery.py    # optional Nextcloud/WebDAV upload
   naming.py      # filename templates + sanitization
   db.py          # SQLite persistence (tracks, history, counters)
   metrics.py     # Prometheus exposition
   config.py      # settings + env overrides
-  static/        # the UI (vanilla JS, no build step)
+  static/        # the UI (vanilla JS, no build step) — common.js · app.js · setup.js
+agent/
+  gsm_link.py    # the companion that runs on the Rekordbox machine
 deploy/
   docker-compose.yml
   k8s/getsetmix.yaml
@@ -238,5 +304,10 @@ run_local.py     # local app mode
 | `POST /api/tracks/{id}/retry` | Retry a failed track |
 | `POST /api/batch/start {ids?, concurrency?}` | Start batch |
 | `POST /api/batch/cancel` | Cancel batch, re-stage in-flight |
-| `GET/PUT /api/settings` | Read / update settings |
+| `GET/PUT /api/settings` | Read / update settings (secrets are never echoed back) |
+| `GET/POST /api/profiles` · `PUT/DELETE /api/profiles/{id}` | Machine profiles |
+| `POST /api/profiles/preview` | Live preview of the `Location` a profile would produce |
+| `GET /api/health/link` | Every link check, with the fix for each failure |
+| `POST /api/link/code` | Mint a pairing code (wizard) |
+| `POST /api/link/pair` · `POST /api/link/sync` | Companion pairing and heartbeat |
 | `GET /api/stats` · `GET /api/history` · `POST /api/purge` | Stats, URL history, manual purge |

@@ -35,6 +35,7 @@
     <span class="h">Use it</span>
     <a href="#workflow">Daily workflow</a>
     <a href="#rekordbox">Rekordbox setup</a>
+    <a href="#companion">The companion</a>
     <a href="#templates">Filename templates</a>
     <span class="h">Reference</span>
     <a href="#config">Configuration</a>
@@ -45,7 +46,7 @@
 
   <main class="docs-body">
     <h1>Documentation</h1>
-    <p>GetSetMix is a single-container FastAPI service with a vanilla-JS UI. State lives in SQLite under the data directory; downloads land directly in your music library; finished tracks are appended to a <code>rekordbox.xml</code> you import once in Rekordbox.</p>
+    <p>GetSetMix is a single-container FastAPI service with a vanilla-JS UI. State lives in SQLite under the data directory; downloads land directly in your music library; finished tracks are appended to a <code>rekordbox.xml</code> you import once in Rekordbox — one XML per machine, each carrying paths valid on that machine.</p>
     <p class="note">Use GetSetMix only for content you have the rights to download.</p>
 
     <h2 id="quickstart">Docker Compose</h2>
@@ -94,16 +95,90 @@ python run_local.py --port 9000 --no-browser</pre>
     </ol>
 
     <h2 id="rekordbox">Rekordbox setup</h2>
-    <p>One-time configuration in Rekordbox:</p>
+    <p>Run the setup wizard once — open <code>http://&lt;server&gt;:8765/setup</code>
+    <b>from the machine that has Rekordbox</b>. It is served by the server, but it is
+    meant to be read from there: the paths it shows are the ones you paste into
+    Rekordbox.</p>
     <ol>
-      <li>Open <i>Preferences ▸ Advanced ▸ Database ▸ rekordbox xml</i> and point it at the XML path shown in GetSetMix settings (default <code>&lt;data&gt;/rekordbox/getsetmix.xml</code>).</li>
-      <li>In the sidebar, enable the <i>rekordbox xml</i> source (Preferences ▸ View ▸ Layout if hidden).</li>
-      <li>After each batch, right-click the xml tree and reload — new tracks appear in the configured playlist (default <b>Inbox</b>). Drag them into your collection from there.</li>
+      <li><b>Library</b> — where downloads land on the server. Under Docker this is
+      the path <i>inside</i> the container (usually <code>/music</code>), not the path
+      on your NAS.</li>
+      <li><b>Delivery</b> — how the files reach the DJ machine: the same machine · a
+      folder Nextcloud or Syncthing already syncs · uploaded to Nextcloud over WebDAV
+      (no mount, no sync client on the server — the right answer under Docker and
+      Kubernetes) · an SMB/NFS share.</li>
+      <li><b>DJ machine</b> — pair the companion, or type the library folder as that
+      machine sees it. Either way you get a live preview of the exact
+      <code>Location</code> string the XML will contain, before you commit to it.</li>
+      <li><b>Verify</b> — library writable, XML valid, sampled paths actually
+      resolving, collection export present and current, companion reachable. Anything
+      that fails tells you what to do about it.</li>
     </ol>
-    <p class="note">Run the service where Rekordbox can see the same file paths the XML contains — e.g. sync the library folder with Nextcloud/Syncthing to your DJ machine, or mount it over SMB, keeping the same drive/path layout, or set the library root to a path that matches on both machines.</p>
-    <p>The writer is conservative: it appends with incrementing TrackIDs, writes atomically, and if the XML on disk is ever corrupt it backs it up as <code>*.corrupt.xml</code> and starts a fresh one rather than failing the batch.</p>
+    <p>Then in Rekordbox: <i>Preferences ▸ Advanced ▸ Database ▸ rekordbox xml</i> →
+    the path the wizard shows. Enable the <i>rekordbox xml</i> source in the sidebar,
+    and refresh that tree after each batch — nothing can make Rekordbox reload it
+    automatically, so that click stays yours.</p>
+
+    <h3>Why this used to break</h3>
+    <p>Earlier versions stamped the <b>server's</b> absolute path into every
+    <code>Location</code>. The server's truth is <code>/music/…</code>; Rekordbox's is
+    <code>C:\Users\you\Nextcloud\Music\…</code>. Nothing reconciled the two, so
+    tracks imported as missing files and no setting could fix it.</p>
+    <p>Now a track's identity is its path <i>relative to the library root</i>. Each
+    machine gets a profile recording its own view of the library, and its own XML with
+    paths valid there:</p>
+    <table>
+      <tr><th>Machine</th><th>Its view of the same track</th></tr>
+      <tr><td>server</td><td><code>/music/Hardstyle/Artist - Title.mp3</code></td></tr>
+      <tr><td>studio PC</td><td><code>C:\Users\marco\Nextcloud\Music\Hardstyle\Artist - Title.mp3</code></td></tr>
+      <tr><td>laptop</td><td><code>/Users/marco/Music/Hardstyle/Artist - Title.mp3</code></td></tr>
+    </table>
+    <p>Add a profile per machine and each gets its own XML, so a Windows desktop and a
+    macOS laptop share one library without either seeing the other's paths.</p>
+    <p class="note">The writer stays conservative: it appends with incrementing
+    TrackIDs, writes atomically, and if the XML on disk is ever corrupt it backs it up
+    as <code>*.corrupt.xml</code> and starts a fresh one rather than failing the batch.</p>
+
+    <h3>The status chip</h3>
+    <p>The chip in the toolbar re-runs those same checks every minute, so a link that
+    breaks later — a stale collection export, a sync that stopped, a library root that
+    moved — says so in the app instead of waiting for a red icon in Rekordbox. Click it
+    for the full list.</p>
+
+    <h3 id="companion">The companion</h3>
+    <p>Optional, recommended. One stdlib-only file on the machine with Rekordbox:</p>
+    <pre>curl -fsSLO http://&lt;server&gt;:8765/link/gsm_link.py
+python3 gsm_link.py detect
+python3 gsm_link.py pair --server http://&lt;server&gt;:8765 --code 123456
+python3 gsm_link.py doctor
+python3 gsm_link.py run</pre>
+    <p>It answers what the server cannot see from the other side of a sync folder:
+    where Nextcloud or Syncthing <i>actually</i> put the library (read from the sync
+    client's own config, so you never type that path), and whether the XML's paths open
+    real files on that machine. It is headless — everything it finds shows up in the
+    web UI.</p>
+    <p class="note">Its <code>--apply</code> flag will update Rekordbox's XML path
+    preference, but only when it finds an option that already exists and already holds
+    an <code>.xml</code> path. That config format is undocumented and changes between
+    versions, so rather than guess a key it reports <i>manual</i> and the wizard shows
+    you the path to paste. Close Rekordbox first; the original file is backed up.</p>
+
+    <h3>Nextcloud over WebDAV</h3>
+    <p>Choosing WebDAV delivery makes the server push each finished file — and the XML
+    — straight into Nextcloud with an app password. No mount, no sync client next to
+    the server, which is exactly what made this awkward in a container before. The
+    remote path then becomes the shared language between the two machines, and the
+    companion resolves it to a local folder from the sync client's config, so neither
+    side has to agree on an absolute path.</p>
+
     <h3>Keeping the inbox clean with your collection XML</h3>
-    <p>Export your full collection from Rekordbox (<i>File ▸ Export Collection in xml format</i>) and set its path as <b>Rekordbox collection XML</b> in Settings (or <code>GSM_COLLECTION_XML_PATH</code>). Before each batch, GetSetMix compares the inbox XML against the collection — matching by file location, with a title + artist fallback — and removes tracks you've already imported. The Inbox playlist then only ever lists songs still missing from your collection, instead of growing forever.</p>
+    <p>Export your full collection from Rekordbox (<i>File ▸ Export Collection in xml
+    format</i>) and set its path as <b>Rekordbox collection XML</b>. Before each batch,
+    GetSetMix compares the inbox XML against the collection — matching by source URL,
+    file location, or normalized title + artist — and removes tracks you've already
+    imported. The Inbox playlist then only ever lists songs still missing from your
+    collection, instead of growing forever. Health warns when that export goes stale,
+    since a 6-month-old one quietly defeats the whole thing.</p>
 
     <h2 id="templates">Filename templates</h2>
     <p>Set the template in Settings or via <code>GSM_FILENAME_TEMPLATE</code>. Available tokens:</p>
@@ -119,18 +194,23 @@ python run_local.py --port 9000 --no-browser</pre>
     <p>Illegal filesystem characters are stripped, separators left behind by empty tokens are collapsed, and name collisions get a <code>(2)</code>-style suffix with a warning on the track.</p>
 
     <h2 id="config">Configuration</h2>
-    <p>Everything is editable from the gear icon and persisted to <code>&lt;data&gt;/config.json</code>. Environment variables override on boot:</p>
+    <p>Everything is editable from the gear icon and persisted to <code>&lt;data&gt;/config.json</code>. Machine profiles live in the same file and are managed by the setup wizard rather than by environment variables. Environment variables override on boot:</p>
     <table>
       <tr><th>Variable</th><th>Default</th><th>Purpose</th></tr>
       <tr><td><code>GSM_DATA_DIR</code></td><td><code>./data</code> (<code>/data</code> in Docker)</td><td>SQLite DB, config, covers, default XML location</td></tr>
       <tr><td><code>GSM_LIBRARY_ROOT</code></td><td><code>./music</code> (<code>/music</code>)</td><td>Downloads land directly here</td></tr>
-      <tr><td><code>GSM_XML_PATH</code></td><td><code>&lt;data&gt;/rekordbox/getsetmix.xml</code></td><td>Inbox XML path (new downloads)</td></tr>
+      <tr><td><code>GSM_XML_PATH</code></td><td><code>&lt;data&gt;/rekordbox/getsetmix.xml</code></td><td>Inbox XML path — used only when no machine profile is configured</td></tr>
       <tr><td><code>GSM_COLLECTION_XML_PATH</code></td><td><i>unset</i></td><td>Full Rekordbox collection XML — enables the inbox purge</td></tr>
       <tr><td><code>GSM_PLAYLIST_NAME</code></td><td><code>Inbox</code></td><td>Target playlist inside the XML</td></tr>
       <tr><td><code>GSM_OUTPUT_FORMAT</code></td><td><code>mp3</code></td><td><code>mp3</code> (320&nbsp;kbps) or <code>flac</code> — global only</td></tr>
       <tr><td><code>GSM_CONCURRENCY</code></td><td><code>2</code></td><td>Global parallel-download default (1–8)</td></tr>
       <tr><td><code>GSM_FILENAME_TEMPLATE</code></td><td><code>{artist} - {title}</code></td><td>See filename templates</td></tr>
       <tr><td><code>GSM_LANGUAGE</code></td><td><code>en</code></td><td><code>en</code> or <code>it</code></td></tr>
+      <tr><td><code>GSM_THEME</code></td><td><code>dark</code></td><td><code>dark</code>, <code>light</code> or <code>auto</code></td></tr>
+      <tr><td><code>GSM_DELIVERY_MODE</code></td><td><code>filesystem</code></td><td><code>filesystem</code> (shared folder or mount) or <code>webdav</code></td></tr>
+      <tr><td><code>GSM_WEBDAV_URL</code></td><td><i>unset</i></td><td>e.g. <code>https://cloud.example.com/remote.php/dav/files/marco</code></td></tr>
+      <tr><td><code>GSM_WEBDAV_USER</code> / <code>GSM_WEBDAV_PASS</code></td><td><i>unset</i></td><td>Nextcloud user and <b>app password</b></td></tr>
+      <tr><td><code>GSM_WEBDAV_ROOT</code></td><td><i>unset</i></td><td>Remote folder the library maps onto, e.g. <code>Music/DJ</code></td></tr>
       <tr><td><code>GSM_AUTH_TOKEN</code></td><td><i>unset</i></td><td>Static token auth</td></tr>
       <tr><td><code>GSM_BASIC_USER</code> / <code>GSM_BASIC_PASS</code></td><td><i>unset</i></td><td>HTTP Basic auth alternative</td></tr>
     </table>
@@ -154,7 +234,13 @@ curl "http://host:8765/metrics?token=sekret"   # for Prometheus scrape_configs</
       <tr><td><code>POST /api/tracks/{id}/retry</code></td><td>Re-queue a failed track.</td></tr>
       <tr><td><code>POST /api/batch/start {ids?, concurrency?}</code></td><td>Start a batch; omit ids to take everything staged.</td></tr>
       <tr><td><code>POST /api/batch/cancel</code></td><td>Cancel; in-flight tracks return to staged.</td></tr>
-      <tr><td><code>GET/PUT /api/settings</code></td><td>Read / update settings (validated).</td></tr>
+      <tr><td><code>GET/PUT /api/settings</code></td><td>Read / update settings (validated; secrets are never echoed back).</td></tr>
+      <tr><td><code>GET/POST /api/profiles</code> · <code>PUT/DELETE /api/profiles/{id}</code></td><td>Machine profiles — one per computer running Rekordbox.</td></tr>
+      <tr><td><code>POST /api/profiles/preview</code></td><td>Live preview of the <code>Location</code> string a profile would produce.</td></tr>
+      <tr><td><code>GET /api/health/link</code></td><td>Every link check, each with the fix for its failure.</td></tr>
+      <tr><td><code>POST /api/link/code</code></td><td>Mint a short-lived pairing code (wizard side).</td></tr>
+      <tr><td><code>POST /api/link/pair</code> · <code>POST /api/link/sync</code></td><td>Companion pairing and heartbeat — authenticated by the pairing code and then a per-profile agent token, not the UI token.</td></tr>
+      <tr><td><code>GET /link/gsm_link.py</code></td><td>The companion script, served from the server it pairs with.</td></tr>
       <tr><td><code>GET /api/stats</code> · <code>GET /api/history</code> · <code>POST /api/purge</code></td><td>Counters, URL history, manual purge.</td></tr>
       <tr><td><code>GET /healthz</code></td><td>Probe endpoint, always unauthenticated.</td></tr>
     </table>
