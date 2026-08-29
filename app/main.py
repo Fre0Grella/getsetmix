@@ -15,7 +15,15 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, metadata, metrics, profiles as profiles_mod, rekordbox, targets
+from . import (
+    __version__,
+    health,
+    metadata,
+    metrics,
+    profiles as profiles_mod,
+    rekordbox,
+    targets,
+)
 from .config import (
     AUTH_TOKEN,
     BASIC_PASS,
@@ -494,6 +502,13 @@ async def put_settings(body: SettingsPatch):
     settings.update(patch)
     ensure_dirs()
     return settings.data
+
+
+@app.get("/api/health/link")
+async def link_health():
+    """Everything that has to be true for a track to reach Rekordbox, checked
+    now. Drives the toolbar status chip and the wizard's verify step."""
+    return await asyncio.to_thread(health.run)
 
 
 @app.get("/api/stats")

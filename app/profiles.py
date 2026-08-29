@@ -180,6 +180,15 @@ class Profile:
             return server_path, False
         return join_relative(self.library_root, rel, self.os), True
 
+    def unmap_path(self, dj_path: str, server_library_root: str) -> str | None:
+        """DJ-machine absolute path -> server absolute path, or None when it
+        falls outside this profile's root. Used to verify, from the server,
+        that the Locations we wrote actually point at files that exist."""
+        rel = to_relative(dj_path, self.library_root, self.os)
+        if rel is None:
+            return None
+        return join_relative(server_library_root, rel, host_os())
+
     def location_for(self, server_path: str, server_library_root: str) -> str:
         mapped, ok = self.map_path(server_path, server_library_root)
         return location_uri(mapped, self.os if ok else host_os())

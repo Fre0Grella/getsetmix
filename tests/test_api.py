@@ -263,3 +263,9 @@ def test_theme_and_setup_flag_roundtrip(client):
     s = client.get("/api/settings").json()
     assert s["theme"] == "light" and s["setup_complete"] is True
     assert client.put("/api/settings", json={"theme": "neon"}).status_code in (400, 422)
+
+
+def test_link_health_endpoint(client):
+    body = client.get("/api/health/link").json()
+    assert body["status"] in ("ok", "warn", "error")
+    assert any(c["id"] == "library" for c in body["checks"])
