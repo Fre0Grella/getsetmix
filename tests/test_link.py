@@ -60,7 +60,7 @@ def test_bad_code_is_rejected(client):
 
 def test_guessing_burns_the_outstanding_codes(client):
     """A 6-digit code is only acceptable because guessing kills it."""
-    import app.link as link
+    from app import link
     code = client.post("/api/link/code", json={}).json()["code"]
     wrong = "999999" if code != "999999" else "111111"
     for _ in range(link.MAX_CODE_ATTEMPTS):

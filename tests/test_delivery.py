@@ -1,7 +1,12 @@
 """WebDAV delivery — path mapping into the remote tree, and error reporting."""
+import base64
 import importlib
+import os
+import threading
 import urllib.error
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 
 import pytest
 
@@ -160,3 +165,92 @@ def test_url_quoting_handles_spaces_and_accents(env):
     _, delivery, _ = env
     assert delivery._url_for("Music/DJ/Björk – a b.mp3").endswith(
         "/Music/DJ/Bj%C3%B6rk%20%E2%80%93%20a%20b.mp3")
+
+
+# ------------------------------------------- against a real WebDAV listener
+# The mocked tests above cover the protocol decisions; this one covers the
+# parts only a socket exercises: the streamed PUT and its Content-Length, the
+# MKCOL walk against a server that really rejects duplicates, and the auth
+# header actually being accepted.
+class _Dav(BaseHTTPRequestHandler):
+    root = ""
+    auth = "Basic " + base64.b64encode(b"marco:app-password").decode()
+
+    def log_message(self, *a):
+        pass
+
+    def _target(self):
+        return os.path.join(self.root, unquote(self.path)[len("/dav/"):].strip("/"))
+
+    def _authorised(self):
+        if self.headers.get("Authorization") != self.auth:
+            self.send_response(401)
+            self.end_headers()
+            return False
+        return True
+
+    def do_MKCOL(self):
+        if not self._authorised():
+            return
+        target = self._target()
+        if os.path.isdir(target):
+            self.send_response(405)  # already exists
+        else:
+            os.makedirs(target, exist_ok=True)
+            self.send_response(201)
+        self.end_headers()
+
+    def do_PUT(self):
+        if not self._authorised():
+            return
+        size = int(self.headers.get("Content-Length", 0))
+        target = self._target()
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "wb") as fh:
+            fh.write(self.rfile.read(size))
+        self.send_response(201)
+        self.end_headers()
+
+    def do_PROPFIND(self):
+        if not self._authorised():
+            return
+        self.send_response(207 if os.path.exists(self._target()) else 404)
+        self.end_headers()
+
+
+@pytest.fixture()
+def dav(tmp_path):
+    root = tmp_path / "dav-root"
+    root.mkdir()
+    handler = type("H", (_Dav,), {"root": str(root)})
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_address[1]}/dav", root
+    server.shutdown()
+
+
+def test_round_trip_against_a_real_webdav_server(env, dav):
+    config, delivery, _ = env
+    url, root = dav
+    config.settings.update({"webdav_url": url, "webdav_root": "Music"})
+
+    # PROPFIND before anything exists names the missing folder.
+    ok, detail = delivery.check()
+    assert ok is False and "Music" in detail
+
+    audio = Path(config.settings["library_root"]) / "Hardstyle" / "A - B.mp3"
+    audio.parent.mkdir(parents=True, exist_ok=True)
+    audio.write_bytes(b"\xff\xfb\x90\x00" * 4096)   # big enough to stream
+    assert delivery.deliver_file(str(audio)) == "Music/Hardstyle/A - B.mp3"
+
+    landed = root / "Music" / "Hardstyle" / "A - B.mp3"
+    assert landed.read_bytes() == audio.read_bytes()
+
+    # Uploading again hits MKCOL 405 on every existing level and still works.
+    assert delivery.deliver_file(str(audio)) == "Music/Hardstyle/A - B.mp3"
+    ok, _ = delivery.check()
+    assert ok is True
+
+    config.settings.data["webdav_pass"] = "wrong"
+    ok, detail = delivery.check()
+    assert ok is False and "app password" in detail

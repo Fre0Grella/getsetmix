@@ -22,9 +22,11 @@ from . import (
     link,
     metadata,
     metrics,
-    profiles as profiles_mod,
     rekordbox,
     targets,
+)
+from . import (
+    profiles as profiles_mod,
 )
 from .config import (
     AUTH_TOKEN,
