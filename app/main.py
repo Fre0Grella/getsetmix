@@ -6,6 +6,7 @@ import base64
 import json
 import logging
 import secrets
+import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -631,6 +632,30 @@ async def manifest():
 async def service_worker():
     # Served from the root so its scope covers the whole app.
     return FileResponse(STATIC / "sw.js", media_type="application/javascript")
+
+
+def _agent_script() -> Path:
+    """Source tree: <repo>/agent/gsm_link.py. Frozen build: PyInstaller unpacks
+    the bundled `agent` folder under sys._MEIPASS instead."""
+    bundled = getattr(sys, "_MEIPASS", "")
+    if bundled:
+        candidate = Path(bundled) / "agent" / "gsm_link.py"
+        if candidate.is_file():
+            return candidate
+    return Path(__file__).resolve().parent.parent / "agent" / "gsm_link.py"
+
+
+AGENT_SCRIPT = _agent_script()
+
+
+@app.get("/link/gsm_link.py")
+async def agent_script():
+    """The companion, served from the server it pairs with, so installing it is
+    one copy-pasteable line instead of a download hunt."""
+    if not AGENT_SCRIPT.is_file():
+        raise HTTPException(404, "Agent script not bundled with this build")
+    return FileResponse(AGENT_SCRIPT, media_type="text/x-python",
+                        filename="gsm_link.py")
 
 
 @app.get("/favicon.ico")

@@ -85,6 +85,7 @@ jobs:
         run: >
           pyinstaller --onefile --name getsetmix
           --add-data "app/static${{ matrix.sep }}app/static"
+          --add-data "agent${{ matrix.sep }}agent"
           --collect-all yt_dlp
           ${{ matrix.icon }}
           run_local.py

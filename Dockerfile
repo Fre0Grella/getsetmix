@@ -9,6 +9,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY agent ./agent
 
 ENV GSM_DATA_DIR=/data \
     GSM_LIBRARY_ROOT=/music \

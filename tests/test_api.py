@@ -269,3 +269,10 @@ def test_link_health_endpoint(client):
     body = client.get("/api/health/link").json()
     assert body["status"] in ("ok", "warn", "error")
     assert any(c["id"] == "library" for c in body["checks"])
+
+
+def test_agent_script_is_served(client):
+    r = client.get("/link/gsm_link.py")
+    assert r.status_code == 200
+    assert "gsm-link" in r.text
+    assert "def verify_xml" in r.text
