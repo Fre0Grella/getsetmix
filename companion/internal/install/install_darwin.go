@@ -9,29 +9,60 @@ import (
 	"strings"
 )
 
-const agentLabel = "com.getsetmix.companion"
+const (
+	agentLabel = "com.getsetmix.companion"
+	fetchLabel = "com.getsetmix.fetch"
+)
 
 func appPath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, "Applications", LauncherName+".app")
 }
 
-func agentPath() string {
+func agentPath() string { return launchAgent(agentLabel) }
+
+func fetchPath() string { return launchAgent(fetchLabel) }
+
+func launchAgent(label string) string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Library", "LaunchAgents", agentLabel+".plist")
+	return filepath.Join(home, "Library", "LaunchAgents", label+".plist")
+}
+
+func loadAgent(path, plist string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, []byte(plist), 0o644); err != nil {
+		return err
+	}
+	_ = exec.Command("launchctl", "unload", path).Run()
+	if out, err := exec.Command("launchctl", "load", path).CombinedOutput(); err != nil {
+		return fmt.Errorf("launchctl load: %v: %s", err, out)
+	}
+	return nil
 }
 
 // Install creates the launcher app and, optionally, the launchd agent.
 func Install(o Options) (Result, error) {
 	var res Result
+	if !o.SkipLauncher {
+		if err := installLauncher(o); err != nil {
+			return res, err
+		}
+		res.Created = append(res.Created, appPath())
+	}
+	return installAgents(o, res)
+}
+
+func installLauncher(o Options) error {
 	app := appPath()
 	macos := filepath.Join(app, "Contents", "MacOS")
 	if err := os.MkdirAll(macos, 0o755); err != nil {
-		return res, err
+		return err
 	}
 	script := "#!/bin/sh\nexec " + shellQuote(o.Exe) + " launch\n"
 	if err := os.WriteFile(filepath.Join(macos, "launch"), []byte(script), 0o755); err != nil {
-		return res, err
+		return err
 	}
 	icon := ""
 	if o.RekordboxExe != "" { // borrow Rekordbox's icon so the launcher looks like it
@@ -53,11 +84,10 @@ func Install(o Options) (Result, error) {
 %s
 </dict></plist>
 `, html.EscapeString(LauncherName), icon)
-	if err := os.WriteFile(filepath.Join(app, "Contents", "Info.plist"), []byte(plist), 0o644); err != nil {
-		return res, err
-	}
-	res.Created = append(res.Created, app)
+	return os.WriteFile(filepath.Join(app, "Contents", "Info.plist"), []byte(plist), 0o644)
+}
 
+func installAgents(o Options, res Result) (Result, error) {
 	if o.Autostart {
 		// launchd watches the folders and starts a one-shot sync when they
 		// change; `--wait` lets that sync outlast an open Rekordbox. Nothing
@@ -78,18 +108,27 @@ func Install(o Options) (Result, error) {
 <key>LowPriorityIO</key><true/>
 </dict></plist>
 `, agentLabel, html.EscapeString(o.Exe), paths.String())
-		path := agentPath()
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := loadAgent(agentPath(), agent); err != nil {
 			return res, err
 		}
-		if err := os.WriteFile(path, []byte(agent), 0o644); err != nil {
+		res.Created = append(res.Created, agentPath())
+	}
+	if o.Fetch {
+		agent := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>%s</string>
+<key>ProgramArguments</key><array><string>%s</string><string>fetch</string></array>
+<key>StartInterval</key><integer>%d</integer>
+<key>RunAtLoad</key><true/>
+<key>ProcessType</key><string>Background</string>
+<key>LowPriorityIO</key><true/>
+</dict></plist>
+`, fetchLabel, html.EscapeString(o.Exe), FetchEvery*60)
+		if err := loadAgent(fetchPath(), agent); err != nil {
 			return res, err
 		}
-		_ = exec.Command("launchctl", "unload", path).Run()
-		if out, err := exec.Command("launchctl", "load", path).CombinedOutput(); err != nil {
-			return res, fmt.Errorf("launchctl load: %v: %s", err, out)
-		}
-		res.Created = append(res.Created, path)
+		res.Created = append(res.Created, fetchPath())
 	}
 	res.Notes = append(res.Notes, "macOS may ask once whether to open a program from the internet: "+
 		"right-click it > Open, or run `xattr -d com.apple.quarantine "+o.Exe+"`")
@@ -102,10 +141,12 @@ func Uninstall() (Result, error) {
 	if err := os.RemoveAll(appPath()); err == nil {
 		res.Created = append(res.Created, appPath())
 	}
-	if _, err := os.Stat(agentPath()); err == nil {
-		_ = exec.Command("launchctl", "unload", agentPath()).Run()
-		if os.Remove(agentPath()) == nil {
-			res.Created = append(res.Created, agentPath())
+	for _, path := range []string{agentPath(), fetchPath()} {
+		if _, err := os.Stat(path); err == nil {
+			_ = exec.Command("launchctl", "unload", path).Run()
+			if os.Remove(path) == nil {
+				res.Created = append(res.Created, path)
+			}
 		}
 	}
 	return res, nil
@@ -121,4 +162,56 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, data, 0o644)
+}
+
+func appBundle() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, "Applications", AppName+".app")
+}
+
+// InstallApp creates ~/Applications/GetSetMix.app, which opens the local
+// app window (`exe --window`). icns, if not empty, becomes its icon.
+func InstallApp(exe, icns string) (Result, error) {
+	var res Result
+	app := appBundle()
+	macos := filepath.Join(app, "Contents", "MacOS")
+	if err := os.MkdirAll(macos, 0o755); err != nil {
+		return res, err
+	}
+	script := "#!/bin/sh\nexec " + shellQuote(exe) + " --window\n"
+	if err := os.WriteFile(filepath.Join(macos, "launch"), []byte(script), 0o755); err != nil {
+		return res, err
+	}
+	icon := ""
+	if icns != "" {
+		resources := filepath.Join(app, "Contents", "Resources")
+		if os.MkdirAll(resources, 0o755) == nil && copyFile(icns, filepath.Join(resources, "app.icns")) == nil {
+			icon = "<key>CFBundleIconFile</key><string>app</string>"
+		}
+	}
+	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>%s</string>
+<key>CFBundleIdentifier</key><string>com.getsetmix.app</string>
+<key>CFBundleExecutable</key><string>launch</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>LSUIElement</key><true/>
+%s
+</dict></plist>
+`, AppName, icon)
+	if err := os.WriteFile(filepath.Join(app, "Contents", "Info.plist"), []byte(plist), 0o644); err != nil {
+		return res, err
+	}
+	res.Created = append(res.Created, app)
+	return res, nil
+}
+
+// UninstallApp removes what InstallApp created.
+func UninstallApp() (Result, error) {
+	var res Result
+	if err := os.RemoveAll(appBundle()); err == nil {
+		res.Created = append(res.Created, appBundle())
+	}
+	return res, nil
 }

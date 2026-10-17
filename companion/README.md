@@ -22,6 +22,12 @@ it needs to run *right before Rekordbox starts*:
 
 ## Install
 
+The easy way is **GetSetMix Setup** (the
+[latest release](https://github.com/Fre0Grella/getsetmix/releases/latest)):
+it is this same program, and opened with no arguments it installs itself,
+finds Rekordbox and, with a home server, pairs this computer so new tracks
+download here on their own (see `fetch` below). By hand:
+
 1. Download the build for your OS from the
    [Releases page](https://github.com/Fre0Grella/getsetmix/releases?q=companion)
    (`gsm-companion-windows-x64.zip` or `gsm-companion-macos.tar.gz`) and unpack
@@ -57,6 +63,8 @@ gsm-companion setup [--folder DIR]... [--playlist NAME] [--import-existing]
 gsm-companion install [--autostart]     launcher (+ unattended imports)
 gsm-companion launch                    import new tracks, then start Rekordbox
 gsm-companion sync [--dry-run] [--wait] one import; --wait outlasts an open Rekordbox
+gsm-companion fetch [--for DURATION]    download new tracks from the paired server, then import
+gsm-companion wizard [--demo]           GetSetMix Setup (what running it with no arguments opens)
 gsm-companion watch                     stay running and import as tracks arrive
 gsm-companion status                    what it watches, what is pending
 gsm-companion uninstall                 remove launcher and autostart
@@ -115,3 +123,18 @@ and [tag](https://github.com/dhowden/tag).
 both platforms and publishes the `companion-vX.Y.Z` release (see
 `.github/workflows/companion.yml`); pushing a `companion-v*` tag does the same
 for that commit, as a pre-release when the version has a suffix (`-rc.1`).
+
+## Downloading from a home server
+
+When GetSetMix Setup pairs this computer with a home server, `companion.json`
+gets a `server` entry (address, this computer's token, the folder to fill)
+and a scheduled task (Windows Task Scheduler, or a launchd agent on macOS)
+runs `fetch` every 15 minutes; the launcher runs it too, for up to 20 s,
+before Rekordbox starts. `fetch` asks the server for its tracks
+(`GET /api/link/files`), downloads the ones this computer hasn't had before
+as `name.part` and renames them when complete, then imports them if
+Rekordbox is closed.
+
+It only ever reads from the server. A track fetched once is never fetched
+again (`fetched.json`), so deleting it here sticks, and nothing done on this
+computer changes the server's copy.

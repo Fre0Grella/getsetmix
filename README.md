@@ -1,33 +1,130 @@
-# GetSetMix
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="app/static/assets/mark-light.svg">
+    <img src="app/static/assets/mark.svg" alt="" width="150">
+  </picture>
+</p>
 
-[![CI](https://github.com/Fre0Grella/getsetmix/actions/workflows/ci.yml/badge.svg)](https://github.com/Fre0Grella/getsetmix/actions/workflows/ci.yml)
-[![Publish image](https://github.com/Fre0Grella/getsetmix/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Fre0Grella/getsetmix/actions/workflows/docker-publish.yml)
-[![Deploy site](https://github.com/Fre0Grella/getsetmix/actions/workflows/pages.yml/badge.svg)](https://github.com/Fre0Grella/getsetmix/actions/workflows/pages.yml)
+<h1 align="center">GetSetMix</h1>
 
+<p align="center">
+  <b>Get it when you hear it. Set it with one thumb. Mix it when you play.</b>
+</p>
 
-Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or playlist), review and edit the metadata, batch-download to MP3 320 kbps or FLAC, auto-tag with cover art, and ingest straight into your Rekordbox library via XML — all from a fast web UI laid out like a DJ's track browser.
+<p align="center">
+  <a href="https://github.com/Fre0Grella/getsetmix/releases/latest"><b>Download GetSetMix Setup</b></a> ·
+  <a href="https://fre0grella.github.io/getsetmix/docs.html">Docs</a> ·
+  <a href="#install">How Setup works</a>
+</p>
 
-![GetSetMix](app/static/assets/logo.png)
+<p align="center">
+  <a href="https://github.com/Fre0Grella/getsetmix/actions/workflows/ci.yml"><img src="https://github.com/Fre0Grella/getsetmix/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Fre0Grella/getsetmix/actions/workflows/release.yml"><img src="https://github.com/Fre0Grella/getsetmix/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  <a href="https://github.com/Fre0Grella/getsetmix/releases/latest"><img src="https://img.shields.io/github/v/release/Fre0Grella/getsetmix?label=latest" alt="Latest release"></a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/share-flow.png" alt="Get: share a video to GetSetMix from the phone's share menu. Set: GetSetMix opens with the track, pick a genre. Mix: the track is in Rekordbox's GetSetMix playlist, downloaded and tagged." width="100%">
+</p>
+
+Getting a track you just heard into Rekordbox usually means a session at the
+computer, later: find the song again, download it, fix its tags, import it.
+By then you've often forgotten what it was.
+
+GetSetMix takes that session away. When you hear something you like, in a
+video, a set, or one you just found with Shazam, you share its YouTube or
+SoundCloud link from your phone, right then. By the time you sit down to
+play, it's downloaded, tagged, and already in your Rekordbox collection.
+
+## How it works
+
+**GET.** You hear a track you want. In the YouTube or SoundCloud app on your
+phone, tap **Share ▸ GetSetMix**. That's the whole step: GetSetMix is in the
+share menu like any other app, and it opens straight on the track. A
+playlist or a whole set becomes one row per track.
+
+**SET.** Title and artist are already filled in. Pick the genre with one tap,
+fix anything that's off, and send it. Tracks you already own are flagged
+before you download them twice.
+
+**MIX.** Your home server downloads it (MP3 320 or FLAC), tags it with the
+cover and keeps it in your library, which is also your backup. Your computer
+fetches it on its own, and when you open Rekordbox it's already in the
+*GetSetMix* playlist. Nothing to search, download or import.
+
+No home server? GetSetMix also runs on just your computer: you paste the
+link there instead, and Set and Mix work the same. (Share to GetSetMix is
+Android only: iPhones don't let web apps into the share menu.)
 
 > Use GetSetMix only for content you have the rights to download.
 
 ## Features
 
-- **Paste & go** — single videos or whole playlists/sets fan out into individual editable rows
-- **Metadata review before download** — title + artist required, genre highlighted with a DJ-genre picker, optional album; cover override via cover search (iTunes) or manual upload
-- **Batch downloads** — global parallelism default of 2 with per-batch override, per-track status (queued → downloading → tagging → ingested / error), overall batch progress bar, cancel button
-- **Failures don't halt the batch** — failed tracks are flagged with per-track retry
-- **Tagging** — ID3v2.4 / FLAC Vorbis comments: title, artist, album, genre, embedded cover, source URL in the comment field
-- **Filename templates** — `{title} {artist} {album} {source} {id} {genre}`, sanitized, missing tokens omitted, collision-safe suffixes
-- **Rekordbox XML** — tracks appended to a configurable XML and an "Inbox" playlist (name configurable); reload the XML source in Rekordbox to see new tracks
-- **Collection-aware inbox** — optionally point GetSetMix at your full Rekordbox collection XML: before each batch, tracks you've already imported are purged from the inbox XML, so it only ever lists new songs
-- **Duplicate detection** — right after metadata is fetched, each track is checked against the inbox XML *and* your collection XML by source URL or by normalized/fuzzy title+artist (filename-independent, so changing the naming template still counts). Duplicates get an amber badge, and starting a batch with duplicates prompts you to download anyway or skip them
-- **Share to GetSetMix (Android)** — install the web UI as a PWA and it shows up in the Android share sheet, so you can share a link straight from the YouTube or SoundCloud app; the track lands staged and ready to review
-- **Persistence** — SQLite for tracks, URL history, and counters; manual purge from the UI
-- **Observability** — Prometheus `/metrics`: job counts by status, active downloads, download durations, errors by source, songs in last 30d / 365d / all time, health
-- **Private by default** — bind to localhost or your LAN; optional static-token or Basic Auth for public exposure
-- **i18n** — English (default) and Italian UI
-- Runs comfortably under 1 GB RAM
+<p align="center">
+  <img src="docs/screenshots/app-desktop.png" alt="GetSetMix on a computer: a batch downloading, tracks ready to review, one already in the library" width="68%">
+  &nbsp;
+  <img src="docs/screenshots/app-phone.png" alt="GetSetMix on a phone: a track opened for editing, with one-tap genre picks" width="23%">
+</p>
+
+**Get: from your phone, the moment you hear it**
+
+- **Share to GetSetMix** from YouTube, SoundCloud or any app that shares a link: install GetSetMix on Android from the browser and it appears in the share menu
+- Single tracks, playlists and whole sets, from anything [yt-dlp](https://github.com/yt-dlp/yt-dlp) supports
+- Or paste a link on the computer: <kbd>Ctrl</kbd>+<kbd>V</kbd> anywhere on the page
+
+**Set: the metadata, right the first time**
+
+- Every field editable before anything downloads, with a DJ-genre picker and cover search or upload
+- Duplicate detection against your collection, by source link or a fuzzy title and artist match
+- ID3v2.4 and FLAC tags with embedded artwork; filenames from a template (`{artist} - {title}`, and more)
+- Batch downloads with progress per track, adjustable parallelism, cancel and retry; one failure never stops the batch
+
+**Mix: in Rekordbox when you play**
+
+- The [companion](companion/README.md) writes new tracks straight into the Rekordbox collection, safely (backup, one transaction, integrity check), whenever you open Rekordbox through its shortcut
+- With a home server, tracks download to each paired computer on their own, one way, so the server stays the backup
+- Or, without the companion, a Rekordbox XML with an *Inbox* playlist that drops what you've already imported
+
+**Running it**
+
+- [GetSetMix Setup](#install) for Windows and macOS: on this computer, or on a home server with Docker or Kubernetes and automatic updates
+- Phone-first web UI, light or dark, in English and Italian
+- Private by default, with optional token or Basic Auth; Prometheus `/metrics`; runs in well under 1 GB of RAM
+
+## Install
+
+Download **GetSetMix Setup** from the [latest release](https://github.com/Fre0Grella/getsetmix/releases/latest)
+(`GetSetMix-Setup-windows-x64.exe`, or `GetSetMix-Setup-macos.zip`) and open it. It asks one
+question, where GetSetMix should run, and does the rest:
+
+| | **Just this computer** | **With my home server** |
+|---|---|---|
+| GetSetMix runs | in its own window, while it's open | on the server, always on |
+| Send tracks from your phone | no | yes (Share from YouTube / SoundCloud) |
+| Setup installs | the app, ffmpeg and Deno; a *GetSetMix* shortcut | GetSetMix on Docker or Kubernetes, with automatic updates (Watchtower / Keel) |
+| Tracks reach Rekordbox | straight away, through the companion | downloaded to this computer every 15 minutes while it's on, then imported |
+
+For the home server, Setup shows **one command to paste on the server**
+(over SSH, or at its own keyboard). The server reports what it has back to
+Setup, you choose in the window, and the server installs GetSetMix, turns on
+updates and pairs your computer. If GetSetMix already runs there, Setup keeps
+it, with its tracks and settings, and only adds updates and the pairing.
+Re-run Setup on a second computer to pair that one too.
+
+Tracks reach the computer one way: the server keeps every track (your
+backup), and deleting one on the computer never touches the server's copy.
+Already sync the server's music folder with Nextcloud or Syncthing? Pick
+*My server's music folder is already synced here* and Setup only watches it.
+
+The phone app needs HTTPS. Setup turns it on with **Tailscale** when the
+server has it (`tailscale serve`); without it, the phone can still open
+GetSetMix on your home Wi-Fi but can't install it or share to it.
+
+Windows may say it doesn't know the publisher (*More info* > *Run anyway*);
+on macOS, right-click *GetSetMix Setup* > *Open* the first time. Neither is
+signed yet.
+
+The sections below are the same installs by hand.
 
 ## Quickstart — Docker Compose
 
@@ -104,14 +201,14 @@ In Rekordbox, point *Preferences ▸ Advanced ▸ Database ▸ rekordbox xml* at
 
 ### Skip the XML: gsm-companion
 
-[`companion/`](companion/README.md) is a ~5 MB program for the computer that
-runs Rekordbox. It adds the tracks your sync client delivers **straight into
-the Rekordbox collection** (into a `GetSetMix` playlist), so there is no XML to
-refresh. Nothing has to stay running: Rekordbox must be closed while its
-database is written, so by default you open Rekordbox through a *Rekordbox
-(GetSetMix)* shortcut that imports first (≈1 s) and then starts it. Unattended
-imports are opt-in. Grab it from the
-[releases](https://github.com/Fre0Grella/getsetmix/releases?q=companion), then:
+[`companion/`](companion/README.md) is the program on the computer that runs
+Rekordbox, and GetSetMix Setup installs it for you. It adds new tracks
+**straight into the Rekordbox collection** (into a `GetSetMix` playlist), so
+there is no XML to refresh. With a home server it also downloads them first
+(`gsm-companion fetch`, every 15 minutes while the computer is on). Nothing
+has to stay running: Rekordbox must be closed while its database is written,
+so you open Rekordbox through a *Rekordbox (GetSetMix)* shortcut that imports
+first (≈1 s) and then starts it. By hand:
 
 ```sh
 gsm-companion setup && gsm-companion install
@@ -195,9 +292,9 @@ Other types (`chore`, `docs`, `ci`, `refactor`, `test`, …) are valid and relea
 | `ci.yml` | push to `main`, every PR | ruff lint, pytest suite (with ffmpeg), and a no-push Docker build as a PR safety net |
 | `commitlint.yml` | push to `main`, every PR | validates commit messages against Conventional Commits |
 | `docker-publish.yml` | push to `main` | builds the image for **linux/amd64 + linux/arm64** and pushes to **GHCR** as `latest`, `main`, and the commit SHA |
-| `release.yml` | push to `main` | **automated semantic versioning**: bumps the version from the commits, tags `vX.Y.Z`, creates the GitHub Release, builds the standalone executables (Windows / macOS / Linux, PyInstaller) and the immutable versioned images (`:1.2.3`, `:1.2`, `:1`) |
+| `release.yml` | push to `main` | **automated semantic versioning**: bumps the version from the commits, tags `vX.Y.Z`, creates the GitHub Release, builds **GetSetMix Setup** (Windows / macOS), the standalone executables (Windows / macOS / Linux, PyInstaller) and the immutable versioned images (`:1.2.3`, `:1.2`, `:1`) |
 | `pages.yml` | push to `main` touching `site/**` | deploys the landing + docs site in `site/` to **GitHub Pages** |
-| `companion.yml` | changes under `companion/`, `companion-v*` tags | tests the companion on Windows/macOS/Linux; when `companion/VERSION` names an unreleased version on `main`, builds Windows + universal macOS binaries and publishes the `companion-vX.Y.Z` release |
+| `companion.yml` | changes under `companion/`, `companion-v*` tags | tests the companion and Setup on Windows/macOS/Linux and builds GetSetMix Setup as a downloadable artifact (before a release, try it with `wizard --demo`: a real install needs the released app and image); when `companion/VERSION` names an unreleased version on `main`, builds Windows + universal macOS binaries and publishes the `companion-vX.Y.Z` release |
 
 One-time setup after pushing to GitHub:
 
@@ -240,7 +337,13 @@ app/
   db.py          # SQLite persistence (tracks, history, counters)
   metrics.py     # Prometheus exposition
   config.py      # settings + env overrides
+  link.py        # /api/link: paired computers download finished tracks
   static/        # the UI (vanilla JS, no build step)
+companion/       # Go: the Rekordbox companion, which is also GetSetMix Setup
+  internal/setup/         # Setup's window (local web UI) and install steps
+  internal/serverscript/  # the scripts Setup sends to a home server
+  internal/fetch/         # one-way download from the server
+  scripts/build-setup.sh  # builds Setup for Windows / macOS
 deploy/
   docker-compose.yml
   k8s/getsetmix.yaml

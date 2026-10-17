@@ -34,59 +34,16 @@
   <div class="dashes" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="wrap">
     <div>
-      <h1>From link to<br>the <span class="t">DJ booth.</span></h1>
-      <p class="lead">GetSetMix is a self-hosted ingestion service for DJs. Paste a track or a whole set, fix the tags while it fetches, and batch-download straight into your Rekordbox library — tagged, covered, playlisted.</p>
+      <h1>Get. Set.<br><span class="t">Mix.</span></h1>
+      <p class="lead">Get a track the moment you hear it: <b>Share ▸ GetSetMix</b> from YouTube or SoundCloud on your phone. Set the tags with one thumb. Mix it when you play: it's already downloaded, tagged and in your Rekordbox collection.</p>
       <div class="cta-row">
-        <a class="btn primary" href="docs.html">Get started</a>
+        <a class="btn primary" href="docs.html#setup">Get started</a>
         <a class="btn ghost" href="https://github.com/Fre0Grella/getsetmix">Source on GitHub</a>
       </div>
-      <code class="pull">docker run -p 8765:8765 ghcr.io/Fre0Grella/getsetmix:latest</code>
     </div>
 
-    <div class="mock" role="img" aria-label="The GetSetMix track list with one finished track, one downloading and one still fetching metadata">
-      <div class="mock-bar">
-        <img src="assets/mark-light.svg" alt="">
-        <span class="mb-btn">Paste link</span>
-        <span class="mb-btn accent">Download ·2</span>
-      </div>
-      <div class="mock-row">
-        <div class="mock-thumb t3" data-dur="6:42"></div>
-        <div class="mock-meta">
-          <div class="t">Voices In My Head (Extended Mix)</div>
-          <div class="a">KREAM</div>
-        </div>
-        <div class="mock-state done">✓ Done</div>
-      </div>
-      <div class="mock-row">
-        <div class="mock-thumb t2" data-dur="7:15"></div>
-        <div class="mock-meta">
-          <div class="t">Lose My Mind</div>
-          <div class="a">Dom Dolla &amp; MK</div>
-        </div>
-        <div class="mock-state dl">Processing 64%</div>
-        <div class="mock-progress"></div>
-      </div>
-      <div class="mock-row">
-        <div class="mock-thumb" data-dur="–:––"></div>
-        <div class="mock-meta">
-          <div class="t" style="color:var(--muted)">Fetching info…</div>
-          <div class="a">youtube.com/watch?v=…</div>
-        </div>
-        <div class="mock-state"><span class="mock-fetch" aria-hidden="true"><i></i><i></i><i></i></span></div>
-      </div>
-      <div class="mock-row">
-        <div class="mock-thumb t2" data-dur="5:58"></div>
-        <div class="mock-meta">
-          <div class="t">San Frandisco</div>
-          <div class="a">Dom Dolla</div>
-        </div>
-        <div class="mock-state"><span class="chip">Queued</span></div>
-      </div>
-      <div class="mock-batch">
-        <span>Batch</span>
-        <div class="bar"><i></i></div>
-        <span>2 / 3</span>
-      </div>
+    <div class="hero-phone">
+      <img src="assets/app-phone-shared.png" alt="GetSetMix on a phone, just after a track was shared from YouTube: title and artist filled in, genre one tap away" width="390" height="760">
     </div>
   </div>
 </div>
@@ -94,23 +51,24 @@
 <section id="flow">
   <div class="wrap">
     <span class="eyebrow">The flow</span>
-    <h2>Paste. Review. Ingest.</h2>
-    <p class="sub">Built around how DJs actually collect music: grab links during the week, clean the metadata once, and find everything waiting in an Inbox playlist at the next session.</p>
+    <h2>Get. Set. Mix.</h2>
+    <p class="sub">Collecting music happens when you hear it, not at the computer. GetSetMix lets you catch a track right then, from your phone, and have it ready in Rekordbox for your next session.</p>
+    <img class="flow-img" src="assets/share-flow.png" alt="Get: share a video to GetSetMix from the phone's share menu. Set: GetSetMix opens with the track, pick a genre. Mix: the track is in Rekordbox's GetSetMix playlist." width="1500" height="900">
     <div class="flow">
       <div class="step">
-        <span class="k">01 · paste</span>
-        <h3>Drop a link, or a whole playlist</h3>
-        <p>Single videos and full playlists fan out into individual rows. The server fetches title, artist, duration and artwork while you keep pasting.</p>
+        <span class="k">01 · get</span>
+        <h3>Share it when you hear it</h3>
+        <p>In YouTube or SoundCloud, tap Share and pick GetSetMix: it's in your phone's share menu like any app (Android). A playlist or a whole set becomes one row per track.</p>
       </div>
       <div class="step">
-        <span class="k">02 · review</span>
-        <h3>Fix tags before they touch disk</h3>
-        <p>Edit title and artist inline, pick the genre from a DJ-oriented list, swap the cover via search or upload. Nothing downloads until you say so.</p>
+        <span class="k">02 · set</span>
+        <h3>Set it with one thumb</h3>
+        <p>GetSetMix opens with the track. Title and artist are filled in; tap a genre, fix the cover if you like, and send it. Tracks you already own are flagged.</p>
       </div>
       <div class="step">
-        <span class="k">03 · ingest</span>
-        <h3>Batch-download into Rekordbox</h3>
-        <p>Parallel downloads to MP3 320 or FLAC, ID3 tags and embedded artwork, filenames from your template, and an entry in your rekordbox.xml Inbox.</p>
+        <span class="k">03 · mix</span>
+        <h3>Mix it when you play</h3>
+        <p>Your server downloads it as MP3 320 or FLAC with tags and artwork, your computer fetches it, and Rekordbox has it in the GetSetMix playlist the next time you open it.</p>
       </div>
     </div>
   </div>
@@ -134,33 +92,31 @@
 
 <section id="deploy">
   <div class="wrap">
-    <span class="eyebrow">Deploy</span>
-    <h2>Three ways to run it.</h2>
-    <p class="sub">Same service, same UI everywhere — pick what fits your setup.</p>
+    <span class="eyebrow">Install</span>
+    <h2>One download, one question.</h2>
+    <p class="sub">GetSetMix Setup asks where GetSetMix should run and does the rest, Rekordbox included. Windows and macOS.</p>
     <div class="deploy-cols">
       <div class="deploy-card">
-        <h3>Docker Compose</h3>
-        <p>The two-minute start for any box with Docker.</p>
-<pre class="term"><span class="c"># point /music at your library</span>
-docker compose \
-  -f deploy/docker-compose.yml \
-  up -d --build</pre>
-      </div>
-      <div class="deploy-card">
-        <h3>Kubernetes</h3>
-        <p>Plain manifests: namespace, PVCs, probes, metrics annotations.</p>
-<pre class="term">kubectl apply \
-  -f deploy/k8s/getsetmix.yaml
-<span class="c"># image from GHCR, amd64+arm64</span></pre>
-      </div>
-      <div class="deploy-card">
-        <h3>Local app mode</h3>
-        <p>A prebuilt desktop app — download, run, and it opens in your browser. Windows, macOS &amp; Linux.</p>
+        <h3>Just this computer</h3>
+        <p>Setup installs the app with ffmpeg and Deno and adds a GetSetMix shortcut. It opens in its own window while you use it and puts tracks straight into Rekordbox.</p>
         <div class="rel-cta">
-          <a class="btn primary" href="https://github.com/Fre0Grella/getsetmix/releases">
-            Download for desktop →
-          </a>
+          <a class="btn primary" href="https://github.com/Fre0Grella/getsetmix/releases/latest">Download Setup →</a>
         </div>
+      </div>
+      <div class="deploy-card">
+        <h3>With my home server</h3>
+        <p>Always on, so you can share tracks from your phone. Paste one command on the server: Setup installs GetSetMix on Docker or Kubernetes with automatic updates, or keeps the one you have.</p>
+<pre class="term"><span class="c"># Setup shows it, with your code</span>
+curl -fsSL http://&lt;pc&gt;:47321/s/&lt;code&gt; \
+  | sudo sh</pre>
+      </div>
+      <div class="deploy-card">
+        <h3>By hand</h3>
+        <p>Same service, plain files: Docker Compose, Kubernetes manifests, or the standalone app. See the <a href="docs.html#quickstart">docs</a>.</p>
+<pre class="term">docker compose \
+  -f deploy/docker-compose.yml up -d
+kubectl apply \
+  -f deploy/k8s/getsetmix.yaml</pre>
       </div>
     </div>
   </div>

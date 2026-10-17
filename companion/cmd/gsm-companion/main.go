@@ -17,11 +17,13 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/config"
+	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
 	"github.com/Fre0Grella/getsetmix/companion/internal/importer"
 	"github.com/Fre0Grella/getsetmix/companion/internal/install"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/rekordbox"
 	"github.com/Fre0Grella/getsetmix/companion/internal/scan"
+	"github.com/Fre0Grella/getsetmix/companion/internal/setup"
 	"github.com/Fre0Grella/getsetmix/companion/internal/watch"
 )
 
@@ -31,10 +33,12 @@ var version = "dev"
 const usage = `gsm-companion %s — imports GetSetMix downloads into Rekordbox
 
 Usage:
+  gsm-companion                         open GetSetMix Setup (also: wizard [--demo])
   gsm-companion setup [--folder DIR]... [--playlist NAME] [--import-existing]
   gsm-companion install [--autostart]   create the "Rekordbox (GetSetMix)" launcher
   gsm-companion launch                  import new tracks, then start Rekordbox
   gsm-companion sync [--dry-run] [--wait]
+  gsm-companion fetch [--for DURATION]  download new tracks from the server, then import
   gsm-companion watch                   stay running, import as tracks arrive
   gsm-companion status
   gsm-companion uninstall
@@ -46,9 +50,10 @@ Nothing keeps running afterwards.
 `
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, usage, version)
-		os.Exit(2)
+	// Double-clicked (or opened from Finder, which may add -psn_…): this is
+	// GetSetMix Setup.
+	if len(os.Args) < 2 || strings.HasPrefix(os.Args[1], "-psn_") {
+		os.Args = []string{os.Args[0], "wizard"}
 	}
 	cmd, args := os.Args[1], os.Args[2:]
 	home, err := config.Dir()
@@ -59,6 +64,8 @@ func main() {
 	defer closeLog()
 
 	switch cmd {
+	case "wizard":
+		err = cmdWizard(home, logger, args)
 	case "setup":
 		err = cmdSetup(home, args)
 	case "install":
@@ -69,6 +76,8 @@ func main() {
 		err = cmdLaunch(home, logger)
 	case "sync":
 		err = cmdSync(home, logger, args)
+	case "fetch":
+		err = cmdFetch(home, logger, args)
 	case "watch":
 		err = cmdWatch(home, logger)
 	case "status":
@@ -179,34 +188,14 @@ func cmdSetup(home string, args []string) error {
 
 	// Baseline: what is already there is "handled", so only tracks that
 	// arrive from now on are imported (unless --import-existing).
-	known, err := db.KnownPaths()
+	db.Close()
+	rep, err := importer.Baseline(home, inst, folders, *importExisting, time.Now())
 	if err != nil {
 		return err
 	}
-	now := time.Now()
-	found, err := scan.Folders(folders, now)
-	if err != nil {
-		return err
-	}
-	state := &config.State{Baseline: now, Seen: map[string]time.Time{}}
-	var inCollection, outside int
-	for _, f := range found.Ready {
-		switch {
-		case known[f.Key]:
-			inCollection++
-			state.Mark(now, f.Key)
-		case *importExisting:
-			outside++
-		default:
-			outside++
-			state.Mark(now, f.Key)
-		}
-	}
-	if err := state.Save(home); err != nil {
-		return err
-	}
+	inCollection, outside := rep.InCollection, rep.Outside
 	fmt.Printf("Rekordbox library: %s\n", inst.Dir)
-	fmt.Printf("%d track(s) in the folder, %d already in Rekordbox.\n", len(found.Ready), inCollection)
+	fmt.Printf("%d track(s) in the folder, %d already in Rekordbox.\n", rep.Files, inCollection)
 	if outside > 0 {
 		if *importExisting {
 			fmt.Printf("%d track(s) Rekordbox doesn't have will be imported on the next sync.\n", outside)
@@ -217,6 +206,27 @@ func cmdSetup(home string, args []string) error {
 	}
 	fmt.Printf("New tracks will be added to the %q playlist.\n\nNext: gsm-companion install\n", cfg.Playlist)
 	return nil
+}
+
+// ----------------------------------------------------------------- wizard
+
+func cmdWizard(home string, logger *log.Logger, args []string) error {
+	fs := flag.NewFlagSet("wizard", flag.ExitOnError)
+	demo := fs.Bool("demo", false, "play the whole flow with a pretend server; change nothing")
+	noWindow := fs.Bool("no-window", false, "print the address instead of opening a window")
+	dryRunOS := fs.Bool("dry-run-os", false, "skip shortcuts, scheduled tasks and autostart")
+	image := fs.String("image", os.Getenv("GSM_SETUP_IMAGE"), "server image to install (default: the published one)")
+	app := fs.String("app", os.Getenv("GSM_SETUP_APP"), "GetSetMix app to install on this computer (URL or file)")
+	port := fs.Int("pair-port", 0, "network port the server calls back on (default 47321)")
+	_ = fs.Parse(args)
+	exe, err := install.Self()
+	if err != nil {
+		return err
+	}
+	return setup.Run(context.Background(), setup.Options{
+		Version: version, Home: home, Exe: exe, Demo: *demo, NoWindow: *noWindow, DryRunOS: *dryRunOS,
+		Image: *image, AppURL: *app, PairPort: *port, Log: logger,
+	})
 }
 
 // ---------------------------------------------------------------- install
@@ -263,6 +273,13 @@ func cmdUninstall() error {
 func cmdLaunch(home string, logger *log.Logger) error {
 	cfg, _ := config.Load(home)
 	inst, _ := rekordbox.Locate(cfg.RekordboxDir, cfg.RekordboxExe)
+	if cfg.Server != nil {
+		// Whatever arrived since the last scheduled fetch, within a budget
+		// short enough not to make anyone wait for Rekordbox.
+		if _, err := runFetch(home, cfg, logger, 20*time.Second); err != nil {
+			logger.Printf("launch: fetch: %v", err)
+		}
+	}
 	if running, _ := rekordbox.IsRunning(); !running {
 		if im, err := newImporter(home, logger); err != nil {
 			logger.Printf("launch: import skipped: %v", err)
@@ -301,6 +318,97 @@ func cmdSync(home string, logger *log.Logger, args []string) error {
 	return err
 }
 
+// cmdFetch downloads new tracks from the server and imports them when
+// Rekordbox is closed; when it is open they wait for the launcher or the next
+// fetch. The scheduled task runs this every few minutes.
+func cmdFetch(home string, logger *log.Logger, args []string) error {
+	fs := flag.NewFlagSet("fetch", flag.ExitOnError)
+	budget := fs.Duration("for", 30*time.Minute, "stop downloading after this long")
+	_ = fs.Parse(args)
+	cfg, err := config.Load(home)
+	if err != nil {
+		return err
+	}
+	if cfg.Server == nil {
+		return errors.New("no server paired: run GetSetMix Setup")
+	}
+	rep, err := runFetch(home, cfg, logger, *budget)
+	if err != nil {
+		return err
+	}
+	if len(rep.Downloaded) == 0 {
+		return nil
+	}
+	im, err := newImporter(home, logger)
+	if errors.Is(err, rekordbox.ErrNotFound) {
+		// Downloading still keeps this computer's copy; importing waits for
+		// Rekordbox to be installed (and Setup to be run again).
+		logger.Printf("fetch: Rekordbox not found here; %d track(s) downloaded, not imported", len(rep.Downloaded))
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	irep, err := im.Sync(false)
+	if errors.Is(err, importer.ErrRekordboxRunning) {
+		logger.Printf("fetch: %d track(s) wait for Rekordbox to close", irep.New)
+		return nil
+	}
+	if err == nil && len(irep.Imported) > 0 {
+		logger.Printf("fetch: imported %d track(s) into %q", len(irep.Imported), cfg.Playlist)
+	}
+	return err
+}
+
+// runFetch is one fetch, guarded so the launcher and the scheduled task
+// never download at the same time.
+func runFetch(home string, cfg config.Config, logger *log.Logger, budget time.Duration) (fetch.Report, error) {
+	unlock, err := lock(home, "fetch")
+	if err != nil {
+		return fetch.Report{}, err
+	}
+	defer unlock()
+	state, err := fetch.LoadState(home)
+	if err != nil {
+		return fetch.Report{}, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
+	defer cancel()
+	c := &fetch.Client{Server: *cfg.Server}
+	rep, err := c.Run(ctx, state, time.Now)
+	if serr := state.Save(home); err == nil {
+		err = serr
+	}
+	for _, p := range rep.Downloaded {
+		logger.Printf("fetched %s", p)
+	}
+	for p, why := range rep.Failed {
+		logger.Printf("fetch failed %s: %s", p, why)
+	}
+	if rep.Remaining > 0 {
+		logger.Printf("fetch: %d track(s) left for next time", rep.Remaining)
+	}
+	return rep, err
+}
+
+// lock takes a lock file, stealing it when its holder is clearly gone.
+func lock(home, name string) (func(), error) {
+	path := filepath.Join(home, name+".lock")
+	for i := 0; i < 2; i++ {
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		if err == nil {
+			f.Close()
+			return func() { os.Remove(path) }, nil
+		}
+		if info, serr := os.Stat(path); serr == nil && time.Since(info.ModTime()) > 2*time.Hour {
+			os.Remove(path)
+			continue
+		}
+		break
+	}
+	return nil, fmt.Errorf("another %s is running", name)
+}
+
 func cmdWatch(home string, logger *log.Logger) error {
 	im, err := newImporter(home, logger)
 	if err != nil {
@@ -320,6 +428,9 @@ func cmdStatus(home string) error {
 	fmt.Printf("version     %s\n", version)
 	fmt.Printf("watching    %s\n", strings.Join(cfg.Folders, ", "))
 	fmt.Printf("playlist    %s\n", cfg.Playlist)
+	if cfg.Server != nil {
+		fmt.Printf("server      %s -> %s\n", cfg.Server.URL, cfg.Server.Folder)
+	}
 	fmt.Printf("rekordbox   %s\n", inst.Dir)
 	if inst.Exe != "" {
 		fmt.Printf("program     %s\n", inst.Exe)

@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
 )
 
 // Config is the user's setup, written by `gsm-companion setup`.
@@ -21,6 +23,10 @@ type Config struct {
 	RekordboxDir string `json:"rekordbox_dir,omitempty"`
 	// RekordboxExe overrides the program `launch` starts (auto-detected if empty).
 	RekordboxExe string `json:"rekordbox_exe,omitempty"`
+	// Server, when set, is where `fetch` downloads new tracks from (into
+	// Server.Folder, which is also watched). Without it the folders are
+	// expected to be filled by a sync client.
+	Server *fetch.Server `json:"server,omitempty"`
 }
 
 // DefaultPlaylist is where imports land unless configured otherwise.

@@ -117,6 +117,11 @@ code, pre { font-family: var(--mono); }
 .hero .dashes { left: -86px; top: 54%; }
 
 /* ---------- hero app mock ---------- */
+.hero-phone {
+  width: 300px; justify-self: center; padding: 12px; border-radius: 40px; background: #05080f;
+  box-shadow: 0 0 0 2px #2a3550, 0 40px 80px -30px rgba(0,0,0,.8);
+}
+.hero-phone img { display: block; width: 100%; height: auto; border-radius: 29px; }
 .mock {
   background: #fbfcfe; color: var(--text);
   border-radius: var(--radius);
@@ -208,6 +213,7 @@ h2 {
 .sub { color: var(--muted); max-width: 62ch; margin: 0 0 40px; }
 
 /* flow */
+.flow-img { display: block; width: 100%; height: auto; border-radius: var(--radius); margin: 0 0 28px; }
 .flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
 .step {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
