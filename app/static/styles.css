@@ -305,6 +305,14 @@ body {
 .cover-upload { display: flex; justify-content: center; }
 .upload-label { cursor: pointer; }
 
+/* ------------------------------------------------------- engine banner */
+.engine-banner {
+  margin: 10px 14px 0; padding: 10px 14px; border-radius: 10px;
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
+  font-size: 13px; line-height: 1.45;
+}
+
 /* ---------------------------------------------------------------- toast */
 .toast {
   position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%);

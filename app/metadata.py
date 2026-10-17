@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 import yt_dlp
+
+from . import ytdl
 
 _SPLIT_SEPS = (" - ", " \u2013 ", " \u2014 ", " | ", " \uff0d ")
 _NOISE = re.compile(
@@ -44,16 +45,7 @@ def best_thumbnail(info: dict) -> str:
 
 
 def _ydl(extra: dict | None = None) -> yt_dlp.YoutubeDL:
-    opts: dict[str, Any] = {
-        "quiet": True,
-        "no_warnings": True,
-        "noprogress": True,
-        "skip_download": True,
-        "socket_timeout": 20,
-    }
-    if extra:
-        opts.update(extra)
-    return yt_dlp.YoutubeDL(opts)
+    return ytdl.ydl({"skip_download": True, "socket_timeout": 20, **(extra or {})})
 
 
 def probe(url: str) -> dict:

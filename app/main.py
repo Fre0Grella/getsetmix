@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, metadata, metrics, rekordbox
+from . import __version__, metadata, metrics, rekordbox, ytdl
 from .config import AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, ensure_dirs, settings
 from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
 from .worker import worker
@@ -131,8 +131,7 @@ async def _fetch_track_meta(tid: str, url: str) -> None:
             await _flag_duplicate(tid)
         except Exception as exc:
             # Metadata fetch failed -> manual entry allowed to continue.
-            msg = str(exc).splitlines()[0][:300]
-            db.update_track(tid, status="fetch_error", error=msg)
+            db.update_track(tid, status="fetch_error", error=ytdl.explain(exc))
 
 
 # -------------------------------------------------------------------- API
@@ -158,7 +157,7 @@ async def _resolve_new(tid: str, url: str) -> None:
     try:
         probed = await asyncio.to_thread(metadata.probe, url)
     except Exception as exc:
-        db.update_track(tid, status="fetch_error", error=str(exc).splitlines()[0][:300])
+        db.update_track(tid, status="fetch_error", error=ytdl.explain(exc))
         db.add_history(url)
         return
 
@@ -394,6 +393,12 @@ async def put_settings(body: SettingsPatch):
     return settings.data
 
 
+@app.get("/api/status")
+async def status():
+    """Download-engine health: yt-dlp version/age and the JS runtime YouTube needs."""
+    return {"version": __version__, "ytdlp": await asyncio.to_thread(ytdl.status)}
+
+
 @app.get("/api/stats")
 async def stats():
     return db.stats()
@@ -476,3 +481,5 @@ async def on_startup():
         db.update_track(t["id"], status="staged", progress=0)
     log.info("GetSetMix ready — library=%s xml=%s",
              settings["library_root"], settings["xml_path"])
+    for problem in await asyncio.to_thread(ytdl.problems):
+        log.warning("%s", problem)

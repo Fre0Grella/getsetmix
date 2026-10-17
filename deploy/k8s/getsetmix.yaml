@@ -67,6 +67,9 @@ spec:
       containers:
         - name: getsetmix
           image: ghcr.io/Fre0Grella/getsetmix:latest   # or your registry
+          # :latest is rebuilt weekly with the newest yt-dlp (YouTube breaks old
+          # ones), so always pull: `kubectl rollout restart` then picks it up.
+          imagePullPolicy: Always
           ports:
             - containerPort: 8765
           envFrom:
