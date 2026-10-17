@@ -3,10 +3,13 @@ package install
 import (
 	"errors"
 	"fmt"
+	"html"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
+	"unicode/utf16"
 
 	"golang.org/x/sys/windows/registry"
 )
@@ -14,7 +17,7 @@ import (
 const (
 	runKey    = `Software\Microsoft\Windows\CurrentVersion\Run`
 	runValue  = "GetSetMix Companion"
-	fetchTask = `GetSetMix\Fetch new tracks`
+	fetchTask = "GetSetMix fetch new tracks" // top level: a folder would outlive the task
 )
 
 // guiExe is the windowless build shipped next to the console one
@@ -99,14 +102,10 @@ func Install(o Options) (Result, error) {
 			"run `gsm-companionw watch` to start it now")
 	}
 	if o.Fetch {
-		// A per-user scheduled task: no admin rights, no resident process.
-		out, err := exec.Command("schtasks", "/Create", "/F", "/TN", fetchTask,
-			"/SC", "MINUTE", "/MO", fmt.Sprint(FetchEvery),
-			"/TR", fmt.Sprintf(`"%s" fetch`, target)).CombinedOutput()
-		if err != nil {
-			return res, fmt.Errorf("scheduling fetch: %v: %s", err, strings.TrimSpace(string(out)))
+		if err := scheduleFetch(fetchTask, target, time.Now()); err != nil {
+			return res, fmt.Errorf("scheduling fetch: %w", err)
 		}
-		res.Created = append(res.Created, `Task Scheduler\`+fetchTask)
+		res.Created = append(res.Created, "Task Scheduler: "+fetchTask)
 	}
 	return res, nil
 }
@@ -120,7 +119,7 @@ func Uninstall() (Result, error) {
 		}
 	}
 	if exec.Command("schtasks", "/Delete", "/F", "/TN", fetchTask).Run() == nil {
-		res.Created = append(res.Created, `Task Scheduler\`+fetchTask)
+		res.Created = append(res.Created, "Task Scheduler: "+fetchTask)
 	}
 	k, err := registry.OpenKey(registry.CURRENT_USER, runKey, registry.SET_VALUE)
 	if err == nil {
@@ -153,6 +152,64 @@ func makeShortcut(lnk, target, args, icon, description string, minimized bool) e
 	out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script).CombinedOutput()
 	if err != nil {
 		return errors.Join(err, errors.New(strings.TrimSpace(string(out))))
+	}
+	return nil
+}
+
+// fetchTaskXML is the scheduled fetch. A plain `schtasks /SC MINUTE` task
+// never starts on battery and stops when the power cable comes out, which on
+// a DJ's laptop means never; this one runs on battery, catches up after
+// sleep, waits for the network and never overlaps itself.
+const fetchTaskXML = `<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Description>Downloads new GetSetMix tracks and adds them to Rekordbox.</Description></RegistrationInfo>
+  <Triggers>
+    <TimeTrigger>
+      <Repetition><Interval>PT%dM</Interval><StopAtDurationEnd>false</StopAtDurationEnd></Repetition>
+      <StartBoundary>%s</StartBoundary>
+      <Enabled>true</Enabled>
+    </TimeTrigger>
+  </Triggers>
+  <Principals><Principal id="Author"><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable>
+    <ExecutionTimeLimit>PT2H</ExecutionTimeLimit>
+    <Enabled>true</Enabled>
+  </Settings>
+  <Actions Context="Author"><Exec><Command>%s</Command><Arguments>fetch</Arguments></Exec></Actions>
+</Task>
+`
+
+// scheduleFetch registers (or replaces) the per-user task name that runs
+// `exe fetch` every FetchEvery minutes: no admin rights, no resident process.
+func scheduleFetch(name, exe string, now time.Time) error {
+	def := fmt.Sprintf(fetchTaskXML, FetchEvery, now.Format("2006-01-02T15:04:05"), html.EscapeString(exe))
+	// schtasks reads task XML as UTF-16.
+	u := utf16.Encode([]rune(def))
+	buf := make([]byte, 2+2*len(u))
+	buf[0], buf[1] = 0xFF, 0xFE
+	for i, c := range u {
+		buf[2+2*i], buf[3+2*i] = byte(c), byte(c>>8)
+	}
+	f, err := os.CreateTemp("", "gsm-fetch-task-*.xml")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	_, err = f.Write(buf)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return err
+	}
+	out, err := exec.Command("schtasks", "/Create", "/F", "/TN", name, "/XML", f.Name()).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
