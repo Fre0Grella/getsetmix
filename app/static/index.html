@@ -2,56 +2,39 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>GetSetMix</title>
-  <link rel="icon" href="/static/assets/favicon.ico" />
+  <link rel="icon" href="/static/assets/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/static/assets/favicon.ico" sizes="any" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="color-scheme" content="dark light" />
-  <meta name="theme-color" content="#14161b" media="(prefers-color-scheme: dark)" />
-  <meta name="theme-color" content="#fdfdff" media="(prefers-color-scheme: light)" />
   <link rel="apple-touch-icon" href="/static/assets/icon-192.png" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#14161b" />
+  <script>
+    // Theme before first paint: "light" / "dark" pin it, anything else follows the system.
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("gsm_theme"); } catch (e) { /* storage blocked */ }
+      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      else t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.querySelector('meta[name="theme-color"]').content = t === "dark" ? "#14161b" : "#fdfdff";
+    })();
+  </script>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="gsm-mark" viewBox="0 0 512 344">
+      <path fill="currentColor" fill-rule="evenodd" d="M56.77 324.42L55.94 321.61L67.36 310.07C73.66 303.72 87.13 289.82 97.32 279.17L115.83 259.81L139.07 252.39C151.85 248.3 162.65 244.96 163.07 244.95C163.48 244.95 171.57 234.65 181.04 222.07C190.51 209.49 204.29 191.21 211.65 181.45C219.02 171.69 227.48 160.12 230.47 155.75C233.45 151.38 237.7 145.51 239.9 142.71L243.9 137.62L259.11 130.74C272.82 124.55 284.76 119.05 318.23 103.55C346.47 90.46 350.71 88.4 350.22 87.97C349.92 87.72 344.16 83.55 337.39 78.7L325.11 69.88L314.92 67.24C296.33 62.42 260.2 52.46 241.83 47.09C235.36 45.21 228.2 43.38 225.92 43.03C218.46 41.89 192.83 35.05 192.53 34.12C192.19 33.11 200.2 25.31 206.91 20.12C210.82 17.11 211.72 16.7 213.82 17C220.42 17.94 287.54 28.37 307.86 31.61C320.6 33.64 334.89 35.86 339.61 36.55L348.22 37.8L366.58 49.96C402.62 73.84 405.23 75.55 406.29 75.95C407.06 76.24 407.49 75.81 407.8 74.4C409.98 64.54 413.35 57.58 418.92 51.43C423.95 45.86 431.71 40.77 438.74 38.43C443.76 36.75 445.42 36.54 453.06 36.57C462.45 36.61 464.66 37.12 473.45 41.35C481.74 45.32 488.24 51.71 492.75 60.31C496.42 67.32 497.58 72.11 497.61 80.39C497.67 92.87 493.67 102.64 484.86 111.57C475.94 120.61 466.2 124.79 454.09 124.79C446.72 124.79 440.8 123.38 434.26 120.07C431.24 118.55 431.01 118.52 430.81 119.69C430.52 121.33 405.36 144.45 402.81 145.43C400.3 146.39 355.88 158.88 341.39 162.69C335.31 164.3 330.09 165.83 329.79 166.1C329.49 166.36 335.56 171.05 343.27 176.5C362.13 189.85 384.27 205.42 387.93 207.91C391.47 210.31 391.65 210.63 393.21 217.19C394.2 221.37 394.27 222.83 393.62 225.41C392.53 229.75 390.77 232.98 387.42 236.78C384 240.66 388.18 239.35 340.35 251.45C278.14 267.18 226.92 279.22 225.15 278.54C224.62 278.34 224.21 277.31 224.22 276.25C224.25 274.66 225.27 273.57 230.25 269.84C233.55 267.37 244.13 259.05 253.76 251.36L271.27 237.37L284.55 233.98C307.71 228.07 329.36 221.92 328.8 221.4C328.3 220.93 296.38 209.05 279.65 203.1C273.56 200.94 272.37 200.7 271.37 201.5C270.73 202.01 266.34 205.69 261.63 209.68C256.91 213.67 250.96 218.66 248.4 220.75C243.22 224.98 236.22 230.9 210.37 252.88C200.67 261.12 192.11 268.14 191.35 268.48C190.59 268.82 177.83 274.59 163 281.3C135.87 293.57 123.8 298.93 75.26 320.27C66.56 324.09 59.02 327.23 58.52 327.23C58.02 327.23 57.24 325.96 56.77 324.42Z M459.4 289.36C454.59 288.48 450.46 287.54 450.24 287.27C450.01 287 449.12 284.75 448.24 282.28C447.37 279.81 441.07 263.63 434.22 246.33C420.46 211.54 418.43 206.28 407.01 175.94C402.67 164.42 399.13 154.55 399.13 154C399.13 153.46 400.76 152.18 402.76 151.17C409.05 147.99 412.09 145.5 417.23 139.31C423.1 132.24 430.03 125.33 431.26 125.33C431.82 125.33 432.69 128.05 433.63 132.76C437.04 149.61 442.31 174.32 445.52 188.59C447.41 196.96 452.21 218.59 456.2 236.65C460.18 254.71 463.67 270.04 463.95 270.72C464.25 271.43 468.28 273.64 473.54 275.97C488.31 282.52 498 288.12 498 290.1C498 290.72 494.21 290.93 483.08 290.94C470.41 290.95 466.83 290.72 459.4 289.36Z M443.72 108.79C452.4 104.51 457.4 96.45 457.47 86.61C457.51 80.07 455.23 74.7 450.27 69.65L446.86 66.19L449.32 62.05C455.2 52.2 463.62 46.51 472.48 46.38C473.97 46.36 475.18 46.12 475.18 45.84C475.18 45.57 473.55 44.45 471.55 43.35C468.46 41.65 467.16 41.36 462.74 41.37C458.28 41.38 456.87 41.71 452.71 43.71C447.05 46.44 442.07 51.24 438.54 57.35L436.12 61.54L431.73 61.96C422.92 62.78 415.38 68.04 411.4 76.14C409.41 80.17 409.16 81.35 409.19 86.25C409.23 93.74 411.25 98.82 416.05 103.62C424.11 111.69 434.06 113.55 443.72 108.79Z"/>
+      <path style="fill: var(--accent)" fill-rule="evenodd" d="M40.71 222.08C38.43 220.28 38.21 216.58 40.27 214.52C41.54 213.26 42.58 213.14 52.67 213.14L63.68 213.14L65.12 214.96C67.07 217.44 66.92 219.1 64.53 221.49L62.5 223.51L52.52 223.51C43.47 223.51 42.36 223.38 40.71 222.08Z M82.07 221.82C81.14 220.88 80.38 219.31 80.38 218.33C80.38 217.34 81.14 215.77 82.07 214.83C84.01 212.9 84.42 212.88 117.02 212.97C141.55 213.03 140.89 212.99 142.57 214.36C144.83 216.18 144.71 219.85 142.33 221.9L140.46 223.51L112.11 223.51L83.77 223.51L82.07 221.82Z M63.31 188.25C62.47 187.91 61.27 186.84 60.63 185.86C59.63 184.35 59.6 183.78 60.35 181.96C60.84 180.79 61.99 179.55 62.9 179.2C63.86 178.84 88.01 178.57 119.74 178.57C174.52 178.57 174.93 178.58 176.74 180C178.94 181.74 179.15 184.6 177.24 186.96L175.92 188.59L120.37 188.73C89.05 188.81 64.16 188.59 63.31 188.25Z M16.42 155.06C13.65 153.68 13.18 150.14 15.45 147.72L17.01 146.07L107.81 146.07C197.69 146.07 198.63 146.09 199.99 147.45C201.61 149.07 201.79 152.15 200.4 154.06C199.43 155.38 197.49 155.41 108.95 155.75C29.46 156.06 18.25 155.97 16.42 155.06Z M96.38 106.98C93.89 104.89 93.12 101.99 94.2 98.72C95.35 95.24 97.86 93.52 101.81 93.52C107.22 93.52 110.79 97.66 109.82 102.8C108.77 108.37 100.93 110.82 96.38 106.98Z M127.28 106.86C123.49 104.51 122.93 100.21 125.96 96.82L127.98 94.56L188.23 94.37C241.71 94.21 248.74 94.31 250.77 95.27C254.18 96.9 255.67 101.33 253.9 104.63C252.03 108.13 253.6 108.04 189.14 108.02C134.46 108.01 128.96 107.9 127.28 106.86Z M427.22 103.57C423.23 102.15 419.77 99.05 417.5 94.87C412.19 85.12 417.4 72.7 428.11 69.56C439.75 66.16 450.92 74.7 450.97 87.05C451.01 99.19 438.78 107.69 427.22 103.57Z M437.78 97.36C440.63 95.89 443.94 91.81 444.44 89.15C445.49 83.51 441.54 77.19 435.91 75.5C427.96 73.12 419.74 81.21 421.92 89.28C423.87 96.52 431.7 100.51 437.78 97.36Z M427.88 91.39C423.85 86.61 426.87 79.69 432.98 79.69C436.56 79.69 438.95 81.24 439.91 84.17C440.87 87.08 440.27 89.53 438.03 91.77C436.64 93.16 435.58 93.52 432.97 93.52C430.14 93.52 429.42 93.23 427.88 91.39Z"/>
+    </symbol>
+  </svg>
+
   <header class="topbar">
     <a class="brand" href="/" aria-label="GetSetMix">
-      <picture>
-        <source srcset="/static/assets/icon-light.png" media="(prefers-color-scheme: dark)" />
-        <img class="brand-icon" src="/static/assets/icon.png" alt="" />
-      </picture>
+      <svg class="brand-mark" aria-hidden="true"><use href="#gsm-mark" /></svg>
       <span class="wordmark">getset<em>mix</em></span>
     </a>
-
-    <form id="addForm" class="add" autocomplete="off" novalidate>
-      <svg class="add-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      <input id="urlInput" type="url" inputmode="url" spellcheck="false"
-             data-i18n-ph="urlPh" placeholder="Paste a track or playlist link" aria-label="Link" />
-      <button id="btnPaste" type="submit" class="btn btn-quiet">
-        <span data-i18n="paste">Add</span>
-      </button>
-    </form>
-
-    <div class="actions">
-      <span id="topStatus" class="top-status" aria-live="polite"></span>
-      <button id="btnCancel" class="btn btn-danger hidden">
-        <svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>
-        <span data-i18n="cancel">Stop</span>
-      </button>
-      <div class="dl-group">
-        <button id="btnDownload" class="btn btn-primary">
-          <svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-          <span data-i18n="download">Download</span><span id="stagedCount" class="count hidden"></span>
-        </button>
-        <select id="batchConcurrency" class="dl-conc" aria-label="Parallel downloads">
-          <option value="">×2</option>
-          <option value="1">×1</option>
-          <option value="2">×2</option>
-          <option value="3">×3</option>
-          <option value="4">×4</option>
-        </select>
-      </div>
-    </div>
-
     <button id="btnSettings" class="icon-btn icon-btn--lg" aria-label="Settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
     </button>
@@ -60,6 +43,11 @@
   <div id="engineBanner" class="engine-banner hidden" role="status"></div>
 
   <main class="list-wrap">
+    <p class="summary">
+      <span class="health-dot" id="healthDot" title="healthy"></span>
+      <span id="statsText" class="stats-text"></span>
+    </p>
+
     <div id="listHead" class="list-head hidden" aria-hidden="true">
       <span></span>
       <span data-i18n="colTrack">Track</span>
@@ -71,27 +59,55 @@
     <div id="trackList" class="track-list" aria-live="polite"></div>
 
     <section id="emptyState" class="empty hidden">
-      <div class="empty-mark" aria-hidden="true">
-        <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="32" cy="32" r="17" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/><circle cx="32" cy="32" r="4" fill="currentColor"/></svg>
-      </div>
+      <svg class="empty-mark" aria-hidden="true"><use href="#gsm-mark" /></svg>
       <h1 data-i18n="emptyTitle">Nothing in the crate yet</h1>
-      <p data-i18n="emptyHint">Paste a YouTube or SoundCloud link above. A playlist becomes one row per track.</p>
-      <p class="kbd-hint"><kbd>Ctrl</kbd> <kbd>V</kbd> <span data-i18n="pasteAnywhere">works anywhere on this page</span></p>
+      <p data-i18n="emptyHint">Paste a YouTube or SoundCloud link below. A playlist becomes one row per track.</p>
+      <p class="hint hint--touch" data-i18n="shareHint">On Android, install GetSetMix and share links to it straight from YouTube or SoundCloud.</p>
+      <p class="hint hint--keys"><kbd>Ctrl</kbd> <kbd>V</kbd> <span data-i18n="pasteAnywhere">works anywhere on this page</span></p>
     </section>
   </main>
 
-  <footer class="statusbar">
-    <div class="health">
-      <span class="health-dot" id="healthDot" title="healthy"></span>
-      <span id="statsText" class="stats-text"></span>
-    </div>
+  <!-- The deck: adding and downloading live where the thumb is. -->
+  <footer class="dock">
     <div id="batchBar" class="batch hidden">
       <span id="batchLabel" class="batch-label"></span>
       <div class="batch-track"><div id="batchFill" class="batch-fill"></div></div>
+      <span id="topStatus" class="top-status" aria-live="polite"></span>
+    </div>
+    <div class="dock-row">
+      <form id="addForm" class="add" autocomplete="off" novalidate>
+        <svg class="add-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="urlInput" type="url" inputmode="url" spellcheck="false" enterkeyhint="go"
+               data-i18n-ph="urlPh" placeholder="Paste a track or playlist link" aria-label="Link" />
+        <button id="btnPaste" type="submit" class="btn btn-quiet">
+          <svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span class="btn-label" data-i18n="paste">Add</span>
+        </button>
+      </form>
+
+      <div class="actions">
+        <button id="btnCancel" class="btn btn-danger hidden">
+          <svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>
+          <span class="btn-label" data-i18n="cancel">Stop</span>
+        </button>
+        <div class="dl-group">
+          <button id="btnDownload" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            <span class="btn-label" data-i18n="download">Download</span><span id="stagedCount" class="count hidden"></span>
+          </button>
+          <select id="batchConcurrency" class="dl-conc" aria-label="Parallel downloads">
+            <option value="">×2</option>
+            <option value="1">×1</option>
+            <option value="2">×2</option>
+            <option value="3">×3</option>
+            <option value="4">×4</option>
+          </select>
+        </div>
+      </div>
     </div>
   </footer>
 
-  <!-- Settings: a side panel, not a popup -->
+  <!-- Settings: a full-screen sheet on phones, a side panel on wide screens -->
   <div id="settingsModal" class="modal modal--panel hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
     <div class="modal-card">
       <div class="modal-head">
@@ -102,6 +118,26 @@
       </div>
       <div class="modal-body">
         <section class="set-group">
+          <h3 data-i18n="secInterface">Interface</h3>
+          <div class="set-row">
+            <span id="themeLabel" class="set-label" data-i18n="theme">Theme</span>
+            <div class="seg" role="radiogroup" aria-labelledby="themeLabel">
+              <label><input type="radio" name="theme" value="system" /><span data-i18n="themeSystem">Auto</span></label>
+              <label><input type="radio" name="theme" value="light" /><span data-i18n="themeLight">Light</span></label>
+              <label><input type="radio" name="theme" value="dark" /><span data-i18n="themeDark">Dark</span></label>
+            </div>
+            <small class="set-note" data-i18n="themeHint">Applies to this device only.</small>
+          </div>
+          <div class="set-row" data-server>
+            <label for="setLanguage" data-i18n="language">Language</label>
+            <select id="setLanguage">
+              <option value="en">English</option>
+              <option value="it">Italiano</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="set-group" data-server>
           <h3 data-i18n="secDownloads">Downloads</h3>
           <div class="set-row">
             <label for="setFormat" data-i18n="outputFormat">Format</label>
@@ -112,28 +148,28 @@
           </div>
           <div class="set-row">
             <label for="setConcurrency" data-i18n="concurrency">Parallel downloads</label>
-            <input id="setConcurrency" type="number" min="1" max="8" />
+            <input id="setConcurrency" type="number" inputmode="numeric" min="1" max="8" />
           </div>
           <div class="set-row set-row--stack">
             <label for="setTemplate" data-i18n="template">File name</label>
-            <input id="setTemplate" type="text" spellcheck="false" />
+            <input id="setTemplate" type="text" spellcheck="false" autocapitalize="off" />
             <small class="tokens">{title} {artist} {album} {genre} {source} {id}</small>
           </div>
         </section>
 
-        <section class="set-group">
+        <section class="set-group" data-server>
           <h3 data-i18n="secLibrary">Library and Rekordbox</h3>
           <div class="set-row set-row--stack">
             <label for="setLibrary" data-i18n="libraryRoot">Library folder</label>
             <div class="path-row">
-              <input id="setLibrary" type="text" spellcheck="false" />
+              <input id="setLibrary" type="text" spellcheck="false" autocapitalize="off" />
               <button type="button" class="btn btn-quiet" data-pick="library" data-i18n="browse">Browse</button>
             </div>
           </div>
           <div class="set-row set-row--stack">
             <label for="setXml" data-i18n="xmlPath">Inbox XML</label>
             <div class="path-row">
-              <input id="setXml" type="text" spellcheck="false" />
+              <input id="setXml" type="text" spellcheck="false" autocapitalize="off" />
               <button type="button" class="btn btn-quiet" data-pick="xml" data-i18n="browse">Browse</button>
             </div>
             <small data-i18n="rekordboxHint">In Rekordbox, point Preferences › Advanced › rekordbox xml here, then refresh the xml tree after each batch.</small>
@@ -145,25 +181,14 @@
           <div class="set-row set-row--stack">
             <label for="setCollection" data-i18n="collectionXml">Collection export (optional)</label>
             <div class="path-row">
-              <input id="setCollection" type="text" spellcheck="false" />
+              <input id="setCollection" type="text" spellcheck="false" autocapitalize="off" />
               <button type="button" class="btn btn-quiet" data-pick="collection" data-i18n="browse">Browse</button>
             </div>
             <small data-i18n="collectionHint">With your exported collection set, tracks you already own are flagged as duplicates and dropped from the inbox.</small>
           </div>
         </section>
 
-        <section class="set-group">
-          <h3 data-i18n="secInterface">Interface</h3>
-          <div class="set-row">
-            <label for="setLanguage" data-i18n="language">Language</label>
-            <select id="setLanguage">
-              <option value="en">English</option>
-              <option value="it">Italiano</option>
-            </select>
-          </div>
-        </section>
-
-        <section class="set-group">
+        <section class="set-group" data-server>
           <h3 data-i18n="secMaintenance">Housekeeping</h3>
           <div class="maint">
             <button id="btnCleanInbox" class="btn btn-quiet" data-i18n="cleanInbox">Clean inbox now</button>
@@ -190,7 +215,7 @@
       </div>
       <div class="modal-body">
         <div class="cover-search-row">
-          <input id="coverQuery" type="text" aria-label="Search" />
+          <input id="coverQuery" type="search" enterkeyhint="search" aria-label="Search" />
           <button id="btnCoverSearch" class="btn btn-primary" data-i18n="search">Search</button>
         </div>
         <div id="coverResults" class="cover-grid"></div>
@@ -218,7 +243,7 @@
         <div id="pickerList" class="picker-list"></div>
         <div id="pickerNameRow" class="set-row set-row--stack hidden">
           <label for="pickerName" data-i18n="fileName">File name</label>
-          <input id="pickerName" type="text" spellcheck="false" />
+          <input id="pickerName" type="text" spellcheck="false" autocapitalize="off" />
         </div>
       </div>
       <div class="modal-foot">

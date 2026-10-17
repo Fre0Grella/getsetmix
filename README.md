@@ -94,8 +94,8 @@ python run_local.py --port 9000 --no-browser
 
 ## Using it
 
-1. Paste a link into the field at the top, or press <kbd>Ctrl</kbd>+<kbd>V</kbd> anywhere on the page (playlists fan out into one row per entry). With the field empty, **Add** reads the clipboard.
-2. Rows resolve their metadata. Every field is editable in place: fix title/artist, pick a genre, optionally set the album and the cover (hover the artwork → search or upload).
+1. Paste a link into the field in the bottom bar, or press <kbd>Ctrl</kbd>+<kbd>V</kbd> anywhere on the page (playlists fan out into one row per entry). With the field empty, **Add** reads the clipboard. On Android, install the app and share links to it from YouTube or SoundCloud.
+2. Rows resolve their metadata. Fix title/artist, pick a genre, optionally set the album and the cover. On a computer every field is editable in place (hover the artwork to search or upload a cover); on a phone, tap a row to open it, with one-tap genre picks under the genre field.
 3. Press **Download** to start the batch (the ×N selector overrides parallelism for this batch only). Edits lock once a track is queued.
 4. Watch per-track progress and the batch bar; cancel anytime (in-flight tracks are stopped and re-staged).
 5. When tracks show **Done**, open Rekordbox → **File ▸ Import collection / reload the rekordbox.xml source** and find them in the **Inbox** playlist.
@@ -134,7 +134,7 @@ Notes:
 
 ## Configuration
 
-Everything is editable in the UI (gear icon) and persisted to `<data>/config.json`. Environment variables override on boot:
+Everything is editable in the UI (settings icon) and persisted to `<data>/config.json`. The theme (Auto, Light or Dark) is the exception: it's kept per device, in the browser. Environment variables override on boot:
 
 | Variable | Default | Purpose |
 |---|---|---|

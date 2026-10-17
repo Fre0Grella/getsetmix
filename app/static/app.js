@@ -23,8 +23,11 @@ const STR = {
     purgeCompleted: "Togli le righe finite", purgeHistory: "Dimentica i link",
     colTrack: "Traccia", colAlbum: "Album", colGenre: "Genere", colTime: "Durata", colStatus: "Stato",
     emptyTitle: "La cassa è ancora vuota",
-    emptyHint: "Incolla qui sopra un link di YouTube o SoundCloud. Una playlist diventa una riga per traccia.",
+    emptyHint: "Incolla qui sotto un link di YouTube o SoundCloud. Una playlist diventa una riga per traccia.",
+    shareHint: "Su Android, installa GetSetMix e condividi i link direttamente da YouTube o SoundCloud.",
     pasteAnywhere: "funziona ovunque nella pagina",
+    theme: "Tema", themeSystem: "Auto", themeLight: "Chiaro", themeDark: "Scuro",
+    themeHint: "Vale solo per questo dispositivo.", doneEdit: "Fatto",
     fetching: u => `Lettura di ${u}`,
     ready: "Pronto", queued: "In coda", processing: p => `${p}%`,
     tagging: "Scrittura tag", done: "Nella libreria", retry: "Riprova", remove: "Rimuovi",
@@ -63,8 +66,11 @@ const STR = {
     purgeCompleted: "Clear finished rows", purgeHistory: "Forget link history",
     colTrack: "Track", colAlbum: "Album", colGenre: "Genre", colTime: "Time", colStatus: "Status",
     emptyTitle: "Nothing in the crate yet",
-    emptyHint: "Paste a YouTube or SoundCloud link above. A playlist becomes one row per track.",
+    emptyHint: "Paste a YouTube or SoundCloud link below. A playlist becomes one row per track.",
+    shareHint: "On Android, install GetSetMix and share links to it straight from YouTube or SoundCloud.",
     pasteAnywhere: "works anywhere on this page",
+    theme: "Theme", themeSystem: "Auto", themeLight: "Light", themeDark: "Dark",
+    themeHint: "Applies to this device only.", doneEdit: "Done",
     fetching: u => `Reading ${u}`,
     ready: "Ready", queued: "Queued", processing: p => `${p}%`,
     tagging: "Writing tags", done: "In your library", retry: "Retry", remove: "Remove",
@@ -94,8 +100,13 @@ const GENRES = [
   "Tech House", "Techno", "Trance", "Trap", "Tropical House", "UK Garage",
 ];
 
+// Quick picks under an open row's genre field, after the ones this list already uses.
+const GENRE_PICKS = ["House", "Tech House", "Techno", "Afro House", "Melodic House & Techno", "Drum & Bass"];
+
 const $ = (sel) => document.querySelector(sel);
 const list = $("#trackList");
+// Phones: rows are compact until tapped open. Matches the CSS breakpoint.
+const narrow = matchMedia("(max-width: 720px)");
 
 let lang = "en";
 let T = STR[lang];
@@ -106,6 +117,8 @@ let settingsCache = {};
 let coverTrackId = null;
 let pollTimer = null;
 let highlightId = null; // newly added (e.g. shared) track to scroll to + flash
+let openId = null; // the row expanded for editing on a phone
+let genrePicks = GENRE_PICKS;
 const dirtyFields = new Set(); // "id:field" being edited right now
 const rowCache = new Map(); // id -> last-rendered row HTML, to skip untouched DOM
 
@@ -134,6 +147,38 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
+// ------------------------------------------------------------------ theme
+// Per device, not a server setting: the phone can be dark while the desktop
+// follows the system. The inline script in <head> applies it before paint.
+const THEME_KEY = "gsm_theme";
+const THEME_BAR = { light: "#fdfdff", dark: "#14161b" }; // --surface, for the status bar
+const darkScheme = matchMedia("(prefers-color-scheme: dark)");
+let themePref = "system";
+try { themePref = localStorage.getItem(THEME_KEY) || "system"; } catch { /* storage blocked */ }
+
+function applyTheme(pref) {
+  themePref = pref === "light" || pref === "dark" ? pref : "system";
+  const root = document.documentElement;
+  if (themePref === "system") delete root.dataset.theme;
+  else root.dataset.theme = themePref;
+  const shown = themePref === "system" ? (darkScheme.matches ? "dark" : "light") : themePref;
+  $('meta[name="theme-color"]').content = THEME_BAR[shown];
+  document.querySelectorAll('input[name="theme"]').forEach((r) => { r.checked = r.value === themePref; });
+}
+
+function setTheme(pref) {
+  try {
+    if (pref === "system") localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, pref);
+  } catch { /* still applies for this visit */ }
+  applyTheme(pref);
+}
+
+darkScheme.addEventListener("change", () => applyTheme(themePref));
+document.querySelectorAll('input[name="theme"]').forEach((r) =>
+  r.addEventListener("change", () => setTheme(r.value)));
+applyTheme(themePref);
+
 // ------------------------------------------------------------------- i18n
 function applyLang(next) {
   lang = STR[next] ? next : "en";
@@ -161,6 +206,7 @@ const I = {
   up: '<svg viewBox="0 0 24 24"><path d="M12 19V5m0 0l-6 6m6-6l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   file: '<svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
   cam: '<svg viewBox="0 0 24 24"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 
 // ----------------------------------------------------------------- render
@@ -186,9 +232,12 @@ const shortError = (e) => String(e || "").replace(/^ERROR:\s*/i, "");
 function stateHtml(t) {
   const act = (name, icon, label, cls = "") =>
     `<button class="icon-btn ${cls}" data-act="${name}" title="${label}" aria-label="${label}">${icon}</button>`;
+  // An open row (phones) also gets a Done button that folds it back up.
+  const done = t.id === openId
+    ? `<button class="btn btn-quiet act-done" data-act="collapse">${I.check}<span>${T.doneEdit}</span></button>` : "";
   const cell = (cls, label, acts = "", title = "") =>
     `<div class="state ${cls}"><span class="state-label"${title ? ` title="${esc(title)}"` : ""}>${label}</span>
-      <span class="row-acts">${acts}</span></div>`;
+      <span class="row-acts">${acts}</span>${done}</div>`;
   switch (t.status) {
     case "queued":
       return cell("st-wait", T.queued);
@@ -217,7 +266,16 @@ function rowHtml(t) {
   }
   const editable = EDITABLE.has(t.status);
   const dis = editable ? "" : "disabled";
-  const sel = t.status === "downloading" || t.status === "tagging" ? "is-selected" : "";
+  const open = t.id === openId;
+  const sel = [
+    t.status === "downloading" || t.status === "tagging" ? "is-selected" : "",
+    open ? "is-open" : "",
+  ].join(" ").trim();
+  const chips = open && editable
+    ? `<div class="genre-chips">${genrePicks.map((g) =>
+        `<button type="button" class="chip" data-act="genre" data-genre="${esc(g)}" aria-pressed="${g === t.genre}">${esc(g)}</button>`
+      ).join("")}</div>`
+    : "";
   const dup = t.duplicate && t.status === "staged";
   const thumb = t.cover_path
     ? `/api/tracks/${t.id}/cover?v=${encodeURIComponent(t.updated_at || "")}`
@@ -237,9 +295,10 @@ function rowHtml(t) {
         ${dup ? `<span class="dup" title="${esc(t.duplicate_reason)}">${T.dupBadge}</span>` : ""}
       </div>
     </div>
-    <div class="c-album">${field("album", "f-album", T.albumPh)}</div>
-    <div class="c-genre">${field("genre", "f-genre", T.genrePh, 'list="genres"')}</div>
+    <div class="c-album" data-label="${T.colAlbum}">${field("album", "f-album", T.albumPh)}</div>
+    <div class="c-genre" data-label="${T.colGenre}">${field("genre", "f-genre", T.genrePh, 'list="genres"')}</div>
     <span class="dur">${fmtDur(t.duration)}</span>
+    ${chips}
     ${stateHtml(t)}
     ${t.status === "downloading" ? `<div class="row-progress" style="width:${t.progress || 0}%"></div>` : ""}
   </article>`;
@@ -256,6 +315,12 @@ function render() {
   const focusField = focused && focused.dataset && focused.dataset.field ? focused.dataset.field : null;
   const focusId = focusField ? focused.closest(".track")?.dataset.id : null;
   const focusPos = focusField ? focused.selectionStart : 0;
+
+  // Genres this list already uses come first, most used first.
+  const used = new Map();
+  for (const t of tracks) if (t.genre) used.set(t.genre, (used.get(t.genre) || 0) + 1);
+  const top = [...used].sort((a, b) => b[1] - a[1]).map(([g]) => g);
+  genrePicks = [...new Set([...top, ...GENRE_PICKS])].slice(0, 8);
 
   // Reconcile rows keyed by id instead of rebuilding the whole list every poll.
   // Wholesale innerHTML replacement tore down (and repainted) even the input the
@@ -494,16 +559,39 @@ list.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && e.target.matches("input[data-field]")) e.target.blur();
 });
 
+// Phones: a tap anywhere on a compact row opens it for editing.
+function openRow(id) {
+  openId = id;
+  render();
+  const row = list.querySelector(`.track[data-id="${id}"]`);
+  if (row) requestAnimationFrame(() => row.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+}
+
 list.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-act]");
-  if (!btn) return;
+  if (!btn) {
+    const row = e.target.closest(".track");
+    if (row && narrow.matches && row.dataset.id !== openId && !row.classList.contains("is-fetching")) {
+      openRow(row.dataset.id);
+    }
+    return;
+  }
   const row = btn.closest(".track");
   const id = row?.dataset.id;
   const act = btn.dataset.act;
   try {
-    if (act === "remove") {
+    if (act === "collapse") {
+      openId = null;
+      render();
+    } else if (act === "genre") {
+      const input = row.querySelector('input[data-field="genre"]');
+      input.value = input.value === btn.dataset.genre ? "" : btn.dataset.genre; // tap again to clear
+      await commitField(input);
+      render();
+    } else if (act === "remove") {
       await api(`/api/tracks/${id}`, { method: "DELETE" });
       tracks = tracks.filter((t) => t.id !== id);
+      if (openId === id) openId = null;
       render();
     } else if (act === "retry") {
       await api(`/api/tracks/${id}/retry`, { method: "POST" });
@@ -583,10 +671,13 @@ async function openSettings() {
   // the panel pop up after the user has already pressed Escape.
   const panel = $("#settingsModal");
   const save = $("#btnSaveSettings");
-  const body = panel.querySelector(".modal-body");
-  // Nothing can be edited or saved until the current values are in.
+  // Server settings can't be edited or saved until the current values are in.
+  // The theme is local to this device, so it works straight away.
+  const gated = panel.querySelectorAll("[data-server]");
+  const gate = (on) => gated.forEach((el) => { el.inert = on; });
   save.disabled = true;
-  body.inert = true;
+  gate(true);
+  applyTheme(themePref);
   panel.classList.remove("hidden");
   try { settingsCache = await api("/api/settings"); } catch (e) { toast(e.message); return; }
   if (panel.classList.contains("hidden")) return;
@@ -599,7 +690,7 @@ async function openSettings() {
   $("#setPlaylist").value = settingsCache.playlist_name;
   $("#setLanguage").value = settingsCache.language;
   save.disabled = false;
-  body.inert = false;
+  gate(false);
 }
 
 $("#btnSaveSettings").addEventListener("click", async () => {
@@ -750,6 +841,13 @@ $("#btnSettings").addEventListener("click", openSettings);
 
 const dl = $("#genres");
 dl.innerHTML = GENRES.map((g) => `<option value="${g}">`).join("");
+
+// The list and the toast keep clear of the deck, whatever its height (batch
+// bar, safe area). Ignore 0: the deck hides while a row field has the keyboard.
+const dock = $(".dock");
+new ResizeObserver(() => {
+  if (dock.offsetHeight) document.documentElement.style.setProperty("--dock-h", `${dock.offsetHeight}px`);
+}).observe(dock);
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch(() => { /* PWA install optional */ });
