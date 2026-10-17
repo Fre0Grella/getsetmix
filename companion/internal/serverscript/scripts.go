@@ -69,7 +69,9 @@ facts() {
       svcs=$($k -n "$ns" get svc -o jsonpath='{range .items[*]}{.metadata.name}|{.spec.ports[*].nodePort}|{.status.loadBalancer.ingress[*].hostname}{"\n"}{end}' 2>/dev/null | grep -i -e '^[^|]*getsetmix[^|]*|' -e "^$dep|")
       kv k8s_existing_nodeports "$(printf '%s\n' "$svcs" | cut -d'|' -f2 | tr '\n' ' ')"
       hosts=$(printf '%s\n' "$svcs" | cut -d'|' -f3 | tr '\n' ' ')
-      ing=$($k -n "$ns" get ingress -o jsonpath='{range .items[*]}{.spec.rules[*].http.paths[*].backend.service.name}|{.spec.rules[*].host} {.status.loadBalancer.ingress[*].hostname}{"\n"}{end}' 2>/dev/null)
+      # Backends from the rules and from defaultBackend: a Tailscale ingress
+      # usually has no rules, just a default backend and a ts.net name.
+      ing=$($k -n "$ns" get ingress -o jsonpath='{range .items[*]}{.spec.rules[*].http.paths[*].backend.service.name} {.spec.defaultBackend.service.name}|{.spec.rules[*].host} {.status.loadBalancer.ingress[*].hostname}{"\n"}{end}' 2>/dev/null)
       for svc in $(printf '%s\n' "$svcs" | cut -d'|' -f1); do
         hosts="$hosts $(printf '%s\n' "$ing" | grep -E "(^| )$svc( |\|)" | cut -d'|' -f2 | tr '\n' ' ')"
       done

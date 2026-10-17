@@ -27,7 +27,7 @@ kubectl=microk8s kubectl
 k8s_node=freoserver
 nodeports=30080 30765
 k8s_existing=nextcloud/getsetmix|getsetmix|ghcr.io/fre0grella/getsetmix:latest|RollingUpdate
-k8s_hosts=getsetmix-freoserver-1.elephant-elver.ts.net  getsetmix-freoserver-1.elephant-elver.ts.net
+k8s_hosts=getsetmix-freoserver-1.elephant-elver.ts.net.  getsetmix-freoserver-1.elephant-elver.ts.net
 k8s_existing_nodeports=
 `
 
@@ -40,7 +40,8 @@ func TestParseFacts(t *testing.T) {
 	k := ParseFacts(k8sAdoptFacts)
 	e := k.ExistingK8s
 	if e == nil || e.Namespace != "nextcloud" || e.Name != "getsetmix" || e.Strategy != "RollingUpdate" ||
-		len(e.Hosts) != 1 || k.Kubectl != "microk8s kubectl" || !k.NodePorts[30765] {
+		len(e.Hosts) != 1 || e.Hosts[0] != "getsetmix-freoserver-1.elephant-elver.ts.net" ||
+		k.Kubectl != "microk8s kubectl" || !k.NodePorts[30765] {
 		t.Fatalf("%+v %+v", k, e)
 	}
 }
@@ -224,8 +225,8 @@ esac`,
   "get svc -A"*) echo "30080 30765 30081" ;;
   "-n nextcloud get svc"*)
     printf 'nextcloud|30080|\ngetsetmix|30765|\nnextcloud-ts|30081|nextcloud.tail.ts.net\n' ;;
-  "-n nextcloud get ingress"*)
-    printf 'nextcloud|cloud.example.com nextcloud.tail.ts.net\ngetsetmix|gsm.example.com getsetmix-srv.tail.ts.net\n' ;;
+  "-n nextcloud get ingress"*"defaultBackend"*)
+    printf 'nextcloud |cloud.example.com nextcloud.tail.ts.net\n getsetmix|  getsetmix-srv.tail.ts.net\n' ;;
   *) exit 1 ;;
 esac`,
 	}
@@ -251,7 +252,7 @@ esac`,
 	if len(e.NodePorts) != 1 || e.NodePorts[0] != 30765 {
 		t.Errorf("node ports %v: only GetSetMix's", e.NodePorts)
 	}
-	if strings.Join(e.Hosts, " ") != "gsm.example.com getsetmix-srv.tail.ts.net" {
+	if strings.Join(e.Hosts, " ") != "getsetmix-srv.tail.ts.net" {
 		t.Errorf("hosts %q: only GetSetMix's", e.Hosts)
 	}
 }
