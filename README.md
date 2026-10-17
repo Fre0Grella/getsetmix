@@ -102,6 +102,21 @@ python run_local.py --port 9000 --no-browser
 
 In Rekordbox, point *Preferences ▸ Advanced ▸ Database ▸ rekordbox xml* at the XML path shown in Settings (default `<data>/rekordbox/getsetmix.xml`), then refresh the *rekordbox xml* tree in the sidebar after each batch.
 
+### Skip the XML: gsm-companion
+
+[`companion/`](companion/README.md) is a ~5 MB program for the computer that
+runs Rekordbox. It adds the tracks your sync client delivers **straight into
+the Rekordbox collection** (into a `GetSetMix` playlist), so there is no XML to
+refresh. Nothing has to stay running: Rekordbox must be closed while its
+database is written, so by default you open Rekordbox through a *Rekordbox
+(GetSetMix)* shortcut that imports first (≈1 s) and then starts it. Unattended
+imports are opt-in. Grab it from the
+[releases](https://github.com/Fre0Grella/getsetmix/releases?q=companion), then:
+
+```sh
+gsm-companion setup && gsm-companion install
+```
+
 To keep the inbox tidy, export your full collection (*File ▸ Export Collection in xml format*) and set its path as **Rekordbox collection XML** in Settings (or `GSM_COLLECTION_XML_PATH`). Before each batch GetSetMix compares the inbox XML against the collection (by file location, falling back to title + artist) and removes the tracks you've already imported — the Inbox playlist only ever shows what's still missing from your collection.
 
 ## Share to GetSetMix (Android)
@@ -182,6 +197,7 @@ Other types (`chore`, `docs`, `ci`, `refactor`, `test`, …) are valid and relea
 | `docker-publish.yml` | push to `main` | builds the image for **linux/amd64 + linux/arm64** and pushes to **GHCR** as `latest`, `main`, and the commit SHA |
 | `release.yml` | push to `main` | **automated semantic versioning**: bumps the version from the commits, tags `vX.Y.Z`, creates the GitHub Release, builds the standalone executables (Windows / macOS / Linux, PyInstaller) and the immutable versioned images (`:1.2.3`, `:1.2`, `:1`) |
 | `pages.yml` | push to `main` touching `site/**` | deploys the landing + docs site in `site/` to **GitHub Pages** |
+| `companion.yml` | changes under `companion/`, `companion-v*` tags | tests the companion on Windows/macOS/Linux; when `companion/VERSION` names an unreleased version on `main`, builds Windows + universal macOS binaries and publishes the `companion-vX.Y.Z` release |
 
 One-time setup after pushing to GitHub:
 
@@ -232,6 +248,7 @@ site/            # landing + docs, deployed to GitHub Pages
 tests/           # pytest suite run by CI
 .github/workflows/   # ci.yml · docker-publish.yml · pages.yml
 run_local.py     # local app mode
+companion/       # gsm-companion (Go): imports deliveries into Rekordbox's master.db
 ```
 
 ## API sketch
