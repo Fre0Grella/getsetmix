@@ -1,6 +1,54 @@
 # CHANGELOG
 
 
+## v1.7.1 (2026-10-17)
+
+### Bug Fixes
+
+- **setup**: Picker and Tailscale ingress ([#15](https://github.com/Fre0Grella/getsetmix/pull/15),
+  [`7ccb935`](https://github.com/Fre0Grella/getsetmix/commit/7ccb93522697508ebd9fbcf911e68f29369fba80))
+
+* fix(setup): open the folder dialog in front
+
+Clicking Change… did nothing visible: the folder dialog opened behind Setup's window. Windows
+  doesn't let a background process bring a window forward, and the dialog's owner form was never
+  shown, so the dialog was neither topmost nor in front.
+
+Show a 1-pixel invisible, topmost owner first; the dialog then opens topmost. PowerShell now starts
+  without a console but not "hidden", which would have applied to that owner. Checked on a real
+  Setup window with Edge in front: before, topmost=False; after, topmost=True. macOS gets `activate`
+  before `choose folder` (untested there).
+
+If the dialog fails anyway, Setup now says so and points to the text box, instead of silently doing
+  nothing.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+* fix(setup): find an ingress's default backend
+
+Adopting a GetSetMix reached only through a Tailscale ingress asked for the address by hand: such an
+  ingress usually has no rules, just `defaultBackend` pointing at the service and a ts.net name in
+  its status, and the bootstrap only read backends from the rules.
+
+Read `defaultBackend` too. The bootstrap regression test now runs against a fake kubectl with
+  exactly that ingress, as found on a real homelab.
+
+* fix(setup): drop the trailing dot from addresses
+
+Kubernetes reports a Tailscale ingress's name fully qualified, "x.ts.net.". Setup used it as the
+  server's address: the companion was fine (Go drops the dot), but the Done screen's Open button and
+  the QR code sent the dot on to the browser, whose TLS handshake for the dotted name fails with
+  ERR_SSL_PROTOCOL_ERROR.
+
+Trim it from the host names the bootstrap reports, and from an address typed by hand.
+
+---------
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.7.0 (2026-10-17)
 
 ### Continuous Integration
