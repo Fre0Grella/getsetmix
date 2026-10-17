@@ -79,9 +79,18 @@ Same UI, not always-on — auto-opens your browser. Grab a prebuilt executable f
 ```bash
 pip install -r requirements.txt
 # ffmpeg must be on PATH (apt install ffmpeg / brew install ffmpeg / winget install ffmpeg)
+# and so must a JavaScript runtime for YouTube — Deno is the default:
+#   winget install DenoLand.Deno / brew install deno / curl -fsSL https://deno.land/install.sh | sh
 python run_local.py            # opens http://127.0.0.1:8765
 python run_local.py --port 9000 --no-browser
 ```
+
+> **YouTube downloads fail with `HTTP Error 403`?** YouTube only serves media to
+> clients that solve its JavaScript challenges. yt-dlp does that with an external
+> runtime (Deno, or Node ≥ 22) plus the `yt-dlp-ejs` scripts that
+> `yt-dlp[default]` installs. The Docker image ships both and is rebuilt every
+> week with the newest yt-dlp; in local mode GetSetMix shows a banner when the
+> runtime is missing or yt-dlp is out of date. `GET /api/status` reports both.
 
 ## Using it
 

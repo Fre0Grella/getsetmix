@@ -13,8 +13,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install ruff
+      # Same version as .pre-commit-config.yaml: newer ruff releases widen the
+      # default rule set, which would fail CI with no code change.
+      - run: pip install ruff==0.6.9
       - run: ruff check app tests run_local.py
+      # The UI has no build step, so nothing else would notice a syntax error.
+      - run: for f in app/static/*.js; do node --check "$f"; done
 
   test:
     runs-on: ubuntu-latest

@@ -374,6 +374,19 @@ async function refreshStats() {
   setTimeout(refreshStats, 15000);
 }
 
+// Download-engine health: YouTube 403s without a JS runtime, so say it up front.
+async function refreshEngine() {
+  try {
+    const { ytdlp } = await api("/api/status");
+    const problems = ytdlp.problems || [];
+    const banner = $("#engineBanner");
+    banner.textContent = problems.join(" ");
+    banner.classList.toggle("hidden", !problems.length);
+    $("#healthDot").classList.toggle("bad", problems.length > 0);
+    $("#healthDot").title = problems.length ? problems.join("\n") : "healthy";
+  } catch { /* noop */ }
+}
+
 // ---------------------------------------------------------------- actions
 function toast(msg) {
   const el = $("#toast");
@@ -715,5 +728,6 @@ if ("serviceWorker" in navigator) {
   } catch { applyLang("en"); }
   poll();
   refreshStats();
+  refreshEngine();
   consumeShare();
 })();

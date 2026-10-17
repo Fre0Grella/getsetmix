@@ -14,9 +14,7 @@ import threading
 import time
 from pathlib import Path
 
-import yt_dlp
-
-from . import rekordbox, tagger
+from . import rekordbox, tagger, ytdl
 from .config import DATA_DIR, settings
 from .db import db, now_iso
 from .naming import render_filename, unique_path
@@ -150,7 +148,7 @@ class Worker:
         except BatchCancelled:
             db.update_track(tid, status="staged", progress=0)
         except Exception as exc:  # per-track error, batch continues
-            msg = str(exc).splitlines()[0][:300]
+            msg = ytdl.explain(exc)
             db.update_track(tid, status="error", error=msg)
             db.bump(f"errors_source:{track.get('source') or 'unknown'}")
             log.warning("track %s failed: %s", tid, msg)
@@ -184,19 +182,15 @@ class Worker:
         if fmt == "mp3":
             postprocessor["preferredquality"] = "320"
 
-        opts = {
+        with ytdl.ydl({
             "format": "bestaudio/best",
             "outtmpl": str(tmpdir / "%(id)s.%(ext)s"),
             "postprocessors": [postprocessor],
             "progress_hooks": [hook],
             "noplaylist": True,
-            "quiet": True,
-            "no_warnings": True,
-            "noprogress": True,
             "socket_timeout": 30,
             "retries": 3,
-        }
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        }) as ydl:
             ydl.extract_info(track["url"], download=True)
 
         ext = ".mp3" if fmt == "mp3" else ".flac"

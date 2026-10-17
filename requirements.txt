@@ -1,5 +1,7 @@
 fastapi>=0.115
 uvicorn[standard]>=0.30
-yt-dlp>=2025.1.1
+# [default] pulls in yt-dlp-ejs, the challenge-solver scripts YouTube now
+# requires (together with a JS runtime such as Deno).
+yt-dlp[default]>=2026.8.19
 mutagen>=1.47
 python-multipart>=0.0.9
