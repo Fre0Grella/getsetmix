@@ -272,13 +272,21 @@ h2 {
 .metrics .cell span { font-size: 13px; color: var(--muted); }
 
 /* footer */
-footer {
-  background: var(--ink); color: #93a4bd; font-size: 13.5px;
-  padding: 34px 0; border-top: 1px solid rgba(255,255,255,.07);
+/* As on BottleCount and Treblewise: the project on the left, who made it on
+   the right, the donation in the accent; it wraps on a phone. */
+.fineprint { margin: 0; padding: 0 0 22px; font-size: 13px; color: var(--muted); }
+.fineprint .wrap { display: block; }
+.site-footer {
+  background: var(--ink); color: #93a4bd; font-size: 13px;
+  padding: 20px 0; border-top: 1px solid rgba(255,255,255,.07);
 }
-footer .wrap { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
-footer a { color: #c6d2e4; }
-footer .right { margin-left: auto; }
+.site-footer .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; }
+.footer-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.footer-sep { color: #3d4b63; }
+.site-footer a { color: #93a4bd; text-decoration: none; transition: color .15s; }
+.site-footer a:hover { color: #fff; }
+.site-footer .footer-donate { color: var(--teal); font-weight: 600; }
+.site-footer .footer-donate:hover { color: var(--teal); }
 
 /* ---------- docs ---------- */
 .docs-layout {
