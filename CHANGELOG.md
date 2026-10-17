@@ -1,6 +1,70 @@
 # CHANGELOG
 
 
+## v1.3.0 (2026-10-17)
+
+### Bug Fixes
+
+- **ytdlp**: Bundle Deno and keep yt-dlp fresh
+  ([`4d1e743`](https://github.com/Fre0Grella/getsetmix/commit/4d1e74369ee4442926b845edf28a271beacee13a))
+
+YouTube now serves media only to clients that solve its JavaScript challenges. yt-dlp does that with
+  an external JS runtime plus the yt-dlp-ejs scripts; the image had neither and a months-old yt-dlp,
+  so metadata resolved through a fallback client while every download died with "HTTP Error 403:
+  Forbidden".
+
+- Dockerfile: copy a pinned Deno (bin-2.9.3, amd64 + arm64) and install yt-dlp[default], which
+  brings yt-dlp-ejs; the build fails fast if either is missing. - Weekly scheduled image rebuild. CI
+  resolves the newest yt-dlp from PyPI and passes it as YTDLP_VERSION, which busts the cached pip
+  layer (a plain rebuild would reuse the stale install from the GHA cache). - app/ytdl.py: one place
+  that builds YoutubeDL options, enabling whichever supported runtime is installed (deno, node,
+  quickjs, bun), so local mode works with Node too. - 403s now carry the fix ("install Deno…")
+  instead of a bare error, GET /api/status reports yt-dlp age and runtime, and the UI shows a banner
+  when downloads are bound to fail. - PyInstaller builds collect yt_dlp_ejs; k8s pulls :latest
+  always. - CI pins ruff to the pre-commit version (newer releases widen the default rule set and
+  would fail lint with no code change) and runs node --check on the UI scripts, which have no build
+  step to catch a syntax error.
+
+Verified with a real YouTube download inside the built image: yt-dlp reports "JS runtimes:
+  deno-2.9.3" and writes the MP3, no 403.
+
+Closes #9
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+### Features
+
+- **ui**: Redesign as a track browser
+  ([`8a70ae4`](https://github.com/Fre0Grella/getsetmix/commit/8a70ae468ac12630cc8da8499bda85eb53d21ffc))
+
+The list is now laid out like Rekordbox's own browser instead of a stack of floating cards: dense
+  rows under column headers (track, album, genre, time, status), artwork kept 16:9, and fields that
+  read as plain text until hovered or focused, so editing metadata is in place.
+
+- A real link field in the top bar: Enter adds, pasting a link adds it at once, and Ctrl+V anywhere
+  on the page works too. With the field empty, Add reads the clipboard; no more prompt() fallback. -
+  Status is one cell per row (dot + label: ready, queued, %, writing tags, in your library, error)
+  with only the actions that apply; yt-dlp's "ERROR:" prefix is trimmed, the full text is the
+  tooltip. - Settings is a grouped side panel (downloads, library and Rekordbox, interface,
+  housekeeping) that leaves the list in view. It opens at once and stays inert until its values
+  load, so neither Escape nor a fast Save can race the fetch (a Save could have written an empty
+  library folder). - Follows the system theme, both designed: OKLCH neutrals tinted toward the
+  logo's navy, the logo's "mix" blue as the only accent. - Phones: the Download action moves to a
+  bottom dock within thumb reach, rows wrap album and genre onto a second line. - Copy rewritten in
+  both languages (EN/IT keys kept in parity), without em dashes; picker emoji replaced with the UI's
+  icons.
+
+Every DOM id app.js binds to is kept; the share-target flow is unchanged. Checked in Chrome at 1280
+  and 390 px, dark and light, with every row state, and by driving the real flows (add by Enter,
+  paste anywhere, inline edit persisted, settings save + language switch, Escape, cover search).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+
 ## v1.2.1 (2026-07-05)
 
 ### Bug Fixes
