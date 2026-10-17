@@ -8,8 +8,7 @@
 <h1 align="center">GetSetMix</h1>
 
 <p align="center">
-  <b>From a YouTube or SoundCloud link to a tagged track in your Rekordbox collection.</b><br>
-  Self-hosted, phone-first, and yours.
+  <b>Hear it. Send it from your phone. It's in Rekordbox when you play.</b>
 </p>
 
 <p align="center">
@@ -30,14 +29,24 @@
   <img src="docs/screenshots/app-phone.png" alt="GetSetMix on a phone: a track opened for editing, with one-tap genre picks" width="23%">
 </p>
 
+Getting a track you just heard into Rekordbox usually means a session at the
+computer, later: find the song again, download it, fix its tags, import it.
+By then you've often forgotten what it was.
+
+GetSetMix takes that session away. When you hear something you like, in a
+video, a set, or one you just found with Shazam, you share its YouTube or
+SoundCloud link from your phone, right then. By the time you sit down to
+play, it's downloaded, tagged, and already in your Rekordbox collection.
+
 ## How it works
 
-1. **Send a link.** Share it from the YouTube or SoundCloud app on your phone, or paste it. A playlist or a whole set becomes one row per track.
-2. **Fix the tags while it loads.** Title, artist, genre (one tap on a phone), album and cover. Tracks you already own are flagged before you download them.
-3. **Download.** MP3 320 or FLAC, tagged, with the cover embedded, named from your template and saved in your library.
-4. **Open Rekordbox.** The tracks are already in your collection, in a *GetSetMix* playlist, with no XML to import.
+1. **Hear something, share it.** In the YouTube or SoundCloud app, tap *Share ▸ GetSetMix*. A playlist or a whole set becomes one row per track.
+2. **Check it with one thumb.** Title and artist fill in on their own; pick the genre with one tap, and send it. Tracks you already own are flagged.
+3. **The server does the rest.** It downloads MP3 320 or FLAC, tags it with the cover, names it from your template and keeps it in your library, which is also your backup.
+4. **Open Rekordbox and play.** Your computer has already downloaded it, and it's in the *GetSetMix* playlist. Nothing to search, download or import.
 
-With a home server, GetSetMix is always on: you add tracks from your phone wherever you are, and they're waiting in Rekordbox the next time you open it. The server keeps the full collection as your backup.
+No home server? GetSetMix also runs on just your computer: paste the link
+there instead, and steps 3 and 4 are the same.
 
 > Use GetSetMix only for content you have the rights to download.
 
