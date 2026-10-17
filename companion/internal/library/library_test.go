@@ -38,7 +38,8 @@ func TestImportWritesRowsLikeRekordbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := `C:\Users\dj\Nextcloud\Music\Ella Me Levantó - Daddy Yankee.mp3`
+	// Native separators in, forward slashes stored (a no-op off Windows).
+	path := filepath.FromSlash("C:/Users/dj/Nextcloud/Music/Ella Me Levantó - Daddy Yankee.mp3")
 	res, err := db.Import([]library.Track{track(path)}, "GetSetMix", now)
 	if err != nil {
 		t.Fatal(err)
@@ -213,7 +214,7 @@ func TestPlaylistXML(t *testing.T) {
 
 func TestPathKey(t *testing.T) {
 	nfd := "Bee\u0301le.mp3" // macOS hands out decomposed names
-	if library.PathKey(`C:\Music\BEÉLE.mp3`) != library.PathKey("c:/music/"+nfd) {
+	if library.PathKey(filepath.FromSlash("C:/Music/BEÉLE.mp3")) != library.PathKey("c:/music/"+nfd) {
 		t.Fatal("path keys should match across slashes, case and normalisation")
 	}
 }
