@@ -1,6 +1,42 @@
 # CHANGELOG
 
 
+## v1.5.0 (2026-10-17)
+
+### Features
+
+- **ui**: Mobile-first layout and theme switch
+  ([`19e0985`](https://github.com/Fre0Grella/getsetmix/commit/19e0985dc595fda86816bc958ac207013d65e8e7))
+
+The UI is now designed for the phone first, since that is where links arrive (share sheet or
+  clipboard) and where most edits happen:
+
+- Adding and downloading live in a bottom deck within thumb reach, with the batch progress on top of
+  it. On wide screens it becomes a transport bar. - Rows are compact on a phone (cover, title,
+  artist, genre, state and the one action that moves the track on). Tapping a row opens it with
+  full-size fields, labels, every action, and one-tap genre picks (genres already used in the list
+  first). Fields in a compact row don't take taps, so opening a row never throws up the keyboard. -
+  Inputs are 16px or more, so iOS no longer zooms in on focus. Tap targets are 44px. The deck steps
+  aside while a row field is being edited, and interactive-widget=resizes-content keeps it above the
+  Android keyboard. - Settings is a full-screen sheet on a phone and stays a side panel on a
+  computer. From 721px the Rekordbox-style columns are unchanged.
+
+Theme: Auto, Light or Dark in Settings > Interface. It applies at once and is stored per device in
+  localStorage, so a phone can be dark while the desktop follows the system. An inline script
+  applies it before first paint, and the theme-color meta (Android status bar) follows the choice.
+
+Logo: the header and app icons were raster cut-outs with chewed edges and a halo around the speed
+  dashes. They are replaced by the vector redraw from the wizard branch (icon.svg,
+  icon-maskable.svg, mark.svg), recoloured from teal to the master logo's blue to match the UI
+  accent. The header mark is inline, so its figure follows the theme. Rasters come from
+  scripts/build_icons.py (Playwright), which replaces fix_icon.py; the Pages site uses the same
+  assets.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+
 ## v1.4.0 (2026-10-17)
 
 ### Continuous Integration
