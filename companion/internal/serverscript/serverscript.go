@@ -125,7 +125,14 @@ func ParseFacts(body string) Facts {
 			}
 		case "k8s_hosts":
 			if f.ExistingK8s != nil {
-				f.ExistingK8s.Hosts = uniq(strings.Fields(v))
+				// Kubernetes reports fully qualified names ("x.ts.net."); a
+				// browser sends that dot on to TLS, and the certificate is
+				// for the name without it.
+				var hosts []string
+				for _, h := range strings.Fields(v) {
+					hosts = append(hosts, strings.TrimSuffix(h, "."))
+				}
+				f.ExistingK8s.Hosts = uniq(hosts)
 			}
 		case "k8s_existing_nodeports":
 			if f.ExistingK8s != nil {

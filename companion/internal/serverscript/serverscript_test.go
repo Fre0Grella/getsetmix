@@ -27,7 +27,7 @@ kubectl=microk8s kubectl
 k8s_node=freoserver
 nodeports=30080 30765
 k8s_existing=nextcloud/getsetmix|getsetmix|ghcr.io/fre0grella/getsetmix:latest|RollingUpdate
-k8s_hosts=getsetmix-freoserver-1.elephant-elver.ts.net  getsetmix-freoserver-1.elephant-elver.ts.net
+k8s_hosts=getsetmix-freoserver-1.elephant-elver.ts.net.  getsetmix-freoserver-1.elephant-elver.ts.net
 k8s_existing_nodeports=
 `
 
@@ -40,7 +40,8 @@ func TestParseFacts(t *testing.T) {
 	k := ParseFacts(k8sAdoptFacts)
 	e := k.ExistingK8s
 	if e == nil || e.Namespace != "nextcloud" || e.Name != "getsetmix" || e.Strategy != "RollingUpdate" ||
-		len(e.Hosts) != 1 || k.Kubectl != "microk8s kubectl" || !k.NodePorts[30765] {
+		len(e.Hosts) != 1 || e.Hosts[0] != "getsetmix-freoserver-1.elephant-elver.ts.net" ||
+		k.Kubectl != "microk8s kubectl" || !k.NodePorts[30765] {
 		t.Fatalf("%+v %+v", k, e)
 	}
 }

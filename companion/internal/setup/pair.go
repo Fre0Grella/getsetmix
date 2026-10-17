@@ -347,9 +347,16 @@ func (w *Wizard) handleServerURL(rw http.ResponseWriter, r *http.Request) {
 	if !strings.Contains(u, "://") {
 		u = "http://" + u
 	}
-	if pu, err := url.Parse(u); err != nil || pu.Host == "" || (pu.Scheme != "http" && pu.Scheme != "https") {
+	pu, err := url.Parse(u)
+	if err != nil || pu.Host == "" || (pu.Scheme != "http" && pu.Scheme != "https") {
 		fail(rw, 400, "That doesn't look like an address. Try something like http://192.168.1.10:8765")
 		return
+	}
+	// "host.ts.net." works for Go but not in a browser (TLS for the dotted
+	// name fails), and this address ends up on the phone's QR code.
+	if h := pu.Hostname(); strings.HasSuffix(h, ".") {
+		pu.Host = strings.Replace(pu.Host, h, strings.TrimSuffix(h, "."), 1)
+		u = pu.String()
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
