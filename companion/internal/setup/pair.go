@@ -200,8 +200,10 @@ func (w *Wizard) handleServerInstall(rw http.ResponseWriter, r *http.Request) {
 		p.InstallDocker = true
 	}
 	p.Defaults()
-	if p.Port == 0 {
-		p.Tailscale = false // an adopted GetSetMix with no port of its own keeps its own address
+	if p.Port == 0 || (p.Adopt && w.facts.ExistingK8s != nil && len(w.facts.ExistingK8s.Hosts) > 0) {
+		// An adopted GetSetMix keeps the address it has: with no port of its
+		// own there is nothing to serve, and a host name means it already has one.
+		p.Tailscale = false
 	}
 	script, err := serverscript.Script(w.srvBase, p)
 	if err != nil {

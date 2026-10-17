@@ -193,3 +193,65 @@ func TestValidateRefusesInjection(t *testing.T) {
 		}
 	}
 }
+
+// TestBootstrapScopesExistingK8s runs the real bootstrap against a fake
+// kubectl whose GetSetMix shares its namespace with Nextcloud (as on a
+// homelab that put it there): only GetSetMix's own port and host names may
+// come back, or Setup would offer to serve Nextcloud over Tailscale.
+func TestBootstrapScopesExistingK8s(t *testing.T) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh")
+	}
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "bin")
+	os.Mkdir(bin, 0o755)
+	fake := map[string]string{
+		"id":        "echo 0",
+		"docker":    "exit 1",
+		"tailscale": "exit 1",
+		"curl": `for a in "$@"; do last=$a; done
+case "$*" in
+  *"-X POST"*) cat > "$OUT/$(basename "$last")" ;;
+  *"-w"*) echo 410 ;;
+esac`,
+		"kubectl": `case "$*" in
+  "get nodes -o name") echo node/srv ;;
+  "get nodes -o jsonpath="*) echo srv ;;
+  "get deploy -A -o jsonpath="*"containers[0].image"*)
+    printf 'nextcloud/nextcloud|nextcloud|nextcloud:29|Recreate\nnextcloud/getsetmix|getsetmix|ghcr.io/fre0grella/getsetmix:latest|RollingUpdate\n' ;;
+  "get deploy -A -o jsonpath="*) printf 'nextcloud\ngetsetmix\n' ;;
+  "get svc -A"*) echo "30080 30765 30081" ;;
+  "-n nextcloud get svc"*)
+    printf 'nextcloud|30080|\ngetsetmix|30765|\nnextcloud-ts|30081|nextcloud.tail.ts.net\n' ;;
+  "-n nextcloud get ingress"*)
+    printf 'nextcloud|cloud.example.com nextcloud.tail.ts.net\ngetsetmix|gsm.example.com getsetmix-srv.tail.ts.net\n' ;;
+  *) exit 1 ;;
+esac`,
+	}
+	for name, body := range fake {
+		os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755)
+	}
+	script := filepath.Join(dir, "bootstrap.sh")
+	os.WriteFile(script, []byte(Bootstrap("http://setup.test/s/abc")), 0o644)
+	cmd := exec.Command(sh, script)
+	cmd.Env = append(os.Environ(), "OUT="+dir, "PATH="+bin+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("bootstrap: %v\n%s", err, out)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "facts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := ParseFacts(string(body))
+	e := f.ExistingK8s
+	if e == nil || e.Namespace != "nextcloud" || e.Name != "getsetmix" || f.Kubectl != "kubectl" {
+		t.Fatalf("existing %+v\n%s", e, body)
+	}
+	if len(e.NodePorts) != 1 || e.NodePorts[0] != 30765 {
+		t.Errorf("node ports %v: only GetSetMix's", e.NodePorts)
+	}
+	if strings.Join(e.Hosts, " ") != "gsm.example.com getsetmix-srv.tail.ts.net" {
+		t.Errorf("hosts %q: only GetSetMix's", e.Hosts)
+	}
+}

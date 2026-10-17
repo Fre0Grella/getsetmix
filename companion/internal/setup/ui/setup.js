@@ -608,7 +608,7 @@ screens.server = {
           <div class="hint" id="freeHint">${esc(T("musicDirHint"))}${free != null ? " " + esc(T("free", num(Math.round(free)))) : ""}</div></div>
         ${toggleRow("autoUpdate", T("autoUpdate"), T(c.target === "kubernetes" ? "autoUpdateK8s" : "autoUpdateDocker"), c.autoUpdate)}`;
     }
-    const ownAddress = f.existing && !f.existing.port;
+    const ownAddress = f.existing && (!f.existing.port || f.existing.host);
     const ts = ownAddress ? "" : f.tailscale
       ? toggleRow("tailscale", T("tailscale"), T("tailscaleD", "https://" + f.tailscale), c.tailscale)
       : `<div class="note warn" style="margin-top:20px">${I.lock}<div><p>${esc(T("noTailscale"))}</p>

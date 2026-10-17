@@ -62,8 +62,18 @@ facts() {
     if [ -n "$e" ]; then
       kv k8s_existing "$e"
       ns=${e%%/*}
-      kv k8s_hosts "$($k -n "$ns" get ingress,svc -o jsonpath='{range .items[*]}{.spec.rules[*].host} {.status.loadBalancer.ingress[*].hostname} {end}' 2>/dev/null)"
-      kv k8s_existing_nodeports "$($k -n "$ns" get svc -o jsonpath='{.items[*].spec.ports[*].nodePort}' 2>/dev/null)"
+      dep=${e%%|*}
+      dep=${dep#*/}
+      # Only GetSetMix's own Services and Ingresses: its namespace may hold
+      # other apps (Nextcloud next door), whose ports and names aren't ours.
+      svcs=$($k -n "$ns" get svc -o jsonpath='{range .items[*]}{.metadata.name}|{.spec.ports[*].nodePort}|{.status.loadBalancer.ingress[*].hostname}{"\n"}{end}' 2>/dev/null | grep -i -e '^[^|]*getsetmix[^|]*|' -e "^$dep|")
+      kv k8s_existing_nodeports "$(printf '%s\n' "$svcs" | cut -d'|' -f2 | tr '\n' ' ')"
+      hosts=$(printf '%s\n' "$svcs" | cut -d'|' -f3 | tr '\n' ' ')
+      ing=$($k -n "$ns" get ingress -o jsonpath='{range .items[*]}{.spec.rules[*].http.paths[*].backend.service.name}|{.spec.rules[*].host} {.status.loadBalancer.ingress[*].hostname}{"\n"}{end}' 2>/dev/null)
+      for svc in $(printf '%s\n' "$svcs" | cut -d'|' -f1); do
+        hosts="$hosts $(printf '%s\n' "$ing" | grep -E "(^| )$svc( |\|)" | cut -d'|' -f2 | tr '\n' ' ')"
+      done
+      kv k8s_hosts "$hosts"
     fi
     break
   done
