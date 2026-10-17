@@ -8,6 +8,9 @@ name: Commit lint
 
 on:
   pull_request:
+    # `edited`: a squash merge uses the PR title as the commit headline, so
+    # a renamed PR has to be checked again.
+    types: [opened, edited, synchronize, reopened]
   push:
     branches: [main]
 
@@ -26,3 +29,27 @@ jobs:
         uses: wagoid/commitlint-github-action@v6
         with:
           configFile: commitlint.config.mjs
+
+  # A squash merge turns the PR title into the commit on main, and the commit
+  # check above only sees the branch's own commits. Lint the title the same
+  # way, and keep it within 50 characters counting the " (#NN)" GitHub adds.
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate the PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          npm install --no-save --silent @commitlint/cli@19 @commitlint/config-conventional@19
+          echo "$TITLE" | npx --no-install commitlint --config commitlint.config.mjs
+          headline="$TITLE (#$NUMBER)"
+          if [ "${#headline}" -gt 50 ]; then
+            echo "::error::The squash commit would be '$headline' (${#headline} characters); keep it within 50."
+            exit 1
+          fi
