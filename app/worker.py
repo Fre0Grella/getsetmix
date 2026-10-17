@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
 import threading
 import time
@@ -209,7 +210,11 @@ class Worker:
         final, collided = unique_path(library, stem, audio.suffix.lower())
         if collided:
             log.warning("filename collision for %r, saved as %s", stem, final.name)
-        shutil.move(str(audio), final)
+        # Land under a hidden name and rename: a computer downloading from
+        # /api/link never sees half a file, even when the move is a copy.
+        partial = final.with_name(f".{final.name}.part")
+        shutil.move(str(audio), partial)
+        os.replace(partial, final)
         return final
 
 

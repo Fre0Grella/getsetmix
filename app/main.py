@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, metadata, metrics, rekordbox, ytdl
+from . import __version__, link, metadata, metrics, rekordbox, ytdl
 from .config import AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, ensure_dirs, settings
 from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
 from .worker import worker
@@ -45,6 +45,12 @@ def _basic_ok(header: str) -> bool:
 async def auth_middleware(request: Request, call_next):
     # Private-by-default; optional static token or Basic Auth when exposed.
     protected = request.url.path.startswith("/api") or request.url.path == "/metrics"
+    # /api/link/* answers to the paired computers' own tokens instead.
+    if request.url.path.startswith("/api/link/"):
+        if not link.authorized(request.headers.get("authorization", "")):
+            return JSONResponse({"detail": "unknown computer: pair it again from GetSetMix Setup"},
+                                status_code=401)
+        return await call_next(request)
     if protected and request.url.path != "/api/ping":
         if AUTH_TOKEN:
             supplied = (
@@ -426,6 +432,22 @@ async def purge(body: Purge):
         )
         return {"purged": removed, "scope": "inbox"}
     raise HTTPException(400, "scope must be 'history', 'completed' or 'inbox'")
+
+
+# ------------------------------------------------------------------- link
+@app.get("/api/link/files")
+async def link_files():
+    root = Path(settings["library_root"])
+    files = await asyncio.to_thread(link.list_files, root)
+    return {"version": __version__, "files": files}
+
+
+@app.get("/api/link/file")
+async def link_file(path: str):
+    found = link.resolve(Path(settings["library_root"]), path)
+    if found is None:
+        raise HTTPException(404, "no such track")
+    return FileResponse(found, media_type="application/octet-stream")
 
 
 @app.get("/metrics", response_class=PlainTextResponse)
