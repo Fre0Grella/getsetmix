@@ -224,8 +224,8 @@ esac`,
   "get svc -A"*) echo "30080 30765 30081" ;;
   "-n nextcloud get svc"*)
     printf 'nextcloud|30080|\ngetsetmix|30765|\nnextcloud-ts|30081|nextcloud.tail.ts.net\n' ;;
-  "-n nextcloud get ingress"*)
-    printf 'nextcloud|cloud.example.com nextcloud.tail.ts.net\ngetsetmix|gsm.example.com getsetmix-srv.tail.ts.net\n' ;;
+  "-n nextcloud get ingress"*"defaultBackend"*)
+    printf 'nextcloud |cloud.example.com nextcloud.tail.ts.net\n getsetmix|  getsetmix-srv.tail.ts.net\n' ;;
   *) exit 1 ;;
 esac`,
 	}
@@ -251,7 +251,7 @@ esac`,
 	if len(e.NodePorts) != 1 || e.NodePorts[0] != 30765 {
 		t.Errorf("node ports %v: only GetSetMix's", e.NodePorts)
 	}
-	if strings.Join(e.Hosts, " ") != "gsm.example.com getsetmix-srv.tail.ts.net" {
+	if strings.Join(e.Hosts, " ") != "getsetmix-srv.tail.ts.net" {
 		t.Errorf("hosts %q: only GetSetMix's", e.Hosts)
 	}
 }
