@@ -1,33 +1,71 @@
-# GetSetMix
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="app/static/assets/mark-light.svg">
+    <img src="app/static/assets/mark.svg" alt="" width="150">
+  </picture>
+</p>
 
-[![CI](https://github.com/Fre0Grella/getsetmix/actions/workflows/ci.yml/badge.svg)](https://github.com/Fre0Grella/getsetmix/actions/workflows/ci.yml)
-[![Publish image](https://github.com/Fre0Grella/getsetmix/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/Fre0Grella/getsetmix/actions/workflows/docker-publish.yml)
-[![Deploy site](https://github.com/Fre0Grella/getsetmix/actions/workflows/pages.yml/badge.svg)](https://github.com/Fre0Grella/getsetmix/actions/workflows/pages.yml)
+<h1 align="center">GetSetMix</h1>
 
+<p align="center">
+  <b>From a YouTube or SoundCloud link to a tagged track in your Rekordbox collection.</b><br>
+  Self-hosted, phone-first, and yours.
+</p>
 
-Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or playlist), review and edit the metadata, batch-download to MP3 320 kbps or FLAC, auto-tag with cover art, and ingest straight into your Rekordbox library via XML — all from a fast web UI laid out like a DJ's track browser.
+<p align="center">
+  <a href="https://github.com/Fre0Grella/getsetmix/releases/latest"><b>Download GetSetMix Setup</b></a> ·
+  <a href="https://fre0grella.github.io/getsetmix/docs.html">Docs</a> ·
+  <a href="#install">How Setup works</a>
+</p>
 
-![GetSetMix](app/static/assets/logo.png)
+<p align="center">
+  <a href="https://github.com/Fre0Grella/getsetmix/actions/workflows/ci.yml"><img src="https://github.com/Fre0Grella/getsetmix/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Fre0Grella/getsetmix/actions/workflows/release.yml"><img src="https://github.com/Fre0Grella/getsetmix/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  <a href="https://github.com/Fre0Grella/getsetmix/releases/latest"><img src="https://img.shields.io/github/v/release/Fre0Grella/getsetmix?label=latest" alt="Latest release"></a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/app-desktop.png" alt="GetSetMix on a computer: a batch downloading, tracks ready to review, one already in the library" width="68%">
+  &nbsp;
+  <img src="docs/screenshots/app-phone.png" alt="GetSetMix on a phone: a track opened for editing, with one-tap genre picks" width="23%">
+</p>
+
+## How it works
+
+1. **Send a link.** Share it from the YouTube or SoundCloud app on your phone, or paste it. A playlist or a whole set becomes one row per track.
+2. **Fix the tags while it loads.** Title, artist, genre (one tap on a phone), album and cover. Tracks you already own are flagged before you download them.
+3. **Download.** MP3 320 or FLAC, tagged, with the cover embedded, named from your template and saved in your library.
+4. **Open Rekordbox.** The tracks are already in your collection, in a *GetSetMix* playlist, with no XML to import.
+
+With a home server, GetSetMix is always on: you add tracks from your phone wherever you are, and they're waiting in Rekordbox the next time you open it. The server keeps the full collection as your backup.
 
 > Use GetSetMix only for content you have the rights to download.
 
 ## Features
 
-- **Paste & go** — single videos or whole playlists/sets fan out into individual editable rows
-- **Metadata review before download** — title + artist required, genre highlighted with a DJ-genre picker, optional album; cover override via cover search (iTunes) or manual upload
-- **Batch downloads** — global parallelism default of 2 with per-batch override, per-track status (queued → downloading → tagging → ingested / error), overall batch progress bar, cancel button
-- **Failures don't halt the batch** — failed tracks are flagged with per-track retry
-- **Tagging** — ID3v2.4 / FLAC Vorbis comments: title, artist, album, genre, embedded cover, source URL in the comment field
-- **Filename templates** — `{title} {artist} {album} {source} {id} {genre}`, sanitized, missing tokens omitted, collision-safe suffixes
-- **Rekordbox XML** — tracks appended to a configurable XML and an "Inbox" playlist (name configurable); reload the XML source in Rekordbox to see new tracks
-- **Collection-aware inbox** — optionally point GetSetMix at your full Rekordbox collection XML: before each batch, tracks you've already imported are purged from the inbox XML, so it only ever lists new songs
-- **Duplicate detection** — right after metadata is fetched, each track is checked against the inbox XML *and* your collection XML by source URL or by normalized/fuzzy title+artist (filename-independent, so changing the naming template still counts). Duplicates get an amber badge, and starting a batch with duplicates prompts you to download anyway or skip them
-- **Share to GetSetMix (Android)** — install the web UI as a PWA and it shows up in the Android share sheet, so you can share a link straight from the YouTube or SoundCloud app; the track lands staged and ready to review
-- **Persistence** — SQLite for tracks, URL history, and counters; manual purge from the UI
-- **Observability** — Prometheus `/metrics`: job counts by status, active downloads, download durations, errors by source, songs in last 30d / 365d / all time, health
-- **Private by default** — bind to localhost or your LAN; optional static-token or Basic Auth for public exposure
-- **i18n** — English (default) and Italian UI
-- Runs comfortably under 1 GB RAM
+**Getting tracks in**
+
+- Single tracks, playlists and sets from YouTube, SoundCloud and anything else [yt-dlp](https://github.com/yt-dlp/yt-dlp) supports
+- *Share to GetSetMix* on Android: installed as an app, it shows up in the share menu
+- Batch downloads with a progress bar per track and for the batch, adjustable parallelism, cancel, and per-track retry; one failure never stops the batch
+
+**Getting the metadata right**
+
+- Every field editable before anything downloads, with a DJ-genre picker and cover search or upload
+- Duplicate detection against your collection, by source link or a fuzzy title and artist match
+- ID3v2.4 and FLAC tags with embedded artwork; filenames from a template (`{artist} - {title}`, and more)
+
+**Getting it to Rekordbox**
+
+- The [companion](companion/README.md) writes new tracks straight into the Rekordbox collection, safely (backup, one transaction, integrity check), whenever you open Rekordbox through its shortcut
+- With a home server, tracks download to each paired computer on their own, one way, so the server stays the backup
+- Or, without the companion, a Rekordbox XML with an *Inbox* playlist that drops what you've already imported
+
+**Running it**
+
+- [GetSetMix Setup](#install) for Windows and macOS: on this computer, or on a home server with Docker or Kubernetes and automatic updates
+- Phone-first web UI, light or dark, in English and Italian
+- Private by default, with optional token or Basic Auth; Prometheus `/metrics`; runs in well under 1 GB of RAM
 
 ## Install
 
