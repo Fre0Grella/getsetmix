@@ -232,7 +232,7 @@ Other types (`chore`, `docs`, `ci`, `refactor`, `test`, …) are valid and relea
 | `docker-publish.yml` | push to `main` | builds the image for **linux/amd64 + linux/arm64** and pushes to **GHCR** as `latest`, `main`, and the commit SHA |
 | `release.yml` | push to `main` | **automated semantic versioning**: bumps the version from the commits, tags `vX.Y.Z`, creates the GitHub Release, builds **GetSetMix Setup** (Windows / macOS), the standalone executables (Windows / macOS / Linux, PyInstaller) and the immutable versioned images (`:1.2.3`, `:1.2`, `:1`) |
 | `pages.yml` | push to `main` touching `site/**` | deploys the landing + docs site in `site/` to **GitHub Pages** |
-| `companion.yml` | changes under `companion/`, `companion-v*` tags | tests the companion and Setup on Windows/macOS/Linux and builds GetSetMix Setup as a downloadable artifact (try a PR's Setup from its checks); when `companion/VERSION` names an unreleased version on `main`, builds Windows + universal macOS binaries and publishes the `companion-vX.Y.Z` release |
+| `companion.yml` | changes under `companion/`, `companion-v*` tags | tests the companion and Setup on Windows/macOS/Linux and builds GetSetMix Setup as a downloadable artifact (before a release, try it with `wizard --demo`: a real install needs the released app and image); when `companion/VERSION` names an unreleased version on `main`, builds Windows + universal macOS binaries and publishes the `companion-vX.Y.Z` release |
 
 One-time setup after pushing to GitHub:
 
