@@ -29,7 +29,10 @@
 
 <div class="wrap docs-layout">
   <nav class="docs-nav" aria-label="Documentation">
-    <span class="h">Run it</span>
+    <span class="h">Get started</span>
+    <a href="#setup">GetSetMix Setup</a>
+    <a href="#server">With a home server</a>
+    <span class="h">By hand</span>
     <a href="#quickstart">Docker Compose</a>
     <a href="#kubernetes">Kubernetes</a>
     <a href="#local">Local app mode</a>
@@ -46,8 +49,28 @@
 
   <main class="docs-body">
     <h1>Documentation</h1>
-    <p>GetSetMix is a single-container FastAPI service with a vanilla-JS UI. State lives in SQLite under the data directory; downloads land directly in your music library; finished tracks are appended to a <code>rekordbox.xml</code> you import once in Rekordbox.</p>
+    <p>GetSetMix is a single-container FastAPI service with a vanilla-JS UI. State lives in SQLite under the data directory; downloads land directly in your music library, and the Rekordbox companion adds them to your collection (or, without it, they are appended to a <code>rekordbox.xml</code>).</p>
     <p class="note">Use GetSetMix only for content you have the rights to download.</p>
+
+    <h2 id="setup">GetSetMix Setup</h2>
+    <p>Download <b>GetSetMix Setup</b> from the <a href="https://github.com/Fre0Grella/getsetmix/releases/latest">latest release</a> and open it: <code>GetSetMix-Setup-windows-x64.exe</code> on Windows, <code>GetSetMix-Setup-macos.zip</code> on macOS (unzip, then right-click <i>GetSetMix Setup</i> ▸ <i>Open</i> the first time). Windows may say it doesn't know the publisher: <i>More info</i> ▸ <i>Run anyway</i>. Neither build is signed yet.</p>
+    <img src="assets/setup-welcome.png" alt="GetSetMix Setup asking where GetSetMix should run" width="1000" height="740" style="width:100%;height:auto;border-radius:10px;border:1px solid #e3e7ee;margin:6px 0 18px">
+    <p>Setup asks one question, where GetSetMix should run:</p>
+    <ul>
+      <li><b>Just this computer.</b> Setup downloads the app together with ffmpeg and Deno (checked against pinned checksums) and adds a <i>GetSetMix</i> shortcut. GetSetMix opens in its own window and stops when you close it. Tracks go to the folder you choose (default <code>Music/GetSetMix</code>) and straight into Rekordbox.</li>
+      <li><b>With my home server.</b> GetSetMix runs on the server all the time, so you can share tracks to it from your phone. This computer receives them in Rekordbox, and the server keeps the full collection.</li>
+    </ul>
+    <p>Either way Setup ends by installing the <a href="https://github.com/Fre0Grella/getsetmix/blob/main/companion/README.md">Rekordbox companion</a>: open Rekordbox with the <i>Rekordbox (GetSetMix)</i> shortcut and new tracks are in the <b>GetSetMix</b> playlist, without any XML.</p>
+
+    <h2 id="server">With a home server</h2>
+    <ol>
+      <li><b>Paste one command on the server.</b> Setup shows it, with a one-time code: <code>curl -fsSL http://&lt;this computer&gt;:47321/s/&lt;code&gt; | sudo sh</code>. Open a terminal on the server (<code>ssh you@server</code>, or its own keyboard) and paste it. If Windows asks whether Setup may use the network, choose <i>Allow</i>. <i>What does this command run?</i> in Setup shows the script.</li>
+      <li><b>Choose.</b> The server reports what it has (Docker, Kubernetes / MicroK8s / k3s, an existing GetSetMix, Tailscale, free space). Pick where the music lives and whether to update automatically. Without Docker or Kubernetes, Setup installs Docker with its official installer.</li>
+      <li><b>Setup installs.</b> The server installs GetSetMix with <b>Watchtower</b> (Docker) or <b>Keel</b> (Kubernetes) for automatic updates, or keeps a GetSetMix that's already running, with its tracks and settings: it switches it to one copy at a time, always pulls the newest image, turns on updates and restarts it once. Each step shows up in Setup as it happens.</li>
+      <li><b>This computer is paired.</b> New tracks download to it every 15 minutes while it's on (on battery too) and whenever you open Rekordbox through the shortcut. Run Setup on a second computer to pair it as well.</li>
+    </ol>
+    <p><b>The server is the backup.</b> Tracks only travel from the server to the computer: deleting one on the computer, or the computer breaking, never touches the server's copy, and a new computer downloads the collection again. If the server's music folder is already synced to this computer (Nextcloud, Syncthing), choose <i>My server's music folder is already synced here</i> and Setup only watches that folder.</p>
+    <p class="note"><b>The phone app needs HTTPS.</b> Browsers only install an app (and offer it in the share menu) from a secure address. When the server runs <a href="https://tailscale.com/download">Tailscale</a>, Setup turns on HTTPS with <code>tailscale serve</code> and shows a QR code for your phone. Without it, the phone can still open GetSetMix on your home Wi-Fi, but can't install it or share to it.</p>
 
     <h2 id="quickstart">Docker Compose</h2>
 <pre># deploy/docker-compose.yml — edit the music path first
@@ -78,7 +101,7 @@ kubectl -n getsetmix get pods</pre>
     </ul>
 
     <h2 id="local">Local app mode</h2>
-    <p>For a laptop next to your controller — starts the server and opens the browser, like a desktop app. Prebuilt executables for Windows, macOS and Linux are attached to every <a href="https://github.com/Fre0Grella/getsetmix/releases">GitHub Release</a> (no Python needed; data lives in <code>~/.getsetmix</code>, ffmpeg still required on PATH). Or run from source:</p>
+    <p>GetSetMix Setup installs this for you (<i>Just this computer</i>). By hand: it starts the server and opens the browser, like a desktop app (<code>--window</code> opens it in its own window and stops when that closes). Prebuilt executables for Windows, macOS and Linux are attached to every <a href="https://github.com/Fre0Grella/getsetmix/releases">GitHub Release</a> (no Python needed; data lives in <code>~/.getsetmix</code>, ffmpeg still required on PATH). Or run from source:</p>
 <pre>pip install -r requirements.txt
 # ffmpeg must be on PATH:
 #   Linux: apt install ffmpeg · macOS: brew install ffmpeg · Windows: winget install ffmpeg
@@ -95,7 +118,7 @@ python run_local.py --port 9000 --no-browser</pre>
     </ol>
 
     <h2 id="rekordbox">Rekordbox setup</h2>
-    <p>One-time configuration in Rekordbox:</p>
+    <p>With GetSetMix Setup there is nothing to configure: the companion writes new tracks into the Rekordbox collection itself, in a <b>GetSetMix</b> playlist, each time you open Rekordbox with the <i>Rekordbox (GetSetMix)</i> shortcut (Rekordbox must be closed while its database is written). Without the companion, use the XML instead. One-time configuration in Rekordbox:</p>
     <ol>
       <li>Open <i>Preferences ▸ Advanced ▸ Database ▸ rekordbox xml</i> and point it at the XML path shown in GetSetMix settings (default <code>&lt;data&gt;/rekordbox/getsetmix.xml</code>).</li>
       <li>In the sidebar, enable the <i>rekordbox xml</i> source (Preferences ▸ View ▸ Layout if hidden).</li>

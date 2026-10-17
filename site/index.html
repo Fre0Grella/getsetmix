@@ -37,7 +37,7 @@
       <h1>From link to<br>the <span class="t">DJ booth.</span></h1>
       <p class="lead">GetSetMix is a self-hosted ingestion service for DJs. Paste a track or a whole set, fix the tags while it fetches, and batch-download straight into your Rekordbox library — tagged, covered, playlisted.</p>
       <div class="cta-row">
-        <a class="btn primary" href="docs.html">Get started</a>
+        <a class="btn primary" href="docs.html#setup">Get started</a>
         <a class="btn ghost" href="https://github.com/Fre0Grella/getsetmix">Source on GitHub</a>
       </div>
       <code class="pull">docker run -p 8765:8765 ghcr.io/Fre0Grella/getsetmix:latest</code>
@@ -134,33 +134,31 @@
 
 <section id="deploy">
   <div class="wrap">
-    <span class="eyebrow">Deploy</span>
-    <h2>Three ways to run it.</h2>
-    <p class="sub">Same service, same UI everywhere — pick what fits your setup.</p>
+    <span class="eyebrow">Install</span>
+    <h2>One download, one question.</h2>
+    <p class="sub">GetSetMix Setup asks where GetSetMix should run and does the rest, Rekordbox included. Windows and macOS.</p>
     <div class="deploy-cols">
       <div class="deploy-card">
-        <h3>Docker Compose</h3>
-        <p>The two-minute start for any box with Docker.</p>
-<pre class="term"><span class="c"># point /music at your library</span>
-docker compose \
-  -f deploy/docker-compose.yml \
-  up -d --build</pre>
-      </div>
-      <div class="deploy-card">
-        <h3>Kubernetes</h3>
-        <p>Plain manifests: namespace, PVCs, probes, metrics annotations.</p>
-<pre class="term">kubectl apply \
-  -f deploy/k8s/getsetmix.yaml
-<span class="c"># image from GHCR, amd64+arm64</span></pre>
-      </div>
-      <div class="deploy-card">
-        <h3>Local app mode</h3>
-        <p>A prebuilt desktop app — download, run, and it opens in your browser. Windows, macOS &amp; Linux.</p>
+        <h3>Just this computer</h3>
+        <p>Setup installs the app with ffmpeg and Deno and adds a GetSetMix shortcut. It opens in its own window while you use it and puts tracks straight into Rekordbox.</p>
         <div class="rel-cta">
-          <a class="btn primary" href="https://github.com/Fre0Grella/getsetmix/releases">
-            Download for desktop →
-          </a>
+          <a class="btn primary" href="https://github.com/Fre0Grella/getsetmix/releases/latest">Download Setup →</a>
         </div>
+      </div>
+      <div class="deploy-card">
+        <h3>With my home server</h3>
+        <p>Always on, so you can share tracks from your phone. Paste one command on the server: Setup installs GetSetMix on Docker or Kubernetes with automatic updates, or keeps the one you have.</p>
+<pre class="term"><span class="c"># Setup shows it, with your code</span>
+curl -fsSL http://&lt;pc&gt;:47321/s/&lt;code&gt; \
+  | sudo sh</pre>
+      </div>
+      <div class="deploy-card">
+        <h3>By hand</h3>
+        <p>Same service, plain files: Docker Compose, Kubernetes manifests, or the standalone app. See the <a href="docs.html#quickstart">docs</a>.</p>
+<pre class="term">docker compose \
+  -f deploy/docker-compose.yml up -d
+kubectl apply \
+  -f deploy/k8s/getsetmix.yaml</pre>
       </div>
     </div>
   </div>
