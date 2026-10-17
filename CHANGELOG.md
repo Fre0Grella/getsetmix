@@ -1,6 +1,45 @@
 # CHANGELOG
 
 
+## v1.7.0 (2026-10-17)
+
+### Continuous Integration
+
+- Lint PR titles before squash merges ([#13](https://github.com/Fre0Grella/getsetmix/pull/13),
+  [`d91fa3c`](https://github.com/Fre0Grella/getsetmix/commit/d91fa3c82596491f27f3480a04f69b9cfe663e8a))
+
+A squash merge makes the PR title the commit headline on main, but the commit check only saw the
+  branch's own commits. PR #10's title, "feat(setup): GetSetMix Setup installer", passed review and
+  then failed commitlint on main (subject-case: it starts with capitalised words).
+
+Lint the title on every PR, including when it is renamed, with the same config, and fail when
+  "<title> (#N)" passes 50 characters.
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+### Features
+
+- **ui**: Add the FreoGrella footer ([#14](https://github.com/Fre0Grella/getsetmix/pull/14),
+  [`2c73785`](https://github.com/Fre0Grella/getsetmix/commit/2c73785dd2c9f2bf5436a58103bf95486dd7e256))
+
+The same thin footer as BottleCount and Treblewise, in the app and on both pages of the website: the
+  year, GetSetMix, the source and the docs on the left; "Made with ❤️ by FreoGrella", GitHub,
+  LinkedIn and Donate (in the accent) on the right. It wraps into two rows on a phone.
+
+In the app it closes the page, after the list, and keeps the bottom bar's height free below itself
+  so the bar never covers it; the page is a column now, so the footer stays at the bottom even when
+  the list is short. The labels are in English and Italian.
+
+On the site it replaces the old footer, whose "open source, MIT" isn't backed by a LICENSE file yet;
+  the rights notice moves just above it.
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.6.0 (2026-10-17)
 
 ### Features
