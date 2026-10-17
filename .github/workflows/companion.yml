@@ -13,9 +13,9 @@ on:
   push:
     branches: [main]
     tags: ["companion-v*"]
-    paths: ["companion/**", ".github/workflows/companion.yml"]
+    paths: ["companion/**", "app/static/assets/icon.png", ".github/workflows/companion.yml"]
   pull_request:
-    paths: ["companion/**", ".github/workflows/companion.yml"]
+    paths: ["companion/**", "app/static/assets/icon.png", ".github/workflows/companion.yml"]
   workflow_dispatch:
 
 permissions:
@@ -55,6 +55,45 @@ jobs:
           test -z "$(gofmt -l .)" || { gofmt -l .; echo "run gofmt"; exit 1; }
           go vet ./...
           go test ./...
+
+  # GetSetMix Setup (the companion opened with no arguments), built on every
+  # PR and push so it can be tried before a release. Releases attach it via
+  # release.yml.
+  setup:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: GetSetMix-Setup-windows-x64.exe
+          - os: macos-latest
+            asset: GetSetMix-Setup-macos.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: companion/go.mod
+          cache-dependency-path: companion/go.sum
+      - if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: mingw-w64-ucrt-x86_64-gcc
+          path-type: inherit
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: bash scripts/build-setup.sh dev
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: bash scripts/build-setup.sh dev
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: companion/dist/${{ matrix.asset }}
+          if-no-files-found: error
 
   plan:
     runs-on: ubuntu-latest

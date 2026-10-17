@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	runKey   = `Software\Microsoft\Windows\CurrentVersion\Run`
-	runValue = "GetSetMix Companion"
+	runKey    = `Software\Microsoft\Windows\CurrentVersion\Run`
+	runValue  = "GetSetMix Companion"
+	fetchTask = `GetSetMix\Fetch new tracks`
 )
 
 // guiExe is the windowless build shipped next to the console one
@@ -30,11 +31,36 @@ func guiExe(exe string) (string, bool) {
 	return w, err == nil
 }
 
-func shortcutPaths() []string {
+func shortcutPaths(name string) []string {
 	return []string{
-		filepath.Join(os.Getenv("APPDATA"), `Microsoft\Windows\Start Menu\Programs`, LauncherName+".lnk"),
-		filepath.Join(os.Getenv("USERPROFILE"), "Desktop", LauncherName+".lnk"),
+		filepath.Join(os.Getenv("APPDATA"), `Microsoft\Windows\Start Menu\Programs`, name+".lnk"),
+		filepath.Join(os.Getenv("USERPROFILE"), "Desktop", name+".lnk"),
 	}
+}
+
+// InstallApp creates the "GetSetMix" shortcuts that open the local app
+// window (`exe --window`). Its console starts minimised: closing the window
+// ends it.
+func InstallApp(exe, _ string) (Result, error) {
+	var res Result
+	for _, lnk := range shortcutPaths(AppName) {
+		if err := makeShortcut(lnk, exe, "--window", exe, "GetSetMix", true); err != nil {
+			return res, fmt.Errorf("creating %s: %w", lnk, err)
+		}
+		res.Created = append(res.Created, lnk)
+	}
+	return res, nil
+}
+
+// UninstallApp removes what InstallApp created.
+func UninstallApp() (Result, error) {
+	var res Result
+	for _, lnk := range shortcutPaths(AppName) {
+		if os.Remove(lnk) == nil {
+			res.Created = append(res.Created, lnk)
+		}
+	}
+	return res, nil
 }
 
 // Install creates the launcher shortcuts and, optionally, the autostart entry.
@@ -50,8 +76,11 @@ func Install(o Options) (Result, error) {
 	if icon == "" {
 		icon = target
 	}
-	for _, lnk := range shortcutPaths() {
-		if err := makeShortcut(lnk, target, "launch", icon); err != nil {
+	for _, lnk := range shortcutPaths(LauncherName) {
+		if o.SkipLauncher {
+			break
+		}
+		if err := makeShortcut(lnk, target, "launch", icon, "Import new GetSetMix tracks, then start Rekordbox", false); err != nil {
 			return res, fmt.Errorf("creating %s: %w", lnk, err)
 		}
 		res.Created = append(res.Created, lnk)
@@ -69,16 +98,29 @@ func Install(o Options) (Result, error) {
 		res.Notes = append(res.Notes, "the watcher starts at your next sign-in; "+
 			"run `gsm-companionw watch` to start it now")
 	}
+	if o.Fetch {
+		// A per-user scheduled task: no admin rights, no resident process.
+		out, err := exec.Command("schtasks", "/Create", "/F", "/TN", fetchTask,
+			"/SC", "MINUTE", "/MO", fmt.Sprint(FetchEvery),
+			"/TR", fmt.Sprintf(`"%s" fetch`, target)).CombinedOutput()
+		if err != nil {
+			return res, fmt.Errorf("scheduling fetch: %v: %s", err, strings.TrimSpace(string(out)))
+		}
+		res.Created = append(res.Created, `Task Scheduler\`+fetchTask)
+	}
 	return res, nil
 }
 
 // Uninstall removes everything Install may have created.
 func Uninstall() (Result, error) {
 	var res Result
-	for _, lnk := range shortcutPaths() {
+	for _, lnk := range shortcutPaths(LauncherName) {
 		if err := os.Remove(lnk); err == nil {
 			res.Created = append(res.Created, lnk)
 		}
+	}
+	if exec.Command("schtasks", "/Delete", "/F", "/TN", fetchTask).Run() == nil {
+		res.Created = append(res.Created, `Task Scheduler\`+fetchTask)
 	}
 	k, err := registry.OpenKey(registry.CURRENT_USER, runKey, registry.SET_VALUE)
 	if err == nil {
@@ -92,7 +134,11 @@ func Uninstall() (Result, error) {
 
 // makeShortcut writes a .lnk through the Windows Script Host — the only
 // supported way to author one, and it only runs at install time.
-func makeShortcut(lnk, target, args, icon string) error {
+func makeShortcut(lnk, target, args, icon, description string, minimized bool) error {
+	style := "1"
+	if minimized {
+		style = "7"
+	}
 	q := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
 	script := strings.Join([]string{
 		"$s = (New-Object -ComObject WScript.Shell).CreateShortcut(" + q(lnk) + ")",
@@ -100,7 +146,8 @@ func makeShortcut(lnk, target, args, icon string) error {
 		"$s.Arguments = " + q(args),
 		"$s.WorkingDirectory = " + q(filepath.Dir(target)),
 		"$s.IconLocation = " + q(icon+",0"),
-		"$s.Description = 'Import new GetSetMix tracks, then start Rekordbox'",
+		"$s.Description = " + q(description),
+		"$s.WindowStyle = " + style,
 		"$s.Save()",
 	}, "; ")
 	out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script).CombinedOutput()

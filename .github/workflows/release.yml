@@ -104,14 +104,62 @@ jobs:
           path: dist/${{ matrix.artifact }}
           if-no-files-found: error
 
+  # GetSetMix Setup: the installer people download first. It fetches the app
+  # of this same release for "Just this computer".
+  setup:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: GetSetMix-Setup-windows-x64.exe
+          - os: macos-latest
+            asset: GetSetMix-Setup-macos.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: companion/go.mod
+          cache-dependency-path: companion/go.sum
+      - if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: mingw-w64-ucrt-x86_64-gcc
+          path-type: inherit
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        working-directory: companion
+        run: bash scripts/build-setup.sh "${{ needs.release.outputs.version }}"
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        working-directory: companion
+        run: bash scripts/build-setup.sh "${{ needs.release.outputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: companion/dist/${{ matrix.asset }}
+          if-no-files-found: error
+
   attach:
-    needs: [release, executables]
+    needs: [release, executables, setup]
     if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           pattern: getsetmix-*   # only the executables, not the buildx .dockerbuild artifact
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: GetSetMix-Setup-*
           path: dist
           merge-multiple: true
 
@@ -121,12 +169,28 @@ jobs:
           files: dist/*
           fail_on_unmatched_files: true
           body: |
-            Standalone **local app mode** builds — no Python required.
-            `ffmpeg` must be on your PATH (`winget install ffmpeg` / `brew install ffmpeg` / `apt install ffmpeg`),
-            and so must **Deno** for YouTube (`winget install DenoLand.Deno` / `brew install deno` / `curl -fsSL https://deno.land/install.sh | sh`) —
-            without a JavaScript runtime YouTube answers downloads with HTTP 403.
+            ### Install
 
-            Run the binary and the UI opens at http://127.0.0.1:8765 (data is kept in `~/.getsetmix`).
+            Download **GetSetMix Setup** and open it: it asks where GetSetMix
+            should run and does the rest.
+
+            - **Windows**: `GetSetMix-Setup-windows-x64.exe`. Windows may warn
+              that it doesn't know the publisher: choose *More info* > *Run anyway*.
+            - **macOS**: `GetSetMix-Setup-macos.zip`, unzip, then right-click
+              *GetSetMix Setup* > *Open* the first time (it isn't notarised).
+
+            *Just this computer* installs the app below together with ffmpeg and
+            Deno. *With my home server* gives you one command to paste on the
+            server (Docker or Kubernetes, automatic updates included) and pairs
+            this computer so new tracks arrive in Rekordbox on their own.
+
+            ### Other files
+
+            The `getsetmix-*` files are the app on its own, for people who set
+            things up by hand. They need `ffmpeg` and **Deno** on the PATH
+            (`winget install ffmpeg DenoLand.Deno` / `brew install ffmpeg deno`);
+            without a JavaScript runtime YouTube answers downloads with HTTP 403.
+            Run one and the UI opens at http://127.0.0.1:8765 (data in `~/.getsetmix`).
 
   image:
     needs: release
