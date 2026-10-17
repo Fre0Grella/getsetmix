@@ -1,6 +1,95 @@
 # CHANGELOG
 
 
+## v1.4.0 (2026-10-17)
+
+### Continuous Integration
+
+- **companion**: Test and release Windows and macOS
+  ([`6acb179`](https://github.com/Fre0Grella/getsetmix/commit/6acb179ffec467eb0932597194d87fa02714dcf9))
+
+Tests run on Windows (cgo through MSYS2 UCRT64 gcc), macOS and Linux. Releases are automated from
+  companion/VERSION: a push to main whose VERSION has no companion-vX.Y.Z tag yet builds a static
+  Windows pair (gsm-companion.exe + the windowless gsm-companionw.exe) and a universal macOS binary,
+  then publishes the release with SHA256SUMS. Pushing a companion-v* tag releases that commit, as a
+  pre-release when the version has a suffix. The prefix keeps these tags apart from the server's
+  semantic-release vX.Y.Z tags, and make_latest stays false so the server remains the repo's latest
+  release.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+### Documentation
+
+- Point to the companion from the README
+  ([`99ff140`](https://github.com/Fre0Grella/getsetmix/commit/99ff1407f0a7a51d343917ffab14ce1de58b6109))
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+- **deploy**: Plan auto-update with Keel
+  ([`58c2d29`](https://github.com/Fre0Grella/getsetmix/commit/58c2d29f28956923869570dc3cc6d12774097d79))
+
+Handoff for the session that sets up self-updating on the home server: Keel polls GHCR and rolls the
+  deployment whenever the digest behind :latest changes, so pushes to main and the weekly yt-dlp
+  refresh both reach the server without a manual rollout. Covers the checks to run against the live
+  deployment first (it lives in namespace nextcloud, not the repo manifest's getsetmix), install,
+  verification, rollback, and the release-only variant.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+### Features
+
+- **companion**: Import deliveries into Rekordbox
+  ([`20a69ba`](https://github.com/Fre0Grella/getsetmix/commit/20a69babc404b087972bd274c006797de7e5bd4d))
+
+gsm-companion runs on the DJ's computer and adds the tracks a sync client delivers straight into
+  Rekordbox's collection (master.db), into a "GetSetMix" playlist. No XML source to refresh, no drag
+  and drop.
+
+Rekordbox must be closed while its database is written, so nothing has to stay resident: the default
+  "Rekordbox (GetSetMix)" launcher imports (about 1 s, 0.1 s when nothing is new) and then starts
+  Rekordbox. Unattended imports are opt-in: on Windows a watcher that sleeps on
+  ReadDirectoryChangesW and on the Rekordbox process handle (about 10 MB, 0% CPU idle); on macOS a
+  launchd agent with WatchPaths, so nothing of ours runs between changes.
+
+Safety: - never writes while Rekordbox runs (checked before reading and again before writing); opens
+  nothing unless a file is new; - backs up master.db and masterPlaylists6.xml, writes in one
+  transaction, runs quick_check, and restores the backup on failure; - remembers handled files, so a
+  track deleted in Rekordbox stays deleted; files still syncing (temp names, conflicts, modified in
+  the last 10 s) are left alone.
+
+Rows mirror Rekordbox's own, checked against a real 7.2 library rather than copied from pyrekordbox:
+  the local device from djmdProperty (not the first djmdDevice), ContentLink from the latest local
+  import, rb_file_id = NTFS file ID / inode, UTC "…mmm +00:00" timestamps, localUpdateCount and
+  per-row rb_local_usn, and the playlist mirrored into masterPlaylists6.xml without reformatting it.
+  Stream facts are parsed from MP3/FLAC/WAV/AIFF/MP4 headers; on 514 real tracks they match what
+  Rekordbox stored (file ID, rate, depth, type 514/514, length 513, bitrate 510). An end-to-end run
+  on a copy of that library reads back cleanly with pyrekordbox and passes integrity_check.
+
+Go with SQLCipher compiled in (go-sqlcipher, no OpenSSL): one ~5 MB static binary per platform.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+### Testing
+
+- **companion**: Build test paths natively per OS
+  ([`a4fe23f`](https://github.com/Fre0Grella/getsetmix/commit/a4fe23fa7d996cc5b35264fe32caf799681881c2))
+
+Two library tests spelled Windows paths with backslashes, which are ordinary filename characters on
+  macOS and Linux, so CI failed there. Build them with filepath.FromSlash instead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+
 ## v1.3.0 (2026-10-17)
 
 ### Bug Fixes
