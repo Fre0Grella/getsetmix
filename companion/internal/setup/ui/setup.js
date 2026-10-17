@@ -76,6 +76,7 @@ const STR = {
     playlist: "Rekordbox playlist",
     playlistHint: "New tracks are added to this playlist.",
     pickPrompt: "Choose the folder for your tracks",
+    pickFailed: "The folder window didn't open. Type or paste the folder's path in the box instead.",
     sizeNote: "Downloads about 250 MB: GetSetMix, ffmpeg and Deno.",
     needFolder: "Choose a folder first.",
 
@@ -219,6 +220,7 @@ const STR = {
     playlist: "Playlist di Rekordbox",
     playlistHint: "Le nuove tracce si aggiungono a questa playlist.",
     pickPrompt: "Scegli la cartella per le tue tracce",
+    pickFailed: "La finestra delle cartelle non si è aperta. Scrivi o incolla il percorso della cartella nella casella.",
     sizeNote: "Scarica circa 250 MB: GetSetMix, ffmpeg e Deno.",
     needFolder: "Prima scegli una cartella.",
 
@@ -449,10 +451,18 @@ function wirePickers() {
   document.querySelectorAll("[data-pick]").forEach((b) => {
     b.onclick = async () => {
       const input = $("#" + b.dataset.pick);
+      b.disabled = true;
       try {
         const r = await api("/api/pick", { prompt: T("pickPrompt"), start: input.value });
         if (r.path) { input.value = r.path; input.dispatchEvent(new Event("input")); }
-      } catch (e) { /* the dialog failed: typing still works */ }
+      } catch (e) {
+        // The dialog failed: typing the path still works, so say so.
+        const err = $("#err");
+        if (err) { err.textContent = T("pickFailed"); err.hidden = false; }
+        input.focus();
+      } finally {
+        b.disabled = false;
+      }
     };
   });
 }

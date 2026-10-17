@@ -16,21 +16,30 @@ func pickFolder(prompt, start string) (string, error) {
 	switch runtime.GOOS {
 	case "windows":
 		q := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
-		// An owner form that is TopMost keeps the dialog in front of the
-		// setup window instead of behind it.
+		// Windows won't bring a background process's window to the front,
+		// so a bare dialog opens behind Setup's window, unseen. Its owner is
+		// a 1-pixel invisible form that is shown and topmost first: then the
+		// dialog opens topmost and in front.
 		script := strings.Join([]string{
 			"Add-Type -AssemblyName System.Windows.Forms",
-			"$f = New-Object System.Windows.Forms.Form -Property @{TopMost = $true; ShowInTaskbar = $false}",
+			"$f = New-Object System.Windows.Forms.Form -Property @{TopMost = $true; ShowInTaskbar = $false; " +
+				"Opacity = 0; FormBorderStyle = 'None'; StartPosition = 'CenterScreen'; Size = New-Object System.Drawing.Size(1, 1)}",
+			"$f.Show(); $f.Activate()",
 			"$d = New-Object System.Windows.Forms.FolderBrowserDialog",
 			"$d.Description = " + q(prompt),
 			"$d.ShowNewFolderButton = $true",
 			"$d.SelectedPath = " + q(start),
 			"if ($d.ShowDialog($f) -eq 'OK') { [Console]::OutputEncoding = [Text.Encoding]::UTF8; $d.SelectedPath }",
+			"$f.Close()",
 		}, "; ")
 		cmd = exec.Command("powershell", "-NoProfile", "-NonInteractive", "-STA", "-Command", script)
-		hideWindow(cmd)
+		// No console, but not "start hidden" either: that would apply to the
+		// first window PowerShell shows, the owner above.
+		noConsole(cmd)
 	case "darwin":
-		as := `POSIX path of (choose folder with prompt ` + appleQuote(prompt)
+		// `activate` first: osascript is a background process, and without
+		// it the dialog can open behind Setup's window.
+		as := `activate` + "\n" + `POSIX path of (choose folder with prompt ` + appleQuote(prompt)
 		if start != "" {
 			as += ` default location (POSIX file ` + appleQuote(start) + `)`
 		}
