@@ -24,6 +24,10 @@ const STR = {
     colTrack: "Traccia", colAlbum: "Album", colGenre: "Genere", colTime: "Durata", colStatus: "Stato",
     emptyTitle: "La cassa è ancora vuota",
     emptyHint: "Incolla qui sotto un link di YouTube o SoundCloud. Una playlist diventa una riga per traccia.",
+    footSource: "Codice sorgente",
+    footDocs: "Guida",
+    footMadeBy: "Fatto con ❤️ da FreoGrella",
+    footDonate: "☕ Dona",
     shareHint: "Su Android, installa GetSetMix e condividi i link direttamente da YouTube o SoundCloud.",
     pasteAnywhere: "funziona ovunque nella pagina",
     theme: "Tema", themeSystem: "Auto", themeLight: "Chiaro", themeDark: "Scuro",
@@ -67,6 +71,10 @@ const STR = {
     colTrack: "Track", colAlbum: "Album", colGenre: "Genre", colTime: "Time", colStatus: "Status",
     emptyTitle: "Nothing in the crate yet",
     emptyHint: "Paste a YouTube or SoundCloud link below. A playlist becomes one row per track.",
+    footSource: "Source code",
+    footDocs: "Docs",
+    footMadeBy: "Made with ❤️ by FreoGrella",
+    footDonate: "☕ Donate",
     shareHint: "On Android, install GetSetMix and share links to it straight from YouTube or SoundCloud.",
     pasteAnywhere: "works anywhere on this page",
     theme: "Theme", themeSystem: "Auto", themeLight: "Light", themeDark: "Dark",
@@ -178,6 +186,8 @@ darkScheme.addEventListener("change", () => applyTheme(themePref));
 document.querySelectorAll('input[name="theme"]').forEach((r) =>
   r.addEventListener("change", () => setTheme(r.value)));
 applyTheme(themePref);
+
+$("#footYear").textContent = new Date().getFullYear();
 
 // ------------------------------------------------------------------- i18n
 function applyLang(next) {

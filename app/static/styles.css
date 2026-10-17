@@ -96,6 +96,8 @@ body {
   overflow-x: clip;
 }
 .hidden { display: none !important; }
+/* The footer sits at the end of the page even when the list is short. */
+body { display: flex; flex-direction: column; }
 button, input, select { font: inherit; color: inherit; }
 button { touch-action: manipulation; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -155,7 +157,8 @@ button { touch-action: manipulation; }
 
 /* --------------------------------------------------------------- list */
 .list-wrap {
-  padding: 0 0 calc(var(--dock-h, 110px) + 24px);
+  flex: 1;
+  padding: 0 0 24px;
 }
 .summary {
   display: flex; align-items: baseline; gap: 8px;
@@ -527,6 +530,23 @@ body:has(.track .f:focus) .dock { display: none; }
 }
 
 /* --------------------------------------------- wide screens: a track list */
+/* ------------------------------------------------------------- footer */
+/* As on BottleCount and Treblewise: one thin bar, the project on the left,
+   who made it on the right, the donation in the accent. It wraps on a phone,
+   and keeps the dock's height free below it so the dock never covers it. */
+.app-footer {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px 18px;
+  padding: 14px var(--gutter) calc(var(--dock-h, 110px) + 14px);
+  border-top: 1px solid var(--line-soft);
+  font-size: .78rem; color: var(--text-3);
+}
+.app-footer-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.app-footer-sep { color: var(--line); }
+.app-footer a { color: var(--text-3); text-decoration: none; }
+.app-footer a:hover, .app-footer a:focus-visible { color: var(--text); }
+.app-footer .app-footer-donate { color: var(--accent); font-weight: 600; }
+
 @media (min-width: 721px) {
   :root { --gutter: 24px; --tap: 36px; font-size: 15px; }
 
