@@ -8,7 +8,7 @@
 <h1 align="center">GetSetMix</h1>
 
 <p align="center">
-  <b>Hear it. Send it from your phone. It's in Rekordbox when you play.</b>
+  <b>Get it when you hear it. Set it with one thumb. Mix it when you play.</b>
 </p>
 
 <p align="center">
@@ -24,9 +24,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/app-desktop.png" alt="GetSetMix on a computer: a batch downloading, tracks ready to review, one already in the library" width="68%">
-  &nbsp;
-  <img src="docs/screenshots/app-phone.png" alt="GetSetMix on a phone: a track opened for editing, with one-tap genre picks" width="23%">
+  <img src="docs/screenshots/share-flow.png" alt="Get: share a video to GetSetMix from the phone's share menu. Set: GetSetMix opens with the track, pick a genre. Mix: the track is in Rekordbox's GetSetMix playlist, downloaded and tagged." width="100%">
 </p>
 
 Getting a track you just heard into Rekordbox usually means a session at the
@@ -40,31 +38,48 @@ play, it's downloaded, tagged, and already in your Rekordbox collection.
 
 ## How it works
 
-1. **Hear something, share it.** In the YouTube or SoundCloud app, tap *Share ▸ GetSetMix*. A playlist or a whole set becomes one row per track.
-2. **Check it with one thumb.** Title and artist fill in on their own; pick the genre with one tap, and send it. Tracks you already own are flagged.
-3. **The server does the rest.** It downloads MP3 320 or FLAC, tags it with the cover, names it from your template and keeps it in your library, which is also your backup.
-4. **Open Rekordbox and play.** Your computer has already downloaded it, and it's in the *GetSetMix* playlist. Nothing to search, download or import.
+**GET.** You hear a track you want. In the YouTube or SoundCloud app on your
+phone, tap **Share ▸ GetSetMix**. That's the whole step: GetSetMix is in the
+share menu like any other app, and it opens straight on the track. A
+playlist or a whole set becomes one row per track.
 
-No home server? GetSetMix also runs on just your computer: paste the link
-there instead, and steps 3 and 4 are the same.
+**SET.** Title and artist are already filled in. Pick the genre with one tap,
+fix anything that's off, and send it. Tracks you already own are flagged
+before you download them twice.
+
+**MIX.** Your home server downloads it (MP3 320 or FLAC), tags it with the
+cover and keeps it in your library, which is also your backup. Your computer
+fetches it on its own, and when you open Rekordbox it's already in the
+*GetSetMix* playlist. Nothing to search, download or import.
+
+No home server? GetSetMix also runs on just your computer: you paste the
+link there instead, and Set and Mix work the same. (Share to GetSetMix is
+Android only: iPhones don't let web apps into the share menu.)
 
 > Use GetSetMix only for content you have the rights to download.
 
 ## Features
 
-**Getting tracks in**
+<p align="center">
+  <img src="docs/screenshots/app-desktop.png" alt="GetSetMix on a computer: a batch downloading, tracks ready to review, one already in the library" width="68%">
+  &nbsp;
+  <img src="docs/screenshots/app-phone.png" alt="GetSetMix on a phone: a track opened for editing, with one-tap genre picks" width="23%">
+</p>
 
-- Single tracks, playlists and sets from YouTube, SoundCloud and anything else [yt-dlp](https://github.com/yt-dlp/yt-dlp) supports
-- *Share to GetSetMix* on Android: installed as an app, it shows up in the share menu
-- Batch downloads with a progress bar per track and for the batch, adjustable parallelism, cancel, and per-track retry; one failure never stops the batch
+**Get: from your phone, the moment you hear it**
 
-**Getting the metadata right**
+- **Share to GetSetMix** from YouTube, SoundCloud or any app that shares a link: install GetSetMix on Android from the browser and it appears in the share menu
+- Single tracks, playlists and whole sets, from anything [yt-dlp](https://github.com/yt-dlp/yt-dlp) supports
+- Or paste a link on the computer: <kbd>Ctrl</kbd>+<kbd>V</kbd> anywhere on the page
+
+**Set: the metadata, right the first time**
 
 - Every field editable before anything downloads, with a DJ-genre picker and cover search or upload
 - Duplicate detection against your collection, by source link or a fuzzy title and artist match
 - ID3v2.4 and FLAC tags with embedded artwork; filenames from a template (`{artist} - {title}`, and more)
+- Batch downloads with progress per track, adjustable parallelism, cancel and retry; one failure never stops the batch
 
-**Getting it to Rekordbox**
+**Mix: in Rekordbox when you play**
 
 - The [companion](companion/README.md) writes new tracks straight into the Rekordbox collection, safely (backup, one transaction, integrity check), whenever you open Rekordbox through its shortcut
 - With a home server, tracks download to each paired computer on their own, one way, so the server stays the backup
