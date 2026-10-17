@@ -2,4 +2,4 @@
 
 # Single source of truth for the app version. Bumped automatically by
 # python-semantic-release from Conventional Commits (see pyproject.toml).
-__version__ = "1.5.0"
+__version__ = "1.6.0"

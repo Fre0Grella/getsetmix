@@ -1,6 +1,129 @@
 # CHANGELOG
 
 
+## v1.6.0 (2026-10-17)
+
+### Features
+
+- **setup**: Getsetmix Setup installer ([#10](https://github.com/Fre0Grella/getsetmix/pull/10),
+  [`4a22193`](https://github.com/Fre0Grella/getsetmix/commit/4a221931718ff6280c0fc4930bad3acd427ff8c3))
+
+* feat(link): serve finished tracks to paired PCs
+
+A computer paired by GetSetMix Setup can now download the library's finished tracks itself, so a
+  home server no longer needs Nextcloud or Syncthing to get them to the computer that runs
+  Rekordbox.
+
+- GET /api/link/files lists the audio files under the library root as library-relative paths (size,
+  mtime); GET /api/link/file?path= serves one. Hidden and .part files, other file types and paths
+  that escape the root are refused. - Each computer has its own token, one per line in
+  DATA_DIR/link-tokens (or GSM_LINK_TOKEN). The file is read per request, so pairing needs no
+  restart. These tokens open only /api/link, and the UI's token never opens /api/link. - The worker
+  lands a track under a hidden .part name and renames it, so a download can't catch half a file even
+  when the move is a copy.
+
+It is one way: nothing a computer does through /api/link changes the server's library, which stays
+  the full copy and the backup.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01XFY6vYvZ9nsAYS2hfXqHHV
+
+* feat(setup): add the GetSetMix Setup installer
+
+One download (Windows .exe, macOS .app) that asks where GetSetMix should run and installs it, built
+  for people who don't want to touch a terminal more than once. It is the companion itself: opened
+  with no arguments it shows Setup, then copies itself into place.
+
+Just this computer - Downloads the app from the matching release plus ffmpeg and Deno, pinned by
+  SHA-256; adds a GetSetMix shortcut that opens the app in a browser's app mode (run_local.py
+  --window), which stops GetSetMix when the window closes.
+
+With my home server - Shows one command to paste on the server. Its bootstrap reports what the
+  server has (Docker, Kubernetes/MicroK8s/k3s, an existing GetSetMix, Tailscale, disks) back to
+  Setup and waits; Setup answers with a plain shell script generated and validated in Go
+  (internal/serverscript) that installs GetSetMix on Docker (with Watchtower) or Kubernetes (with
+  Keel 0.20.0, vendored), or adopts the install already there: Recreate strategy, imagePullPolicy
+  Always, Keel annotations, one restart. Each step reports back to the window. - Optional HTTPS
+  through `tailscale serve`, which the phone needs to install the PWA; the done screen says so
+  plainly when it's missing. - Pairs this computer (a token in link-tokens), finds the address that
+  answers, and sets up the companion: tracks download one way into a local folder with
+  `gsm-companion fetch`, every 15 minutes (Task Scheduler / launchd) and before Rekordbox starts,
+  then import. A server folder already synced by Nextcloud/Syncthing can be watched instead.
+
+The window is a local page on 127.0.0.1 behind a per-run key, in Edge or Chrome app mode with a
+  seeded profile (no sign-in or translate bubbles, no background mode, so closing it ends Setup).
+  The network listener for the server opens only for the home-server path.
+
+CI builds Setup on every PR as an artifact; releases attach it.
+
+* docs: install GetSetMix with Setup
+
+Lead the README with GetSetMix Setup: the two ways to run GetSetMix, the one command for a home
+  server, one-way delivery as the backup, and why the phone needs HTTPS. Document `fetch` and the
+  wizard in the companion README, and add screenshots of Setup.
+
+* fix(setup): keep an adopted install's own address
+
+Adopting a GetSetMix on Kubernetes read the ports and host names of every Service and Ingress in its
+  namespace. When it shares one with other apps (say, Nextcloud), Setup could take Nextcloud's
+  NodePort as GetSetMix's and offer to publish it with `tailscale serve`.
+
+Only Services named after GetSetMix (or its deployment), and the Ingresses that route to them, count
+  now; a test runs the real bootstrap against a fake kubectl with Nextcloud next door. An adopted
+  install that already has a host name keeps it: Setup no longer offers Tailscale for it.
+
+* fix(companion): fetch on battery too
+
+`schtasks /SC MINUTE` tasks never start on battery and stop when the cable comes out, so a DJ's
+  unplugged laptop would never have fetched. Register the task from XML instead: runs on battery,
+  catches up after sleep, waits for the network and never overlaps itself. It now sits at the top
+  level of Task Scheduler, so uninstalling leaves no empty folder.
+
+An opt-in test (GSM_TEST_SCHTASKS=1) registers a real task, checks those settings and deletes it.
+
+* docs: say how to try a Setup build before release
+
+* docs(site): lead with GetSetMix Setup
+
+The home page's deploy section becomes "One download, one question": Just this computer, With my
+  home server (with the command Setup shows) and By hand. The docs get a GetSetMix Setup section and
+  a home-server walkthrough (pairing, adoption, one-way delivery as the backup, why the phone needs
+  HTTPS), and the Rekordbox section starts from the companion instead of the XML.
+
+* docs: rewrite the README's opening
+
+Lead with what GetSetMix does, in one line, with the download, the docs and screenshots of the app
+  on a computer and a phone (made-up tracks, drawn covers). Then four steps for how it works, and
+  the feature list grouped by stage instead of one long list. The logo is the vector mark, which
+  follows GitHub's light or dark theme.
+
+* docs: open with the problem GetSetMix solves
+
+Getting a track you heard into Rekordbox used to mean a later session at the computer: find it
+  again, download, tag, import. Say that first, and that GetSetMix removes it: share the link from
+  your phone when you hear it, and it's downloaded, tagged and in Rekordbox by the time you play.
+  "How it works" now follows that moment, from the share sheet to opening Rekordbox; the website's
+  hero says the same.
+
+* docs: tell the story as Get, Set, Mix
+
+The name already is the flow, like a sprinter's "get set, go": GET the track the moment you hear it
+  (Share > GetSetMix from YouTube or SoundCloud), SET the tags with one thumb, MIX it when you play,
+  already downloaded and in Rekordbox.
+
+- A three-panel picture of that flow on a running track: the phone's share menu (drawn, no
+  third-party UI), the real app right after a share, and the playlist waiting on the computer
+  (drawn). It leads the README and the website's flow section. - README: tagline, "How it works" and
+  the feature groups follow Get / Set / Mix, with Share to GetSetMix first; app screenshots move to
+  Features. - Website: "Get. Set. Mix." hero with the real phone screen instead of the old desktop
+  mock-up, and no docker command in the hero.
+
+---------
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.5.0 (2026-10-17)
 
 ### Features
