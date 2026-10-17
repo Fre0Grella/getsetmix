@@ -5,7 +5,7 @@
 [![Deploy site](https://github.com/Fre0Grella/getsetmix/actions/workflows/pages.yml/badge.svg)](https://github.com/Fre0Grella/getsetmix/actions/workflows/pages.yml)
 
 
-Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or playlist), review and edit the metadata, batch-download to MP3 320 kbps or FLAC, auto-tag with cover art, and ingest straight into your Rekordbox library via XML — all from a fast, MediaHuman-inspired web UI.
+Self-hosted DJ ingestion service for your homelab. Paste a URL (single track or playlist), review and edit the metadata, batch-download to MP3 320 kbps or FLAC, auto-tag with cover art, and ingest straight into your Rekordbox library via XML — all from a fast web UI laid out like a DJ's track browser.
 
 ![GetSetMix](app/static/assets/logo.png)
 
@@ -94,8 +94,8 @@ python run_local.py --port 9000 --no-browser
 
 ## Using it
 
-1. Click **Paste link** — the URL on your clipboard is added (playlists fan out into one row per entry).
-2. Rows resolve their metadata; fix title/artist, pick a genre, optionally set album and cover (camera button on the thumbnail → search or upload).
+1. Paste a link into the field at the top, or press <kbd>Ctrl</kbd>+<kbd>V</kbd> anywhere on the page (playlists fan out into one row per entry). With the field empty, **Add** reads the clipboard.
+2. Rows resolve their metadata. Every field is editable in place: fix title/artist, pick a genre, optionally set the album and the cover (hover the artwork → search or upload).
 3. Press **Download** to start the batch (the ×N selector overrides parallelism for this batch only). Edits lock once a track is queued.
 4. Watch per-track progress and the batch bar; cancel anytime (in-flight tracks are stopped and re-staged).
 5. When tracks show **Done**, open Rekordbox → **File ▸ Import collection / reload the rekordbox.xml source** and find them in the **Inbox** playlist.

@@ -3,70 +3,78 @@
 
 const STR = {
   it: {
-    paste: "Incolla link", download: "Scarica", cancel: "Annulla scaricamento",
-    settings: "Impostazioni", save: "Salva", search: "Cerca",
-    outputFormat: "Formato di uscita (globale)",
-    concurrency: "Download paralleli (default globale)",
-    template: "Template nome file", libraryRoot: "Cartella libreria",
-    xmlPath: "Percorso XML inbox (nuovi download)",
-    collectionXml: "XML collezione Rekordbox (opzionale)",
-    collectionHint: "Se impostato, le tracce già presenti nella collezione completa vengono rimosse dall'XML inbox prima di ogni batch — l'inbox elenca solo i brani non ancora importati.",
-    playlist: "Playlist di destinazione",
-    browse: "Sfoglia…", select: "Seleziona", fileName: "Nome file",
+    paste: "Aggiungi", download: "Scarica", cancel: "Ferma",
+    urlPh: "Incolla il link di una traccia o playlist",
+    settings: "Impostazioni", save: "Salva", close: "Chiudi", search: "Cerca",
+    secDownloads: "Download", secLibrary: "Libreria e Rekordbox",
+    secInterface: "Interfaccia", secMaintenance: "Manutenzione",
+    outputFormat: "Formato", concurrency: "Download paralleli",
+    template: "Nome file", libraryRoot: "Cartella libreria",
+    xmlPath: "XML inbox", playlist: "Playlist",
+    collectionXml: "Export della collezione (opzionale)",
+    collectionHint: "Con l'export della collezione impostato, i brani che hai già vengono segnati come duplicati e tolti dall'inbox.",
+    rekordboxHint: "In Rekordbox imposta Preferenze › Avanzate › rekordbox xml su questo file, poi aggiorna l'albero xml dopo ogni batch.",
+    browse: "Sfoglia", select: "Seleziona", fileName: "Nome file",
     pickerTitle: "Scegli un percorso",
-    language: "Lingua", coverTitle: "Copertina", uploadCover: "Carica immagine…",
+    language: "Lingua", coverTitle: "Copertina", uploadCover: "Carica un'immagine",
     cleanInbox: "Pulisci inbox ora",
     cleanedInbox: n => `Rimossi ${n} brani già in collezione`,
-    needCollectionXml: "Imposta prima il percorso dell'XML della collezione Rekordbox",
-    purgeCompleted: "Svuota elenco completati", purgeHistory: "Cancella cronologia URL",
-    rekordboxHint: "Dopo l’ingestione, apri Rekordbox e ricarica la sorgente XML per vedere le nuove tracce nella playlist Inbox.",
-    emptyHint: "Copia il link di una traccia o di una playlist, poi premi “Incolla link”.",
-    fetching: u => `Reperimento info per ${u}`,
-    queued: "In coda", processing: p => `Elaborazione ${p}%`,
-    tagging: "Scrittura tag…", done: "Finito", retry: "Riprova", remove: "Rimuovi",
-    downloading: "downloading…", titlePh: "Titolo (obbligatorio)",
-    artistPh: "Artista (obbligatorio)", albumPh: "<vuoto>", genrePh: "<vuoto>",
-    statsLine: (a, b, c) => `Ultimi 30 giorni: ${a} · Ultimi 365 giorni: ${b} · Totale: ${c}`,
-    clipboardFail: "Impossibile leggere gli appunti — incolla il link qui:",
-    notUrl: "Il testo copiato non è un URL valido",
-    duplicate: "Nota: URL già scaricato in passato",
-    dupBadge: "Possibile duplicato",
-    dupConfirm: n => `${n} brano/i sembra già presente nella tua libreria. Scaricarli comunque?\n\n(OK = scarica comunque · Annulla = salta i duplicati)`,
+    needCollectionXml: "Imposta prima l'export della collezione",
+    purgeCompleted: "Togli le righe finite", purgeHistory: "Dimentica i link",
+    colTrack: "Traccia", colAlbum: "Album", colGenre: "Genere", colTime: "Durata", colStatus: "Stato",
+    emptyTitle: "La cassa è ancora vuota",
+    emptyHint: "Incolla qui sopra un link di YouTube o SoundCloud. Una playlist diventa una riga per traccia.",
+    pasteAnywhere: "funziona ovunque nella pagina",
+    fetching: u => `Lettura di ${u}`,
+    ready: "Pronto", queued: "In coda", processing: p => `${p}%`,
+    tagging: "Scrittura tag", done: "Nella libreria", retry: "Riprova", remove: "Rimuovi",
+    downloadOne: "Scarica questa", showPath: "Copia il percorso", changeCover: "Cambia copertina",
+    downloading: "Download in corso", titlePh: "Titolo (obbligatorio)",
+    artistPh: "Artista (obbligatorio)", albumPh: "Aggiungi album", genrePh: "Aggiungi genere",
+    statsLine: (a, b, c) => `${a} negli ultimi 30 giorni · ${b} nell'anno · ${c} in totale`,
+    notUrl: "Questo non sembra un link",
+    duplicate: "Questo link è già stato scaricato",
+    dupBadge: "Già presente?",
+    dupConfirm: n => `${n} brano/i sembra già nella tua libreria. Scaricarli comunque?\n\n(OK = scarica comunque · Annulla = salta i duplicati)`,
     batchOf: (d, t) => `${d} di ${t}`,
-    needMeta: "Titolo e artista sono obbligatori",
+    needMeta: "Servono titolo e artista",
     purged: n => `Eliminati ${n} elementi`, saved: "Impostazioni salvate",
     copyPath: "Percorso copiato", tokenPrompt: "Token di accesso:",
     coverSet: "Copertina aggiornata",
   },
   en: {
-    paste: "Paste link", download: "Download", cancel: "Cancel download",
-    settings: "Settings", save: "Save", search: "Search",
-    outputFormat: "Output format (global)",
-    concurrency: "Parallel downloads (global default)",
-    template: "Filename template", libraryRoot: "Library folder",
-    xmlPath: "Inbox XML path (new downloads)",
-    collectionXml: "Rekordbox collection XML (optional)",
-    collectionHint: "When set, tracks already in your full collection are removed from the inbox XML before each batch — the inbox only lists songs you haven't imported yet.",
-    playlist: "Target playlist",
-    browse: "Browse…", select: "Select", fileName: "File name",
+    paste: "Add", download: "Download", cancel: "Stop",
+    urlPh: "Paste a track or playlist link",
+    settings: "Settings", save: "Save", close: "Close", search: "Search",
+    secDownloads: "Downloads", secLibrary: "Library and Rekordbox",
+    secInterface: "Interface", secMaintenance: "Housekeeping",
+    outputFormat: "Format", concurrency: "Parallel downloads",
+    template: "File name", libraryRoot: "Library folder",
+    xmlPath: "Inbox XML", playlist: "Playlist",
+    collectionXml: "Collection export (optional)",
+    collectionHint: "With your exported collection set, tracks you already own are flagged as duplicates and dropped from the inbox.",
+    rekordboxHint: "In Rekordbox, point Preferences › Advanced › rekordbox xml at this file, then refresh the xml tree after each batch.",
+    browse: "Browse", select: "Select", fileName: "File name",
     pickerTitle: "Choose a path",
-    language: "Language", coverTitle: "Cover art", uploadCover: "Upload image…",
+    language: "Language", coverTitle: "Cover art", uploadCover: "Upload an image",
     cleanInbox: "Clean inbox now",
     cleanedInbox: n => `Removed ${n} tracks already in your collection`,
-    needCollectionXml: "Set a Rekordbox collection XML path first",
-    purgeCompleted: "Clear completed list", purgeHistory: "Purge URL history",
-    rekordboxHint: "After ingestion, open Rekordbox and reload the XML source to see new tracks in the Inbox playlist.",
-    emptyHint: "Copy a track or playlist link, then press “Paste link”.",
-    fetching: u => `Fetching info for ${u}`,
-    queued: "Queued", processing: p => `Processing ${p}%`,
-    tagging: "Writing tags…", done: "Done", retry: "Retry", remove: "Remove",
-    downloading: "downloading…", titlePh: "Title (required)",
-    artistPh: "Artist (required)", albumPh: "<empty>", genrePh: "<empty>",
-    statsLine: (a, b, c) => `Last 30 days: ${a} · Last 365 days: ${b} · All time: ${c}`,
-    clipboardFail: "Couldn't read the clipboard — paste the link here:",
-    notUrl: "Clipboard text is not a valid URL",
-    duplicate: "Note: this URL was downloaded before",
-    dupBadge: "Possible duplicate",
+    needCollectionXml: "Set the collection export first",
+    purgeCompleted: "Clear finished rows", purgeHistory: "Forget link history",
+    colTrack: "Track", colAlbum: "Album", colGenre: "Genre", colTime: "Time", colStatus: "Status",
+    emptyTitle: "Nothing in the crate yet",
+    emptyHint: "Paste a YouTube or SoundCloud link above. A playlist becomes one row per track.",
+    pasteAnywhere: "works anywhere on this page",
+    fetching: u => `Reading ${u}`,
+    ready: "Ready", queued: "Queued", processing: p => `${p}%`,
+    tagging: "Writing tags", done: "In your library", retry: "Retry", remove: "Remove",
+    downloadOne: "Download this one", showPath: "Copy file path", changeCover: "Change cover",
+    downloading: "Downloading", titlePh: "Title (required)",
+    artistPh: "Artist (required)", albumPh: "Add album", genrePh: "Add genre",
+    statsLine: (a, b, c) => `${a} in the last 30 days · ${b} this year · ${c} all time`,
+    notUrl: "That doesn't look like a link",
+    duplicate: "This link was downloaded before",
+    dupBadge: "Already owned?",
     dupConfirm: n => `${n} track(s) look like they're already in your library. Download them anyway?\n\n(OK = download anyway · Cancel = skip the duplicates)`,
     batchOf: (d, t) => `${d} of ${t}`,
     needMeta: "Title and artist are required",
@@ -135,22 +143,24 @@ function applyLang(next) {
     const v = T[el.dataset.i18n];
     if (typeof v === "string") el.textContent = v;
   });
-  $("#btnPaste").title = T.paste;
+  document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
+    el.placeholder = T[el.dataset.i18nPh];
+  });
   $("#btnSettings").title = T.settings;
+  $("#btnSettings").setAttribute("aria-label", T.settings);
+  rowCache.clear(); // rows embed translated labels
   render();
 }
 
 // ------------------------------------------------------------------ icons
 const I = {
-  mic: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>',
-  user: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3.3 0-8 1.7-8 5v2h16v-2c0-3.3-4.7-5-8-5z"/></svg>',
-  note: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>',
-  disc: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 13a3 3 0 1 1 3-3 3 3 0 0 1-3 3z"/></svg>',
   dl: '<svg viewBox="0 0 24 24"><path d="M12 5v10m0 0l-4-4m4 4l4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 19h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   x: '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   retry: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M20 11a8 8 0 1 0-2.34 6.06M20 5v6h-6"/></svg>',
-  zoom: '<svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
-  cam: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M9 3l-1.5 2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.5L15 3H9zm3 5.5A4.5 4.5 0 1 1 7.5 13 4.5 4.5 0 0 1 12 8.5zm0 2A2.5 2.5 0 1 0 14.5 13 2.5 2.5 0 0 0 12 10.5z"/></svg>',
+  folder: '<svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h3.5l2 2H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+  up: '<svg viewBox="0 0 24 24"><path d="M12 19V5m0 0l-6 6m6-6l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  file: '<svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+  cam: '<svg viewBox="0 0 24 24"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
 };
 
 // ----------------------------------------------------------------- render
@@ -169,73 +179,67 @@ function esc(s) {
 
 const EDITABLE = new Set(["staged", "fetch_error", "error"]);
 
+// yt-dlp prefixes everything with "ERROR:"; the cell is narrow, the tooltip has it all.
+const shortError = (e) => String(e || "").replace(/^ERROR:\s*/i, "");
+
+// One status cell per state: a dot + label, then the actions that apply.
 function stateHtml(t) {
+  const act = (name, icon, label, cls = "") =>
+    `<button class="icon-btn ${cls}" data-act="${name}" title="${label}" aria-label="${label}">${icon}</button>`;
+  const cell = (cls, label, acts = "", title = "") =>
+    `<div class="state ${cls}"><span class="state-label"${title ? ` title="${esc(title)}"` : ""}>${label}</span>
+      <span class="row-acts">${acts}</span></div>`;
   switch (t.status) {
     case "queued":
-      return `<div class="state"><span>${T.queued}</span></div>`;
+      return cell("st-wait", T.queued);
     case "downloading":
-      return `<div class="state"><span class="pct">${T.processing(Math.floor(t.progress || 0))}</span></div>`;
+      return cell("st-active", T.processing(Math.floor(t.progress || 0)));
     case "tagging":
-      return `<div class="state"><span>${T.tagging}</span></div>`;
+      return cell("st-active", T.tagging);
     case "ingested":
-      return `<div class="state is-done"><span>${T.done}</span>
-        <button class="icon-btn" data-act="path" title="${esc(t.file_path)}">${I.zoom}</button></div>`;
+      return cell("st-done", T.done, act("path", I.folder, T.showPath), t.file_path);
     case "error":
-      return `<div class="state is-error"><span class="err-text" title="${esc(t.error)}">${esc(t.error)}</span>
-        <button class="icon-btn" data-act="retry" title="${T.retry}">${I.retry}</button>
-        <button class="icon-btn" data-act="remove" title="${T.remove}">${I.x}</button></div>`;
-    default: // staged / fetch_error
-      return `<div class="state ${t.status === "fetch_error" ? "is-error" : ""}">
-        ${t.status === "fetch_error" ? `<span class="err-text" title="${esc(t.error)}">${esc(t.error || T.needMeta)}</span>` : ""}
-        <button class="icon-btn dl" data-act="download-one" title="${T.download}">${I.dl}</button>
-        <button class="icon-btn" data-act="remove" title="${T.remove}">${I.x}</button></div>`;
+      return cell("st-error", esc(shortError(t.error)), act("retry", I.retry, T.retry, "go") + act("remove", I.x, T.remove), t.error);
+    case "fetch_error":
+      return cell("st-error", esc(shortError(t.error) || T.needMeta),
+        act("download-one", I.dl, T.downloadOne, "go") + act("remove", I.x, T.remove), t.error);
+    default: // staged
+      return cell("st-ready", T.ready, act("download-one", I.dl, T.downloadOne, "go") + act("remove", I.x, T.remove));
   }
 }
 
 function rowHtml(t) {
   if (t.status === "fetching") {
     return `<article class="track is-fetching" data-id="${t.id}">
-      <span class="dashes"><i></i><i></i><i></i></span>
+      <div class="skeleton"></div>
       <span class="fetch-label">${T.fetching(esc(t.title || t.url))}</span>
     </article>`;
   }
   const editable = EDITABLE.has(t.status);
   const dis = editable ? "" : "disabled";
   const sel = t.status === "downloading" || t.status === "tagging" ? "is-selected" : "";
-  const err = t.status === "error" || t.status === "fetch_error" ? "is-error" : "";
-  const dup = t.duplicate && t.status === "staged" ? "is-dup" : "";
+  const dup = t.duplicate && t.status === "staged";
   const thumb = t.cover_path
     ? `/api/tracks/${t.id}/cover?v=${encodeURIComponent(t.updated_at || "")}`
-    : (t.cover_url || t.thumbnail || "/static/assets/icon-light.png");
-  return `<article class="track ${sel} ${err} ${dup}" data-id="${t.id}">
+    : (t.cover_url || t.thumbnail || "");
+  const field = (name, cls, ph, extra = "") =>
+    `<input class="f ${cls}${editable && !t[name] && (name === "title" || name === "artist") ? " missing" : ""}"
+       data-field="${name}" value="${esc(t[name])}" placeholder="${ph}" aria-label="${ph}" ${extra} ${dis}>`;
+  return `<article class="track ${sel}" data-id="${t.id}">
     <div class="thumb">
-      <img src="${esc(thumb)}" alt="" loading="lazy"
-           onerror="this.src='/static/assets/icon-light.png'">
-      ${t.duration ? `<span class="dur">${fmtDur(t.duration)}</span>` : ""}
-      ${editable ? `<button class="cover-btn" data-act="cover" title="${T.coverTitle}">${I.cam}</button>` : ""}
+      ${thumb ? `<img src="${esc(thumb)}" alt="" loading="lazy" onerror="this.remove()">` : ""}
+      ${editable ? `<button class="cover-btn" data-act="cover" title="${T.changeCover}" aria-label="${T.changeCover}">${I.cam}</button>` : ""}
     </div>
-    <div class="meta">
-      <div class="meta-line">${I.mic}
-        <input class="f-title" data-field="title" value="${esc(t.title)}"
-               placeholder="${T.titlePh}" ${dis}>
-        ${!t.title && editable ? `<span class="req-flag">*</span>` : ""}
-      </div>
-      <div class="meta-line">${I.user}
-        <input data-field="artist" value="${esc(t.artist)}"
-               placeholder="${T.artistPh}" ${dis}>
-        ${!t.artist && editable ? `<span class="req-flag">*</span>` : ""}
-      </div>
-      ${dup ? `<span class="dup-badge" title="${esc(t.duplicate_reason)}">⚠ ${T.dupBadge}</span>` : ""}
-    </div>
-    <div class="side">
-      <div class="meta-line">${I.disc}
-        <input data-field="album" value="${esc(t.album)}" placeholder="${T.albumPh}" ${dis}>
-      </div>
-      <div class="meta-line">${I.note}
-        <input class="f-genre" data-field="genre" list="genres"
-               value="${esc(t.genre)}" placeholder="${T.genrePh}" ${dis}>
+    <div class="who">
+      ${field("title", "f-title", T.titlePh)}
+      <div class="who-sub">
+        ${field("artist", "f-artist", T.artistPh)}
+        ${dup ? `<span class="dup" title="${esc(t.duplicate_reason)}">${T.dupBadge}</span>` : ""}
       </div>
     </div>
+    <div class="c-album">${field("album", "f-album", T.albumPh)}</div>
+    <div class="c-genre">${field("genre", "f-genre", T.genrePh, 'list="genres"')}</div>
+    <span class="dur">${fmtDur(t.duration)}</span>
     ${stateHtml(t)}
     ${t.status === "downloading" ? `<div class="row-progress" style="width:${t.progress || 0}%"></div>` : ""}
   </article>`;
@@ -290,6 +294,7 @@ function render() {
   for (const [id, node] of byId) { rowCache.delete(id); node.remove(); }
 
   $("#emptyState").classList.toggle("hidden", tracks.length > 0);
+  $("#listHead").classList.toggle("hidden", tracks.length === 0);
 
   // Safety net: if a replace/insert stole focus, restore it. Guard against
   // re-focusing the already-focused input — focus() itself re-triggers the datalist.
@@ -407,13 +412,21 @@ async function addUrl(url) {
   } catch (e) { toast(e.message); return null; }
 }
 
-async function pasteLink() {
-  let text = "";
-  try { text = (await navigator.clipboard.readText()).trim(); } catch { /* blocked */ }
-  if (!text) text = (prompt(T.clipboardFail) || "").trim();
-  if (!text) return;
-  await addUrl(text);
+// The link field takes typed or pasted links; an empty field falls back to
+// the clipboard so the button still works as a one-tap "paste".
+async function addFromField() {
+  const input = $("#urlInput");
+  let text = input.value.trim();
+  if (!text) {
+    try { text = (await navigator.clipboard.readText()).trim(); } catch { /* blocked */ }
+  }
+  if (!text) { input.focus(); return; }
+  // "youtu.be/abc" typed by hand: assume https rather than reject it.
+  if (!/^https?:\/\//i.test(text) && /^[\w-]+(\.[\w-]+)+\/\S*$/.test(text)) text = `https://${text}`;
+  if (await addUrl(text)) input.value = "";
 }
+
+const firstUrl = (text) => (text.match(/https?:\/\/\S+/i) || [])[0];
 
 // Web Share Target landing (/share?…). Android share sheets from YouTube /
 // SoundCloud drop the link inside the text/title field rather than a bare url,
@@ -566,7 +579,17 @@ $("#coverFile").addEventListener("change", async (e) => {
 
 // --------------------------------------------------------- settings modal
 async function openSettings() {
-  settingsCache = await api("/api/settings");
+  // Open first, fill in when the values arrive: a slow fetch must not make
+  // the panel pop up after the user has already pressed Escape.
+  const panel = $("#settingsModal");
+  const save = $("#btnSaveSettings");
+  const body = panel.querySelector(".modal-body");
+  // Nothing can be edited or saved until the current values are in.
+  save.disabled = true;
+  body.inert = true;
+  panel.classList.remove("hidden");
+  try { settingsCache = await api("/api/settings"); } catch (e) { toast(e.message); return; }
+  if (panel.classList.contains("hidden")) return;
   $("#setFormat").value = settingsCache.output_format;
   $("#setConcurrency").value = settingsCache.concurrency;
   $("#setTemplate").value = settingsCache.filename_template;
@@ -575,7 +598,8 @@ async function openSettings() {
   $("#setCollection").value = settingsCache.collection_xml_path || "";
   $("#setPlaylist").value = settingsCache.playlist_name;
   $("#setLanguage").value = settingsCache.language;
-  $("#settingsModal").classList.remove("hidden");
+  save.disabled = false;
+  body.inert = false;
 }
 
 $("#btnSaveSettings").addEventListener("click", async () => {
@@ -661,13 +685,13 @@ async function loadPicker(path) {
   $("#pickerPath").textContent = res.path || "—";
   const rows = [];
   if (res.parent !== null) {
-    rows.push(`<button type="button" class="picker-row up" data-nav="${esc(res.parent)}">⬆️ ..</button>`);
+    rows.push(`<button type="button" class="picker-row up" data-nav="${esc(res.parent)}">${I.up} ..</button>`);
   }
   rows.push(...res.dirs.map((d) =>
-    `<button type="button" class="picker-row dir" data-nav="${esc(d.path)}">📁 ${esc(d.name)}</button>`));
+    `<button type="button" class="picker-row dir" data-nav="${esc(d.path)}">${I.folder} ${esc(d.name)}</button>`));
   if (picker.conf.mode === "file") {
     rows.push(...res.files.map((f) =>
-      `<button type="button" class="picker-row file" data-file="${esc(f.name)}">📄 ${esc(f.name)}</button>`));
+      `<button type="button" class="picker-row file" data-file="${esc(f.name)}">${I.file} ${esc(f.name)}</button>`));
   }
   $("#pickerList").innerHTML = rows.join("") || "<small>—</small>";
 }
@@ -705,7 +729,18 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.querySelectorAll(".modal").forEach((m) => m.classList.add("hidden"));
 });
 
-$("#btnPaste").addEventListener("click", pasteLink);
+$("#addForm").addEventListener("submit", (e) => { e.preventDefault(); addFromField(); });
+// Pasting a link into the field adds it straight away.
+$("#urlInput").addEventListener("paste", (e) => {
+  const url = firstUrl(e.clipboardData?.getData("text") || "");
+  if (url) { e.preventDefault(); addUrl(url); }
+});
+// ...and so does pasting anywhere that isn't a text field.
+document.addEventListener("paste", (e) => {
+  if (e.target.closest("input, textarea, [contenteditable]")) return;
+  const url = firstUrl(e.clipboardData?.getData("text") || "");
+  if (url) { e.preventDefault(); addUrl(url); }
+});
 $("#btnDownload").addEventListener("click", () => startBatch(null));
 $("#btnCancel").addEventListener("click", async () => {
   await api("/api/batch/cancel", { method: "POST" });

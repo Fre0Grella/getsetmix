@@ -2,180 +2,234 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>GetSetMix</title>
   <link rel="icon" href="/static/assets/favicon.ico" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#0e1726" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" content="#14161b" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#fdfdff" media="(prefers-color-scheme: light)" />
   <link rel="apple-touch-icon" href="/static/assets/icon-192.png" />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
-  <header class="toolbar">
-    <div class="brand">
-      <img class="brand-icon" src="/static/assets/icon.png" alt="" />
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="GetSetMix">
+      <picture>
+        <source srcset="/static/assets/icon-light.png" media="(prefers-color-scheme: dark)" />
+        <img class="brand-icon" src="/static/assets/icon.png" alt="" />
+      </picture>
       <span class="wordmark">getset<em>mix</em></span>
-    </div>
+    </a>
 
-    <button id="btnPaste" class="btn btn-primary" title="">
-      <svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      <span data-i18n="paste">Paste link</span>
-    </button>
-
-    <div class="dl-group">
-      <button id="btnDownload" class="btn btn-accent">
-        <svg viewBox="0 0 24 24" class="ic"><path d="M12 4v11m0 0l-5-5m5 5l5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <span data-i18n="download">Download</span><span id="stagedCount" class="count-badge hidden"></span>
+    <form id="addForm" class="add" autocomplete="off" novalidate>
+      <svg class="add-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="urlInput" type="url" inputmode="url" spellcheck="false"
+             data-i18n-ph="urlPh" placeholder="Paste a track or playlist link" aria-label="Link" />
+      <button id="btnPaste" type="submit" class="btn btn-quiet">
+        <span data-i18n="paste">Add</span>
       </button>
-      <select id="batchConcurrency" class="dl-conc" title="">
-        <option value="">×2</option>
-        <option value="1">×1</option>
-        <option value="2">×2</option>
-        <option value="3">×3</option>
-        <option value="4">×4</option>
-      </select>
+    </form>
+
+    <div class="actions">
+      <span id="topStatus" class="top-status" aria-live="polite"></span>
+      <button id="btnCancel" class="btn btn-danger hidden">
+        <svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>
+        <span data-i18n="cancel">Stop</span>
+      </button>
+      <div class="dl-group">
+        <button id="btnDownload" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" class="ic" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span data-i18n="download">Download</span><span id="stagedCount" class="count hidden"></span>
+        </button>
+        <select id="batchConcurrency" class="dl-conc" aria-label="Parallel downloads">
+          <option value="">×2</option>
+          <option value="1">×1</option>
+          <option value="2">×2</option>
+          <option value="3">×3</option>
+          <option value="4">×4</option>
+        </select>
+      </div>
     </div>
 
-    <button id="btnCancel" class="btn btn-danger hidden">
-      <svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1" fill="currentColor"/></svg>
-      <span data-i18n="cancel">Cancel download</span>
-    </button>
-
-    <span id="topStatus" class="top-status"></span>
-    <div class="spacer"></div>
-
-    <button id="btnSettings" class="btn btn-ghost" title="" aria-label="Settings">
-      <svg viewBox="0 0 24 24" class="ic"><path fill="currentColor" d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5zm9 3.5a7.6 7.6 0 0 0-.12-1.32l2-1.56-2-3.46-2.36.95a7.6 7.6 0 0 0-2.28-1.32L15.86 3h-4l-.38 2.29a7.6 7.6 0 0 0-2.28 1.32l-2.36-.95-2 3.46 2 1.56A7.6 7.6 0 0 0 6.72 12c0 .45.04.89.12 1.32l-2 1.56 2 3.46 2.36-.95c.68.57 1.45 1.02 2.28 1.32L11.86 21h4l.38-2.29a7.6 7.6 0 0 0 2.28-1.32l2.36.95 2-3.46-2-1.56c.08-.43.12-.87.12-1.32z" transform="translate(-1.86 0)"/></svg>
+    <button id="btnSettings" class="icon-btn icon-btn--lg" aria-label="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
     </button>
   </header>
 
   <div id="engineBanner" class="engine-banner hidden" role="status"></div>
 
-  <main id="trackList" class="track-list" aria-live="polite"></main>
+  <main class="list-wrap">
+    <div id="listHead" class="list-head hidden" aria-hidden="true">
+      <span></span>
+      <span data-i18n="colTrack">Track</span>
+      <span data-i18n="colAlbum">Album</span>
+      <span data-i18n="colGenre">Genre</span>
+      <span class="num" data-i18n="colTime">Time</span>
+      <span data-i18n="colStatus">Status</span>
+    </div>
+    <div id="trackList" class="track-list" aria-live="polite"></div>
 
-  <div id="emptyState" class="empty hidden">
-    <img src="/static/assets/logo.png" alt="GetSetMix" />
-    <p data-i18n="emptyHint">Copy a track or playlist link, then press “Paste link”.</p>
-  </div>
+    <section id="emptyState" class="empty hidden">
+      <div class="empty-mark" aria-hidden="true">
+        <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="32" cy="32" r="17" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/><circle cx="32" cy="32" r="4" fill="currentColor"/></svg>
+      </div>
+      <h1 data-i18n="emptyTitle">Nothing in the crate yet</h1>
+      <p data-i18n="emptyHint">Paste a YouTube or SoundCloud link above. A playlist becomes one row per track.</p>
+      <p class="kbd-hint"><kbd>Ctrl</kbd> <kbd>V</kbd> <span data-i18n="pasteAnywhere">works anywhere on this page</span></p>
+    </section>
+  </main>
 
   <footer class="statusbar">
+    <div class="health">
+      <span class="health-dot" id="healthDot" title="healthy"></span>
+      <span id="statsText" class="stats-text"></span>
+    </div>
     <div id="batchBar" class="batch hidden">
       <span id="batchLabel" class="batch-label"></span>
       <div class="batch-track"><div id="batchFill" class="batch-fill"></div></div>
     </div>
-    <div id="statsBar" class="stats">
-      <span class="health-dot" id="healthDot" title="healthy"></span>
-      <span id="statsText"></span>
-    </div>
   </footer>
 
-  <!-- Settings modal -->
-  <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true">
+  <!-- Settings: a side panel, not a popup -->
+  <div id="settingsModal" class="modal modal--panel hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
     <div class="modal-card">
       <div class="modal-head">
-        <h2 data-i18n="settings">Settings</h2>
-        <button class="btn btn-ghost modal-close" data-close>✕</button>
+        <h2 id="settingsTitle" data-i18n="settings">Settings</h2>
+        <button class="icon-btn modal-close" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
       </div>
       <div class="modal-body">
-        <label><span data-i18n="outputFormat">Output format (global)</span>
-          <select id="setFormat">
-            <option value="mp3">MP3 · 320 kbps</option>
-            <option value="flac">FLAC</option>
-          </select>
-        </label>
-        <label><span data-i18n="concurrency">Parallel downloads (global default)</span>
-          <input id="setConcurrency" type="number" min="1" max="8" />
-        </label>
-        <label><span data-i18n="template">Filename template</span>
-          <input id="setTemplate" type="text" spellcheck="false" />
-          <small>{title} {artist} {album} {source} {id} {genre}</small>
-        </label>
-        <label><span data-i18n="libraryRoot">Library folder</span>
-          <div class="path-row">
-            <input id="setLibrary" type="text" spellcheck="false" />
-            <button type="button" class="btn btn-ghost btn-browse" data-pick="library" data-i18n="browse">Browse…</button>
+        <section class="set-group">
+          <h3 data-i18n="secDownloads">Downloads</h3>
+          <div class="set-row">
+            <label for="setFormat" data-i18n="outputFormat">Format</label>
+            <select id="setFormat">
+              <option value="mp3">MP3 · 320 kbps</option>
+              <option value="flac">FLAC</option>
+            </select>
           </div>
-        </label>
-        <label><span data-i18n="xmlPath">Inbox XML path (new downloads)</span>
-          <div class="path-row">
-            <input id="setXml" type="text" spellcheck="false" />
-            <button type="button" class="btn btn-ghost btn-browse" data-pick="xml" data-i18n="browse">Browse…</button>
+          <div class="set-row">
+            <label for="setConcurrency" data-i18n="concurrency">Parallel downloads</label>
+            <input id="setConcurrency" type="number" min="1" max="8" />
           </div>
-        </label>
-        <label><span data-i18n="collectionXml">Rekordbox collection XML (optional)</span>
-          <div class="path-row">
-            <input id="setCollection" type="text" spellcheck="false" />
-            <button type="button" class="btn btn-ghost btn-browse" data-pick="collection" data-i18n="browse">Browse…</button>
+          <div class="set-row set-row--stack">
+            <label for="setTemplate" data-i18n="template">File name</label>
+            <input id="setTemplate" type="text" spellcheck="false" />
+            <small class="tokens">{title} {artist} {album} {genre} {source} {id}</small>
           </div>
-          <small data-i18n="collectionHint">When set, tracks already in your full collection are removed from the inbox XML before each batch — the inbox only lists songs you haven't imported yet.</small>
-        </label>
-        <label><span data-i18n="playlist">Target playlist</span>
-          <input id="setPlaylist" type="text" />
-        </label>
-        <label><span data-i18n="language">Language</span>
-          <select id="setLanguage">
-            <option value="en">English</option>
-            <option value="it">Italiano</option>
-          </select>
-        </label>
-        <div class="modal-actions-row">
-          <button id="btnCleanInbox" class="btn btn-ghost" data-i18n="cleanInbox">Clean inbox now</button>
-          <button id="btnPurgeCompleted" class="btn btn-ghost" data-i18n="purgeCompleted">Clear completed list</button>
-          <button id="btnPurgeHistory" class="btn btn-ghost" data-i18n="purgeHistory">Purge URL history</button>
-        </div>
-        <p class="hint" data-i18n="rekordboxHint">After ingestion, open Rekordbox and reload the XML source to see new tracks in the Inbox playlist.</p>
+        </section>
+
+        <section class="set-group">
+          <h3 data-i18n="secLibrary">Library and Rekordbox</h3>
+          <div class="set-row set-row--stack">
+            <label for="setLibrary" data-i18n="libraryRoot">Library folder</label>
+            <div class="path-row">
+              <input id="setLibrary" type="text" spellcheck="false" />
+              <button type="button" class="btn btn-quiet" data-pick="library" data-i18n="browse">Browse</button>
+            </div>
+          </div>
+          <div class="set-row set-row--stack">
+            <label for="setXml" data-i18n="xmlPath">Inbox XML</label>
+            <div class="path-row">
+              <input id="setXml" type="text" spellcheck="false" />
+              <button type="button" class="btn btn-quiet" data-pick="xml" data-i18n="browse">Browse</button>
+            </div>
+            <small data-i18n="rekordboxHint">In Rekordbox, point Preferences › Advanced › rekordbox xml here, then refresh the xml tree after each batch.</small>
+          </div>
+          <div class="set-row">
+            <label for="setPlaylist" data-i18n="playlist">Playlist</label>
+            <input id="setPlaylist" type="text" />
+          </div>
+          <div class="set-row set-row--stack">
+            <label for="setCollection" data-i18n="collectionXml">Collection export (optional)</label>
+            <div class="path-row">
+              <input id="setCollection" type="text" spellcheck="false" />
+              <button type="button" class="btn btn-quiet" data-pick="collection" data-i18n="browse">Browse</button>
+            </div>
+            <small data-i18n="collectionHint">With your exported collection set, tracks you already own are flagged as duplicates and dropped from the inbox.</small>
+          </div>
+        </section>
+
+        <section class="set-group">
+          <h3 data-i18n="secInterface">Interface</h3>
+          <div class="set-row">
+            <label for="setLanguage" data-i18n="language">Language</label>
+            <select id="setLanguage">
+              <option value="en">English</option>
+              <option value="it">Italiano</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="set-group">
+          <h3 data-i18n="secMaintenance">Housekeeping</h3>
+          <div class="maint">
+            <button id="btnCleanInbox" class="btn btn-quiet" data-i18n="cleanInbox">Clean inbox now</button>
+            <button id="btnPurgeCompleted" class="btn btn-quiet" data-i18n="purgeCompleted">Clear finished rows</button>
+            <button id="btnPurgeHistory" class="btn btn-quiet" data-i18n="purgeHistory">Forget link history</button>
+          </div>
+        </section>
       </div>
       <div class="modal-foot">
-        <button id="btnSaveSettings" class="btn btn-accent" data-i18n="save">Save</button>
+        <button class="btn btn-quiet" data-close data-i18n="close">Close</button>
+        <button id="btnSaveSettings" class="btn btn-primary" data-i18n="save">Save</button>
       </div>
     </div>
   </div>
 
-  <!-- Cover modal -->
-  <div id="coverModal" class="modal hidden" role="dialog" aria-modal="true">
+  <!-- Cover art -->
+  <div id="coverModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="coverTitle">
     <div class="modal-card">
       <div class="modal-head">
-        <h2 data-i18n="coverTitle">Cover art</h2>
-        <button class="btn btn-ghost modal-close" data-close>✕</button>
+        <h2 id="coverTitle" data-i18n="coverTitle">Cover art</h2>
+        <button class="icon-btn modal-close" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
       </div>
       <div class="modal-body">
         <div class="cover-search-row">
-          <input id="coverQuery" type="text" />
+          <input id="coverQuery" type="text" aria-label="Search" />
           <button id="btnCoverSearch" class="btn btn-primary" data-i18n="search">Search</button>
         </div>
         <div id="coverResults" class="cover-grid"></div>
-        <div class="cover-upload">
-          <label class="btn btn-ghost upload-label">
-            <span data-i18n="uploadCover">Upload image…</span>
-            <input id="coverFile" type="file" accept="image/*" hidden />
-          </label>
-        </div>
+      </div>
+      <div class="modal-foot">
+        <label class="btn btn-quiet upload-label">
+          <span data-i18n="uploadCover">Upload an image</span>
+          <input id="coverFile" type="file" accept="image/*" hidden />
+        </label>
       </div>
     </div>
   </div>
 
-  <!-- Path picker modal -->
-  <div id="pickerModal" class="modal hidden" role="dialog" aria-modal="true">
+  <!-- Path picker -->
+  <div id="pickerModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
     <div class="modal-card">
       <div class="modal-head">
-        <h2 data-i18n="pickerTitle">Choose a path</h2>
-        <button class="btn btn-ghost modal-close" data-close>✕</button>
+        <h2 id="pickerTitle" data-i18n="pickerTitle">Choose a path</h2>
+        <button class="icon-btn modal-close" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
       </div>
       <div class="modal-body">
         <div id="pickerPath" class="picker-path"></div>
         <div id="pickerList" class="picker-list"></div>
-        <label id="pickerNameRow" class="hidden"><span data-i18n="fileName">File name</span>
+        <div id="pickerNameRow" class="set-row set-row--stack hidden">
+          <label for="pickerName" data-i18n="fileName">File name</label>
           <input id="pickerName" type="text" spellcheck="false" />
-        </label>
+        </div>
       </div>
       <div class="modal-foot">
-        <button id="btnPickerSelect" class="btn btn-accent" data-i18n="select">Select</button>
+        <button class="btn btn-quiet" data-close data-i18n="close">Close</button>
+        <button id="btnPickerSelect" class="btn btn-primary" data-i18n="select">Select</button>
       </div>
     </div>
   </div>
 
   <datalist id="genres"></datalist>
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status"></div>
 
   <script src="/static/app.js"></script>
 </body>
