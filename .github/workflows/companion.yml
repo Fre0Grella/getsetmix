@@ -158,9 +158,15 @@ jobs:
         run: |
           flags="-s -w -X main.version=$VERSION -extldflags=-static"
           mkdir -p dist
+          # Icon, version information and manifest in both: antivirus
+          # heuristics distrust executables without them (issue #16).
+          trap 'rm -f cmd/gsm-companion/rsrc_windows_*.syso' EXIT
+          bash scripts/winres.sh "$VERSION" cli gsm-companion.exe "GetSetMix Companion"
           go build -trimpath -ldflags "$flags" -o dist/gsm-companion.exe ./cmd/gsm-companion
           # Same program on the GUI subsystem: the launcher and autostart use
           # it so no console window flashes up.
+          bash scripts/winres.sh "$VERSION" gui gsm-companionw.exe "GetSetMix Companion" \
+            "GetSetMix Companion (no console window)"
           go build -trimpath -ldflags "$flags -H=windowsgui" -o dist/gsm-companionw.exe ./cmd/gsm-companion
           ./dist/gsm-companion.exe version
           cp README.md dist/

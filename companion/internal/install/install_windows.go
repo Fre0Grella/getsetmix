@@ -1,7 +1,6 @@
 package install
 
 import (
-	"errors"
 	"fmt"
 	"html"
 	"os"
@@ -129,31 +128,6 @@ func Uninstall() (Result, error) {
 		}
 	}
 	return res, nil
-}
-
-// makeShortcut writes a .lnk through the Windows Script Host — the only
-// supported way to author one, and it only runs at install time.
-func makeShortcut(lnk, target, args, icon, description string, minimized bool) error {
-	style := "1"
-	if minimized {
-		style = "7"
-	}
-	q := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
-	script := strings.Join([]string{
-		"$s = (New-Object -ComObject WScript.Shell).CreateShortcut(" + q(lnk) + ")",
-		"$s.TargetPath = " + q(target),
-		"$s.Arguments = " + q(args),
-		"$s.WorkingDirectory = " + q(filepath.Dir(target)),
-		"$s.IconLocation = " + q(icon+",0"),
-		"$s.Description = " + q(description),
-		"$s.WindowStyle = " + style,
-		"$s.Save()",
-	}, "; ")
-	out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script).CombinedOutput()
-	if err != nil {
-		return errors.Join(err, errors.New(strings.TrimSpace(string(out))))
-	}
-	return nil
 }
 
 // fetchTaskXML is the scheduled fetch. A plain `schtasks /SC MINUTE` task

@@ -18,17 +18,8 @@ mkdir -p dist
 
 case "$(go env GOOS)" in
 windows)
-  # Windows wants four numbers; a dev build is 0.0.0.0.
-  winver="0.0.0.0"
-  [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && winver="$version.0"
-  # Icon, version information and manifest go in through .syso files that
-  # the linker picks up from the package folder.
-  (cd cmd/gsm-companion && go run github.com/tc-hib/go-winres@v0.3.3 simply \
-    --arch amd64 --icon "../../$icon" --manifest gui \
-    --product-name "GetSetMix Setup" --file-description "GetSetMix Setup" \
-    --product-version "$winver" --file-version "$winver" \
-    --original-filename "GetSetMix-Setup-windows-x64.exe")
   trap 'rm -f cmd/gsm-companion/rsrc_windows_*.syso' EXIT
+  bash scripts/winres.sh "$version" gui GetSetMix-Setup-windows-x64.exe "GetSetMix Setup"
   go build -trimpath -ldflags "$flags -H=windowsgui -extldflags=-static" \
     -o dist/GetSetMix-Setup-windows-x64.exe ./cmd/gsm-companion
   echo "built dist/GetSetMix-Setup-windows-x64.exe"
