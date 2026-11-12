@@ -1,6 +1,28 @@
 # CHANGELOG
 
 
+## v1.7.2 (2026-11-12)
+
+### Bug Fixes
+
+- **companion**: Avoid Defender trojan heuristics
+  ([`8804c33`](https://github.com/Fre0Grella/getsetmix/commit/8804c33d2996083c08678d1144e494b5ad8d030e))
+
+Defender quarantined gsm-companionw.exe as Trojan:Win32/Bearfoos.A!ml (#16). Remove two of the
+  signals its machine-learning model reads:
+
+- write shortcuts through the shell's ShellLink COM object in-process instead of spawning PowerShell
+  to drive WScript.Shell, with a test that round-trips a real .lnk; - give gsm-companion.exe and
+  gsm-companionw.exe an icon, version information and a manifest, as Setup already had, through a
+  shared scripts/winres.sh.
+
+Code signing, the main fix, is still open in #16.
+
+Refs #16
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.7.1 (2026-10-17)
 
 ### Bug Fixes
