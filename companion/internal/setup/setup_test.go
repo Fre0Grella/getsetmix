@@ -275,3 +275,17 @@ func TestWriteAppSettingsKeepsOthers(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 }
+
+func TestLicensesPageServesTheNotices(t *testing.T) {
+	w := newWizard(t)
+	srv, c := ui(t, w)
+	resp, err := c.Get(srv.URL + "/licenses")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "Third-party notices") {
+		t.Fatalf("licenses: %d %.80q", resp.StatusCode, body)
+	}
+}

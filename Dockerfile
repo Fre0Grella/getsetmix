@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt \
  && deno --version \
  && python -c "import yt_dlp_ejs, yt_dlp.version as v; print('yt-dlp', v.__version__)"
 
+# Licenses travel with the image; /licenses in the app reads them from here.
+COPY LICENSE THIRD-PARTY-NOTICES.md /usr/share/doc/getsetmix/
+
 COPY app ./app
 
 ENV GSM_DATA_DIR=/data \

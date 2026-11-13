@@ -173,3 +173,16 @@ def test_auth_blocks_api(auth_client):
     assert ok.status_code == 200
     bearer = auth_client.get("/api/tracks", headers={"Authorization": "Bearer sekret"})
     assert bearer.status_code == 200
+
+
+def test_licenses_are_public_and_readable(auth_client):
+    # Readable without the auth token, like /healthz: the footer link is a
+    # plain browser navigation.
+    r = auth_client.get("/licenses")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/plain")
+    assert "Third-party notices" in r.text
+    assert "/licenses/agpl" in r.text
+    full = auth_client.get("/licenses/agpl")
+    assert full.status_code == 200
+    assert "GNU AFFERO GENERAL PUBLIC LICENSE" in full.text

@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/notices"
 	"github.com/Fre0Grella/getsetmix/companion/internal/serverscript"
 )
 
@@ -244,6 +245,10 @@ func (w *Wizard) uiHandler() http.Handler {
 	if w.opts.Demo {
 		mux.HandleFunc("POST /api/demo/connect", w.handleDemoConnect)
 	}
+	mux.HandleFunc("GET /licenses", func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, _ = rw.Write([]byte(notices.Text()))
+	})
 	mux.Handle("/", files)
 
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {

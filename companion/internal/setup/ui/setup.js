@@ -5,6 +5,7 @@
 const STR = {
   en: {
     setup: "Setup",
+    licenses: "Licenses",
     rChoose: "Choose", rConnect: "Connect server", rServer: "Server", rComputer: "This computer",
     rInstall: "Install", rDone: "Done", rSetUp: "Set up",
     next: "Continue", back: "Back", install: "Install", close: "Close", tryAgain: "Try again",
@@ -149,6 +150,7 @@ const STR = {
   },
   it: {
     setup: "Installazione",
+    licenses: "Licenze",
     rChoose: "Scelta", rConnect: "Collega il server", rServer: "Server", rComputer: "Questo computer",
     rInstall: "Installa", rDone: "Fatto", rSetUp: "Configura",
     next: "Continua", back: "Indietro", install: "Installa", close: "Chiudi", tryAgain: "Riprova",
