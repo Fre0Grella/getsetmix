@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, link, metadata, metrics, rekordbox, ytdl
+from . import __version__, genres, link, metadata, metrics, rekordbox, rules, ytdl
 from .config import AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, ensure_dirs, settings
 from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
 from .worker import worker
@@ -432,6 +432,14 @@ async def purge(body: Purge):
         )
         return {"purged": removed, "scope": "inbox"}
     raise HTTPException(400, "scope must be 'history', 'completed' or 'inbox'")
+
+
+# ------------------------------------------------------------ cleanup rules
+@app.get("/api/library/rules")
+async def library_rules():
+    """The cleanup-rule catalogue, plus the genre list the UI's picker reads."""
+    return {**rules.catalogue(), "genres": list(genres.GENRES),
+            "genre_picks": list(genres.GENRE_PICKS)}
 
 
 # ------------------------------------------------------------------- link

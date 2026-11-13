@@ -443,6 +443,10 @@ possible addition, and the step format has room for it (`"match": "regex"`).
 - **Every rule is idempotent**: running it on its own output changes
   nothing. The tests check it for every case.
 - A rule never invents text. It removes, moves or respells what is there.
+- A list parameter (`keep`, `from`, `small_words`, `phrases`, `labels`,
+  `mix_words`, `aliases`) given in a step **replaces** the rule's default
+  list. The UI starts from the default list in the catalogue, so adding a
+  word means sending the default plus that word.
 
 **Versioning.** The catalogue has a version number, returned with it and
 stored on every edit. Rule ids are stable. When a rule's behaviour changes,
@@ -567,7 +571,7 @@ apart (Extended Mix, Radio Edit, Club Mix, Dub) are never in the default.
 | `"Night Drive (Original Mix)"` | `"Night Drive"` |
 | `"Night Drive [Original]"` | `"Night Drive"` |
 | `"Night Drive (Extended Mix)"` | unchanged |
-| `"Original Mix"` (the whole title) | unchanged; it would empty the title |
+| `"(Original Mix)"` (the whole title) | unchanged; it would empty the title |
 
 #### `mix.brackets`
 
@@ -607,9 +611,13 @@ carry them in their name, and a rule cannot tell an act from a pair.
 Capitalises each word, except `small_words` (a, an, and, as, at, but, by,
 for, in, of, on, or, the, to, vs, with, feat.) inside a value. The first
 word, the last word and the first word inside brackets are always
-capitalised. A word in `keep` is written exactly as listed; the default
-holds DJ, MC, UK, US, USA, NYC, LA, EP, LP, VIP, ID, II, III, IV, EDM, BPM,
-R&B, and the DJ adds artist spellings to it.
+capitalised, with one exception: "feat." stays in lower case everywhere, so
+`(feat. Kito)` is never turned into `(Feat. Kito)`. A word in `keep` is
+written exactly as listed; the default holds DJ, MC, UK, USA, NYC, EP, LP,
+VIP, II, III, EDM, BPM and R&B, and the DJ adds artist spellings to it.
+Short words that are also ordinary words in English or Italian (US, LA, ID,
+IV) are left out of the default on purpose: "la notte" must not become
+"LA Notte".
 
 | `scope` | Meaning |
 |---|---|

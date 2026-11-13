@@ -1,0 +1,1521 @@
+[
+ {
+  "id": "trim:spaces",
+  "rule": "trim",
+  "doc": [
+   "`\"  Night   Drive \"` | `\"Night Drive\"`"
+  ],
+  "in": {
+   "title": "  Night   Drive "
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "trim:nbsp",
+  "rule": "trim",
+  "doc": [
+   "`\"Night Drive\"` (no-break space) | `\"Night Drive\"`"
+  ],
+  "in": {
+   "title": "Night Drive"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "trim:underscores-on",
+  "rule": "trim",
+  "doc": [
+   "`\"Night_Drive\"`, with `underscores: true` | `\"Night Drive\"`"
+  ],
+  "params": {
+   "underscores": true
+  },
+  "in": {
+   "title": "Night_Drive"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "trim:underscores-off",
+  "rule": "trim",
+  "doc": [
+   "`\"Night_Drive\"`, default | unchanged"
+  ],
+  "in": {
+   "title": "Night_Drive"
+  },
+  "out": {}
+ },
+ {
+  "id": "trim:control-chars",
+  "rule": "trim",
+  "doc": [],
+  "in": {
+   "title": "Night\u0000 Dri\u0007ve\t"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "trim:all-text-fields",
+  "rule": "trim",
+  "doc": [],
+  "in": {
+   "title": " a ",
+   "artist": " b ",
+   "album": " c ",
+   "genre": " d "
+  },
+  "out": {
+   "title": "a",
+   "artist": "b",
+   "album": "c",
+   "genre": "d"
+  }
+ },
+ {
+  "id": "promo.remove:free-download",
+  "rule": "promo.remove",
+  "doc": [
+   "`\"Night Drive (Extended Mix) [FREE DOWNLOAD]\"` | `\"Night Drive (Extended Mix)\"`"
+  ],
+  "in": {
+   "title": "Night Drive (Extended Mix) [FREE DOWNLOAD]"
+  },
+  "out": {
+   "title": "Night Drive (Extended Mix)"
+  }
+ },
+ {
+  "id": "promo.remove:official-video",
+  "rule": "promo.remove",
+  "doc": [
+   "`\"Night Drive (Official Video)\"` | `\"Night Drive\"`"
+  ],
+  "in": {
+   "title": "Night Drive (Official Video)"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "promo.remove:hq-middle",
+  "rule": "promo.remove",
+  "doc": [
+   "`\"Night Drive [HQ] (Kito Remix)\"` | `\"Night Drive (Kito Remix)\"`"
+  ],
+  "in": {
+   "title": "Night Drive [HQ] (Kito Remix)"
+  },
+  "out": {
+   "title": "Night Drive (Kito Remix)"
+  }
+ },
+ {
+  "id": "promo.remove:free-alone",
+  "rule": "promo.remove",
+  "doc": [
+   "`\"Night Drive (Free)\"` | unchanged: \"Free\" alone is not in the list"
+  ],
+  "in": {
+   "title": "Night Drive (Free)"
+  },
+  "out": {}
+ },
+ {
+  "id": "promo.remove:no-brackets",
+  "rule": "promo.remove",
+  "doc": [
+   "`\"Free Download\"` (no brackets) | unchanged: only bracketed text is removed"
+  ],
+  "in": {
+   "title": "Free Download"
+  },
+  "out": {}
+ },
+ {
+  "id": "promo.remove:italian",
+  "rule": "promo.remove",
+  "doc": [],
+  "in": {
+   "title": "Night Drive (Video Ufficiale)"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "promo.remove:custom-phrases",
+  "rule": "promo.remove",
+  "doc": [],
+  "params": {
+   "phrases": [
+    "Free"
+   ]
+  },
+  "in": {
+   "title": "Night Drive (Free) (HQ)"
+  },
+  "out": {
+   "title": "Night Drive (HQ)"
+  }
+ },
+ {
+  "id": "promo.remove:mismatched-brackets",
+  "rule": "promo.remove",
+  "doc": [],
+  "in": {
+   "title": "Night Drive (HQ]"
+  },
+  "out": {}
+ },
+ {
+  "id": "promo.remove:only-promo",
+  "rule": "promo.remove",
+  "doc": [],
+  "in": {
+   "title": "(HQ)"
+  },
+  "out": {}
+ },
+ {
+  "id": "url.remove:www",
+  "rule": "url.remove",
+  "doc": [
+   "`\"Night Drive - www.example.com\"` | `\"Night Drive\"`"
+  ],
+  "in": {
+   "title": "Night Drive - www.example.com"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "url.remove:bracketed-domain",
+  "rule": "url.remove",
+  "doc": [
+   "`\"Night Drive [example.com]\"` | `\"Night Drive\"`"
+  ],
+  "in": {
+   "title": "Night Drive [example.com]"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "url.remove:handle",
+  "rule": "url.remove",
+  "doc": [
+   "`\"Nova @novamusic\"` | `\"Nova\"`"
+  ],
+  "in": {
+   "title": "Nova @novamusic"
+  },
+  "out": {
+   "title": "Nova"
+  }
+ },
+ {
+  "id": "url.remove:mr-fingers",
+  "rule": "url.remove",
+  "doc": [
+   "`\"Mr. Fingers\"` | unchanged"
+  ],
+  "in": {
+   "title": "Mr. Fingers"
+  },
+  "out": {}
+ },
+ {
+  "id": "url.remove:https",
+  "rule": "url.remove",
+  "doc": [],
+  "in": {
+   "title": "Night Drive https://example.com/x?a=1 (Kito Remix)"
+  },
+  "out": {
+   "title": "Night Drive (Kito Remix)"
+  }
+ },
+ {
+  "id": "url.remove:comment-untouched-by-default",
+  "rule": "url.remove",
+  "doc": [],
+  "in": {
+   "title": "Night Drive",
+   "comment": "Source: https://example.com"
+  },
+  "out": {}
+ },
+ {
+  "id": "url.remove:comment-when-named",
+  "rule": "url.remove",
+  "doc": [],
+  "scope": [
+   "comment"
+  ],
+  "in": {
+   "comment": "Source: https://example.com"
+  },
+  "out": {
+   "comment": "Source:"
+  }
+ },
+ {
+  "id": "url.remove:handle-only",
+  "rule": "url.remove",
+  "doc": [],
+  "in": {
+   "artist": "@novamusic"
+  },
+  "out": {}
+ },
+ {
+  "id": "split.artist_title:artist-empty",
+  "rule": "split.artist_title",
+  "doc": [
+   "title `\"Nova - Night Drive\"`, artist `\"\"` | title `\"Night Drive\"`, artist `\"Nova\"`"
+  ],
+  "in": {
+   "title": "Nova - Night Drive",
+   "artist": ""
+  },
+  "out": {
+   "title": "Night Drive",
+   "artist": "Nova"
+  }
+ },
+ {
+  "id": "split.artist_title:artist-same",
+  "rule": "split.artist_title",
+  "doc": [
+   "title `\"Nova - Night Drive\"`, artist `\"Nova\"` | title `\"Night Drive\"`, artist `\"Nova\"`"
+  ],
+  "in": {
+   "title": "Nova - Night Drive",
+   "artist": "Nova"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "split.artist_title:other-artist-default",
+  "rule": "split.artist_title",
+  "doc": [
+   "title `\"Nova - Night Drive\"`, artist `\"Kito\"` | unchanged with the default; with `always`: artist `\"Nova\"`"
+  ],
+  "in": {
+   "title": "Nova - Night Drive",
+   "artist": "Kito"
+  },
+  "out": {}
+ },
+ {
+  "id": "split.artist_title:other-artist-always",
+  "rule": "split.artist_title",
+  "doc": [
+   "title `\"Nova - Night Drive\"`, artist `\"Kito\"` | unchanged with the default; with `always`: artist `\"Nova\"`"
+  ],
+  "params": {
+   "when": "always"
+  },
+  "in": {
+   "title": "Nova - Night Drive",
+   "artist": "Kito"
+  },
+  "out": {
+   "artist": "Nova",
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "split.artist_title:left-not-artist",
+  "rule": "split.artist_title",
+  "doc": [
+   "title `\"Night Drive - Kito Remix\"`, artist `\"Nova\"` | unchanged: the left part is not the artist. `mix.brackets` handles this."
+  ],
+  "in": {
+   "title": "Night Drive - Kito Remix",
+   "artist": "Nova"
+  },
+  "out": {}
+ },
+ {
+  "id": "split.artist_title:artist-empty-only-same-untouched",
+  "rule": "split.artist_title",
+  "doc": [],
+  "params": {
+   "when": "artist_empty"
+  },
+  "in": {
+   "title": "Nova - Night Drive",
+   "artist": "Nova"
+  },
+  "out": {}
+ },
+ {
+  "id": "split.artist_title:en-dash",
+  "rule": "split.artist_title",
+  "doc": [],
+  "in": {
+   "title": "Nova – Night Drive",
+   "artist": ""
+  },
+  "out": {
+   "title": "Night Drive",
+   "artist": "Nova"
+  }
+ },
+ {
+  "id": "split.artist_title:empty-right-part",
+  "rule": "split.artist_title",
+  "doc": [],
+  "in": {
+   "title": "Nova - ",
+   "artist": ""
+  },
+  "out": {
+   "title": "Nova"
+  }
+ },
+ {
+  "id": "split.artist_title:no-separator",
+  "rule": "split.artist_title",
+  "doc": [],
+  "in": {
+   "title": "Night Drive",
+   "artist": ""
+  },
+  "out": {}
+ },
+ {
+  "id": "feat.normalise:ft",
+  "rule": "feat.normalise",
+  "doc": [
+   "`\"Night Drive (Ft. Kito)\"` | `\"Night Drive (feat. Kito)\"`"
+  ],
+  "in": {
+   "title": "Night Drive (Ft. Kito)"
+  },
+  "out": {
+   "title": "Night Drive (feat. Kito)"
+  }
+ },
+ {
+  "id": "feat.normalise:square-featuring",
+  "rule": "feat.normalise",
+  "doc": [
+   "`\"Night Drive [Featuring Kito]\"` | `\"Night Drive (feat. Kito)\"`"
+  ],
+  "in": {
+   "title": "Night Drive [Featuring Kito]"
+  },
+  "out": {
+   "title": "Night Drive (feat. Kito)"
+  }
+ },
+ {
+  "id": "feat.normalise:upper-feat",
+  "rule": "feat.normalise",
+  "doc": [
+   "`\"Nova FEAT Kito\"` | `\"Nova feat. Kito\"`"
+  ],
+  "in": {
+   "title": "Nova FEAT Kito"
+  },
+  "out": {
+   "title": "Nova feat. Kito"
+  }
+ },
+ {
+  "id": "feat.normalise:left-behind",
+  "rule": "feat.normalise",
+  "doc": [
+   "`\"Left Behind\"`, `\"Soft Focus\"` | unchanged: \"ft\" inside a word is not a match"
+  ],
+  "in": {
+   "title": "Left Behind"
+  },
+  "out": {}
+ },
+ {
+  "id": "feat.normalise:soft-focus",
+  "rule": "feat.normalise",
+  "doc": [
+   "`\"Left Behind\"`, `\"Soft Focus\"` | unchanged: \"ft\" inside a word is not a match"
+  ],
+  "in": {
+   "title": "Soft Focus"
+  },
+  "out": {}
+ },
+ {
+  "id": "feat.normalise:spelling-ft",
+  "rule": "feat.normalise",
+  "doc": [],
+  "params": {
+   "spelling": "ft."
+  },
+  "in": {
+   "title": "Nova feat. Kito"
+  },
+  "out": {
+   "title": "Nova ft. Kito"
+  }
+ },
+ {
+  "id": "feat.normalise:artist-field",
+  "rule": "feat.normalise",
+  "doc": [],
+  "in": {
+   "title": "Night",
+   "artist": "Nova ft Kito"
+  },
+  "out": {
+   "artist": "Nova feat. Kito"
+  }
+ },
+ {
+  "id": "feat.normalise:not-at-start",
+  "rule": "feat.normalise",
+  "doc": [],
+  "in": {
+   "title": "Ft. Lauderdale"
+  },
+  "out": {}
+ },
+ {
+  "id": "feat.move:to-title",
+  "rule": "feat.move",
+  "doc": [
+   "`title` (default) | artist `\"Nova feat. Kito\"`, title `\"Night Drive\"` | artist `\"Nova\"`, title `\"Night Drive (feat. Kito)\"`"
+  ],
+  "in": {
+   "artist": "Nova feat. Kito",
+   "title": "Night Drive"
+  },
+  "out": {
+   "artist": "Nova",
+   "title": "Night Drive (feat. Kito)"
+  }
+ },
+ {
+  "id": "feat.move:before-mix-name",
+  "rule": "feat.move",
+  "doc": [
+   "`title` | artist `\"Nova feat. Kito\"`, title `\"Night Drive (Extended Mix)\"` | artist `\"Nova\"`, title `\"Night Drive (feat. Kito) (Extended Mix)\"`"
+  ],
+  "in": {
+   "artist": "Nova feat. Kito",
+   "title": "Night Drive (Extended Mix)"
+  },
+  "out": {
+   "artist": "Nova",
+   "title": "Night Drive (feat. Kito) (Extended Mix)"
+  }
+ },
+ {
+  "id": "feat.move:already-in-title",
+  "rule": "feat.move",
+  "doc": [
+   "`title` | artist `\"Nova\"`, title `\"Night Drive (feat. Kito)\"` | unchanged"
+  ],
+  "in": {
+   "artist": "Nova",
+   "title": "Night Drive (feat. Kito)"
+  },
+  "out": {}
+ },
+ {
+  "id": "feat.move:to-artist",
+  "rule": "feat.move",
+  "doc": [
+   "`artist` | artist `\"Nova\"`, title `\"Night Drive (feat. Kito)\"` | artist `\"Nova feat. Kito\"`, title `\"Night Drive\"`"
+  ],
+  "params": {
+   "to": "artist"
+  },
+  "in": {
+   "artist": "Nova",
+   "title": "Night Drive (feat. Kito)"
+  },
+  "out": {
+   "artist": "Nova feat. Kito",
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "feat.move:to-artist-both",
+  "rule": "feat.move",
+  "doc": [
+   "`artist` | artist `\"Nova feat. Kito\"`, title `\"Night Drive (feat. Kito)\"` | artist `\"Nova feat. Kito\"`, title `\"Night Drive\"`"
+  ],
+  "params": {
+   "to": "artist"
+  },
+  "in": {
+   "artist": "Nova feat. Kito",
+   "title": "Night Drive (feat. Kito)"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "feat.move:before-dash-mix-name",
+  "rule": "feat.move",
+  "doc": [],
+  "in": {
+   "artist": "Nova feat. Kito",
+   "title": "Night Drive - Kito Remix"
+  },
+  "out": {
+   "artist": "Nova",
+   "title": "Night Drive (feat. Kito) - Kito Remix"
+  }
+ },
+ {
+  "id": "feat.move:to-title-duplicate",
+  "rule": "feat.move",
+  "doc": [],
+  "in": {
+   "artist": "Nova feat. Kito",
+   "title": "Night Drive (feat. Kito)"
+  },
+  "out": {
+   "artist": "Nova"
+  }
+ },
+ {
+  "id": "feat.move:only-featuring-artist",
+  "rule": "feat.move",
+  "doc": [],
+  "in": {
+   "artist": "feat. Kito",
+   "title": "Night Drive"
+  },
+  "out": {}
+ },
+ {
+  "id": "feat.move:bracketed-in-artist",
+  "rule": "feat.move",
+  "doc": [],
+  "in": {
+   "artist": "Nova (feat. Kito)",
+   "title": "Night Drive"
+  },
+  "out": {
+   "artist": "Nova",
+   "title": "Night Drive (feat. Kito)"
+  }
+ },
+ {
+  "id": "feat.move:to-artist-only-title",
+  "rule": "feat.move",
+  "doc": [],
+  "params": {
+   "to": "artist"
+  },
+  "in": {
+   "artist": "Nova",
+   "title": "(feat. Kito)"
+  },
+  "out": {}
+ },
+ {
+  "id": "mix.remove_default:original-mix",
+  "rule": "mix.remove_default",
+  "doc": [
+   "`\"Night Drive (Original Mix)\"` | `\"Night Drive\"`"
+  ],
+  "in": {
+   "title": "Night Drive (Original Mix)"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "mix.remove_default:square-original",
+  "rule": "mix.remove_default",
+  "doc": [
+   "`\"Night Drive [Original]\"` | `\"Night Drive\"`"
+  ],
+  "in": {
+   "title": "Night Drive [Original]"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "mix.remove_default:extended-kept",
+  "rule": "mix.remove_default",
+  "doc": [
+   "`\"Night Drive (Extended Mix)\"` | unchanged"
+  ],
+  "in": {
+   "title": "Night Drive (Extended Mix)"
+  },
+  "out": {}
+ },
+ {
+  "id": "mix.remove_default:whole-title",
+  "rule": "mix.remove_default",
+  "doc": [],
+  "in": {
+   "title": "Original Mix"
+  },
+  "out": {}
+ },
+ {
+  "id": "mix.remove_default:would-empty-title",
+  "rule": "mix.remove_default",
+  "doc": [
+   "`\"(Original Mix)\"` (the whole title) | unchanged; it would empty the title"
+  ],
+  "in": {
+   "title": "(Original Mix)"
+  },
+  "out": {}
+ },
+ {
+  "id": "mix.remove_default:original-version",
+  "rule": "mix.remove_default",
+  "doc": [],
+  "in": {
+   "title": "Night Drive (original version) (Kito Remix)"
+  },
+  "out": {
+   "title": "Night Drive (Kito Remix)"
+  }
+ },
+ {
+  "id": "mix.remove_default:custom-labels",
+  "rule": "mix.remove_default",
+  "doc": [],
+  "params": {
+   "labels": [
+    "Radio Edit"
+   ]
+  },
+  "in": {
+   "title": "Night Drive (Radio Edit)"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "mix.brackets:square",
+  "rule": "mix.brackets",
+  "doc": [
+   "`\"Night Drive [Kito Remix]\"` | `\"Night Drive (Kito Remix)\"`"
+  ],
+  "in": {
+   "title": "Night Drive [Kito Remix]"
+  },
+  "out": {
+   "title": "Night Drive (Kito Remix)"
+  }
+ },
+ {
+  "id": "mix.brackets:dash-remix",
+  "rule": "mix.brackets",
+  "doc": [
+   "`\"Night Drive - Kito Remix\"` | `\"Night Drive (Kito Remix)\"`"
+  ],
+  "in": {
+   "title": "Night Drive - Kito Remix"
+  },
+  "out": {
+   "title": "Night Drive (Kito Remix)"
+  }
+ },
+ {
+  "id": "mix.brackets:dash-extended",
+  "rule": "mix.brackets",
+  "doc": [
+   "`\"Night Drive - Extended Mix\"` | `\"Night Drive (Extended Mix)\"`"
+  ],
+  "in": {
+   "title": "Night Drive - Extended Mix"
+  },
+  "out": {
+   "title": "Night Drive (Extended Mix)"
+  }
+ },
+ {
+  "id": "mix.brackets:part-two",
+  "rule": "mix.brackets",
+  "doc": [
+   "`\"Night Drive - Part Two\"` | unchanged: \"Two\" is not a mix word"
+  ],
+  "in": {
+   "title": "Night Drive - Part Two"
+  },
+  "out": {}
+ },
+ {
+  "id": "mix.brackets:already-round",
+  "rule": "mix.brackets",
+  "doc": [
+   "`\"Night Drive (Kito Remix)\"` | unchanged"
+  ],
+  "in": {
+   "title": "Night Drive (Kito Remix)"
+  },
+  "out": {}
+ },
+ {
+  "id": "mix.brackets:square-not-a-mix",
+  "rule": "mix.brackets",
+  "doc": [],
+  "in": {
+   "title": "Night Drive [2019]"
+  },
+  "out": {}
+ },
+ {
+  "id": "mix.brackets:last-separator",
+  "rule": "mix.brackets",
+  "doc": [],
+  "in": {
+   "title": "Night Drive - Part Two - Kito Remix"
+  },
+  "out": {
+   "title": "Night Drive - Part Two (Kito Remix)"
+  }
+ },
+ {
+  "id": "mix.brackets:tail-has-brackets",
+  "rule": "mix.brackets",
+  "doc": [],
+  "in": {
+   "title": "Night Drive - Kito Remix (feat. Nova)"
+  },
+  "out": {}
+ },
+ {
+  "id": "mix.brackets:custom-words",
+  "rule": "mix.brackets",
+  "doc": [],
+  "params": {
+   "mix_words": [
+    "Special"
+   ]
+  },
+  "in": {
+   "title": "Night Drive - Kito Special"
+  },
+  "out": {
+   "title": "Night Drive (Kito Special)"
+  }
+ },
+ {
+  "id": "artist.separators:x",
+  "rule": "artist.separators",
+  "doc": [
+   "`\"Nova x Kito\"` | `\"Nova, Kito\"`"
+  ],
+  "in": {
+   "artist": "Nova x Kito"
+  },
+  "out": {
+   "artist": "Nova, Kito"
+  }
+ },
+ {
+  "id": "artist.separators:vs",
+  "rule": "artist.separators",
+  "doc": [
+   "`\"Nova vs. Kito\"` | `\"Nova, Kito\"`"
+  ],
+  "in": {
+   "artist": "Nova vs. Kito"
+  },
+  "out": {
+   "artist": "Nova, Kito"
+  }
+ },
+ {
+  "id": "artist.separators:semicolon",
+  "rule": "artist.separators",
+  "doc": [
+   "`\"Nova;Kito\"` | `\"Nova, Kito\"`"
+  ],
+  "in": {
+   "artist": "Nova;Kito"
+  },
+  "out": {
+   "artist": "Nova, Kito"
+  }
+ },
+ {
+  "id": "artist.separators:ampersand-default",
+  "rule": "artist.separators",
+  "doc": [
+   "`\"Sun & Moon\"` | unchanged: `&` is not in the default"
+  ],
+  "in": {
+   "artist": "Sun & Moon"
+  },
+  "out": {}
+ },
+ {
+  "id": "artist.separators:ampersand-added",
+  "rule": "artist.separators",
+  "doc": [
+   "`\"Nova & Kito\"`, with ` & ` added to `from` | `\"Nova, Kito\"`"
+  ],
+  "params": {
+   "from": [
+    " x ",
+    " X ",
+    " vs ",
+    " vs. ",
+    " Vs. ",
+    ";",
+    " / ",
+    " + ",
+    " & "
+   ]
+  },
+  "in": {
+   "artist": "Nova & Kito"
+  },
+  "out": {
+   "artist": "Nova, Kito"
+  }
+ },
+ {
+  "id": "artist.separators:keep",
+  "rule": "artist.separators",
+  "doc": [
+   "`\"Sun & Moon\"`, same step, `keep: [\"Sun & Moon\"]` | unchanged"
+  ],
+  "params": {
+   "from": [
+    " & "
+   ],
+   "keep": [
+    "Sun & Moon"
+   ]
+  },
+  "in": {
+   "artist": "Sun & Moon"
+  },
+  "out": {}
+ },
+ {
+  "id": "artist.separators:keep-inside-list",
+  "rule": "artist.separators",
+  "doc": [],
+  "params": {
+   "from": [
+    " & ",
+    " x "
+   ],
+   "keep": [
+    "Sun & Moon"
+   ]
+  },
+  "in": {
+   "artist": "Sun & Moon x Kito"
+  },
+  "out": {
+   "artist": "Sun & Moon, Kito"
+  }
+ },
+ {
+  "id": "artist.separators:slash-and-plus",
+  "rule": "artist.separators",
+  "doc": [],
+  "in": {
+   "artist": "Nova / Kito + Sol"
+  },
+  "out": {
+   "artist": "Nova, Kito, Sol"
+  }
+ },
+ {
+  "id": "artist.separators:x-inside-word",
+  "rule": "artist.separators",
+  "doc": [],
+  "in": {
+   "artist": "Alex Maxx"
+  },
+  "out": {}
+ },
+ {
+  "id": "artist.separators:custom-to",
+  "rule": "artist.separators",
+  "doc": [],
+  "params": {
+   "to": " & "
+  },
+  "in": {
+   "artist": "Nova x Kito"
+  },
+  "out": {
+   "artist": "Nova & Kito"
+  }
+ },
+ {
+  "id": "case.title:extended",
+  "rule": "case.title",
+  "doc": [
+   "`\"night drive (extended mix)\"` | `\"Night Drive (Extended Mix)\"`"
+  ],
+  "in": {
+   "title": "night drive (extended mix)"
+  },
+  "out": {
+   "title": "Night Drive (Extended Mix)"
+  }
+ },
+ {
+  "id": "case.title:small-words",
+  "rule": "case.title",
+  "doc": [
+   "`\"lost in the city\"` | `\"Lost in the City\"`"
+  ],
+  "in": {
+   "title": "lost in the city"
+  },
+  "out": {
+   "title": "Lost in the City"
+  }
+ },
+ {
+  "id": "case.title:keep-vip",
+  "rule": "case.title",
+  "doc": [
+   "`\"night drive (vip mix)\"` | `\"Night Drive (VIP Mix)\"`"
+  ],
+  "in": {
+   "title": "night drive (vip mix)"
+  },
+  "out": {
+   "title": "Night Drive (VIP Mix)"
+  }
+ },
+ {
+  "id": "case.title:upper-default",
+  "rule": "case.title",
+  "doc": [
+   "`\"NIGHT DRIVE\"` | unchanged with the default. With `scope: uniform`: `\"Night Drive\"`"
+  ],
+  "in": {
+   "title": "NIGHT DRIVE"
+  },
+  "out": {}
+ },
+ {
+  "id": "case.title:upper-uniform",
+  "rule": "case.title",
+  "doc": [
+   "`\"NIGHT DRIVE\"` | unchanged with the default. With `scope: uniform`: `\"Night Drive\"`"
+  ],
+  "params": {
+   "scope": "uniform"
+  },
+  "in": {
+   "title": "NIGHT DRIVE"
+  },
+  "out": {
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "case.title:mixed",
+  "rule": "case.title",
+  "doc": [
+   "`\"Night Drive\"` | unchanged"
+  ],
+  "in": {
+   "title": "Night Drive"
+  },
+  "out": {}
+ },
+ {
+  "id": "case.title:mixed-pt-ii",
+  "rule": "case.title",
+  "doc": [
+   "`\"night Drive pt. II\"` | unchanged with the default: the value is mixed case"
+  ],
+  "in": {
+   "title": "night Drive pt. II"
+  },
+  "out": {}
+ },
+ {
+  "id": "case.title:all-scope",
+  "rule": "case.title",
+  "doc": [],
+  "params": {
+   "scope": "all"
+  },
+  "in": {
+   "title": "night Drive pt. II"
+  },
+  "out": {
+   "title": "Night Drive Pt. II"
+  }
+ },
+ {
+  "id": "case.title:accents",
+  "rule": "case.title",
+  "doc": [],
+  "in": {
+   "title": "élan vital"
+  },
+  "out": {
+   "title": "Élan Vital"
+  }
+ },
+ {
+  "id": "case.title:feat-stays-lower",
+  "rule": "case.title",
+  "doc": [],
+  "in": {
+   "title": "night drive (feat. kito)"
+  },
+  "out": {
+   "title": "Night Drive (feat. Kito)"
+  }
+ },
+ {
+  "id": "case.title:album-default",
+  "rule": "case.title",
+  "doc": [],
+  "in": {
+   "title": "x y",
+   "album": "the album"
+  },
+  "out": {
+   "title": "X Y",
+   "album": "The Album"
+  }
+ },
+ {
+  "id": "case.title:artist-not-default",
+  "rule": "case.title",
+  "doc": [],
+  "in": {
+   "title": "night",
+   "artist": "nova"
+  },
+  "out": {
+   "title": "Night"
+  }
+ },
+ {
+  "id": "case.title:artist-named",
+  "rule": "case.title",
+  "doc": [],
+  "scope": [
+   "artist"
+  ],
+  "in": {
+   "artist": "nova"
+  },
+  "out": {
+   "artist": "Nova"
+  }
+ },
+ {
+  "id": "case.title:custom-keep",
+  "rule": "case.title",
+  "doc": [],
+  "params": {
+   "keep": [
+    "KITO",
+    "NYC"
+   ]
+  },
+  "in": {
+   "title": "kito in nyc"
+  },
+  "out": {
+   "title": "KITO in NYC"
+  }
+ },
+ {
+  "id": "case.title:digits-only",
+  "rule": "case.title",
+  "doc": [],
+  "in": {
+   "title": "1999"
+  },
+  "out": {}
+ },
+ {
+  "id": "genre.map:tech-house-0",
+  "rule": "genre.map",
+  "doc": [
+   "`\"tech-house\"`, `\"TechHouse\"`, `\"TECH HOUSE\"` | `\"Tech House\"`"
+  ],
+  "in": {
+   "genre": "tech-house"
+  },
+  "out": {
+   "genre": "Tech House"
+  }
+ },
+ {
+  "id": "genre.map:tech-house-1",
+  "rule": "genre.map",
+  "doc": [
+   "`\"tech-house\"`, `\"TechHouse\"`, `\"TECH HOUSE\"` | `\"Tech House\"`"
+  ],
+  "in": {
+   "genre": "TechHouse"
+  },
+  "out": {
+   "genre": "Tech House"
+  }
+ },
+ {
+  "id": "genre.map:tech-house-2",
+  "rule": "genre.map",
+  "doc": [
+   "`\"tech-house\"`, `\"TechHouse\"`, `\"TECH HOUSE\"` | `\"Tech House\"`"
+  ],
+  "in": {
+   "genre": "TECH HOUSE"
+  },
+  "out": {
+   "genre": "Tech House"
+  }
+ },
+ {
+  "id": "genre.map:dnb-0",
+  "rule": "genre.map",
+  "doc": [
+   "`\"Drum and Bass\"`, `\"Drum n Bass\"`, `\"DnB\"`, `\"D&B\"` | `\"Drum & Bass\"`"
+  ],
+  "in": {
+   "genre": "Drum and Bass"
+  },
+  "out": {
+   "genre": "Drum & Bass"
+  }
+ },
+ {
+  "id": "genre.map:dnb-1",
+  "rule": "genre.map",
+  "doc": [
+   "`\"Drum and Bass\"`, `\"Drum n Bass\"`, `\"DnB\"`, `\"D&B\"` | `\"Drum & Bass\"`"
+  ],
+  "in": {
+   "genre": "Drum n Bass"
+  },
+  "out": {
+   "genre": "Drum & Bass"
+  }
+ },
+ {
+  "id": "genre.map:dnb-2",
+  "rule": "genre.map",
+  "doc": [
+   "`\"Drum and Bass\"`, `\"Drum n Bass\"`, `\"DnB\"`, `\"D&B\"` | `\"Drum & Bass\"`"
+  ],
+  "in": {
+   "genre": "DnB"
+  },
+  "out": {
+   "genre": "Drum & Bass"
+  }
+ },
+ {
+  "id": "genre.map:dnb-3",
+  "rule": "genre.map",
+  "doc": [
+   "`\"Drum and Bass\"`, `\"Drum n Bass\"`, `\"DnB\"`, `\"D&B\"` | `\"Drum & Bass\"`"
+  ],
+  "in": {
+   "genre": "D&B"
+  },
+  "out": {
+   "genre": "Drum & Bass"
+  }
+ },
+ {
+  "id": "genre.map:hiphop-0",
+  "rule": "genre.map",
+  "doc": [
+   "`\"Hip Hop\"`, `\"hiphop\"` | `\"Hip-Hop\"`"
+  ],
+  "in": {
+   "genre": "Hip Hop"
+  },
+  "out": {
+   "genre": "Hip-Hop"
+  }
+ },
+ {
+  "id": "genre.map:hiphop-1",
+  "rule": "genre.map",
+  "doc": [
+   "`\"Hip Hop\"`, `\"hiphop\"` | `\"Hip-Hop\"`"
+  ],
+  "in": {
+   "genre": "hiphop"
+  },
+  "out": {
+   "genre": "Hip-Hop"
+  }
+ },
+ {
+  "id": "genre.map:rnb",
+  "rule": "genre.map",
+  "doc": [
+   "`\"RnB\"` | `\"R&B\"`"
+  ],
+  "in": {
+   "genre": "RnB"
+  },
+  "out": {
+   "genre": "R&B"
+  }
+ },
+ {
+  "id": "genre.map:melodic-techno",
+  "rule": "genre.map",
+  "doc": [
+   "`\"Melodic Techno\"` | `\"Melodic House & Techno\"` (alias)"
+  ],
+  "in": {
+   "genre": "Melodic Techno"
+  },
+  "out": {
+   "genre": "Melodic House & Techno"
+  }
+ },
+ {
+  "id": "genre.map:dark-disco",
+  "rule": "genre.map",
+  "doc": [
+   "`\"Dark Disco\"` | unchanged, with the warning `not_in_genre_list`"
+  ],
+  "in": {
+   "genre": "Dark Disco"
+  },
+  "out": {},
+  "warnings": [
+   "not_in_genre_list"
+  ]
+ },
+ {
+  "id": "genre.map:already-right",
+  "rule": "genre.map",
+  "doc": [],
+  "in": {
+   "genre": "Tech House"
+  },
+  "out": {}
+ },
+ {
+  "id": "genre.map:empty",
+  "rule": "genre.map",
+  "doc": [],
+  "in": {
+   "genre": ""
+  },
+  "out": {}
+ },
+ {
+  "id": "genre.map:custom-alias",
+  "rule": "genre.map",
+  "doc": [],
+  "params": {
+   "aliases": {
+    "Dark Disco": "Disco"
+   }
+  },
+  "in": {
+   "genre": "Dark Disco"
+  },
+  "out": {
+   "genre": "Disco"
+  }
+ },
+ {
+  "id": "genre.map:candy-not-and",
+  "rule": "genre.map",
+  "doc": [],
+  "in": {
+   "genre": "Candy House"
+  },
+  "out": {},
+  "warnings": [
+   "not_in_genre_list"
+  ]
+ },
+ {
+  "id": "year.extract:square",
+  "rule": "year.extract",
+  "doc": [
+   "title `\"Night Drive [2019]\"`, year empty | year `2019`; title unchanged"
+  ],
+  "in": {
+   "year": null,
+   "title": "Night Drive [2019]",
+   "album": ""
+  },
+  "out": {
+   "year": 2019
+  }
+ },
+ {
+  "id": "year.extract:remove",
+  "rule": "year.extract",
+  "doc": [
+   "the same, with `remove: true` | year `2019`, title `\"Night Drive\"`"
+  ],
+  "params": {
+   "remove": true
+  },
+  "in": {
+   "year": null,
+   "title": "Night Drive [2019]",
+   "album": ""
+  },
+  "out": {
+   "year": 2019,
+   "title": "Night Drive"
+  }
+ },
+ {
+  "id": "year.extract:not-alone",
+  "rule": "year.extract",
+  "doc": [
+   "title `\"Night Drive (2019 Remaster)\"` | unchanged: the year does not stand alone"
+  ],
+  "in": {
+   "year": null,
+   "title": "Night Drive (2019 Remaster)",
+   "album": ""
+  },
+  "out": {}
+ },
+ {
+  "id": "year.extract:year-set",
+  "rule": "year.extract",
+  "doc": [
+   "title `\"Night Drive [2019]\"`, year `2021` | unchanged: the year is set"
+  ],
+  "in": {
+   "year": 2021,
+   "title": "Night Drive [2019]",
+   "album": ""
+  },
+  "out": {}
+ },
+ {
+  "id": "year.extract:not-in-brackets",
+  "rule": "year.extract",
+  "doc": [
+   "title `\"1999\"` | unchanged: not in brackets"
+  ],
+  "in": {
+   "year": null,
+   "title": "1999",
+   "album": ""
+  },
+  "out": {}
+ },
+ {
+  "id": "year.extract:album",
+  "rule": "year.extract",
+  "doc": [],
+  "in": {
+   "year": null,
+   "title": "Night Drive",
+   "album": "Hits (2018)"
+  },
+  "out": {
+   "year": 2018
+  }
+ },
+ {
+  "id": "year.extract:album-remove",
+  "rule": "year.extract",
+  "doc": [],
+  "params": {
+   "remove": true
+  },
+  "in": {
+   "year": null,
+   "title": "Night Drive",
+   "album": "Hits (2018)"
+  },
+  "out": {
+   "year": 2018,
+   "album": "Hits"
+  }
+ },
+ {
+  "id": "year.extract:out-of-range",
+  "rule": "year.extract",
+  "doc": [],
+  "in": {
+   "year": null,
+   "title": "Night Drive [1850]",
+   "album": ""
+  },
+  "out": {}
+ },
+ {
+  "id": "year.extract:empty-string-year",
+  "rule": "year.extract",
+  "doc": [],
+  "in": {
+   "year": "",
+   "title": "Night Drive (2019)",
+   "album": ""
+  },
+  "out": {
+   "year": 2019
+  }
+ },
+ {
+  "id": "year.extract:middle-of-title",
+  "rule": "year.extract",
+  "doc": [],
+  "in": {
+   "year": null,
+   "title": "Night [2019] Drive",
+   "album": ""
+  },
+  "out": {}
+ },
+ {
+  "id": "year.extract:remove-would-empty",
+  "rule": "year.extract",
+  "doc": [],
+  "params": {
+   "remove": true
+  },
+  "in": {
+   "year": null,
+   "title": "(2019)",
+   "album": ""
+  },
+  "out": {
+   "year": 2019
+  }
+ }
+]

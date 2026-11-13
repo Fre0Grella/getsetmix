@@ -98,19 +98,8 @@ const STR = {
   },
 };
 
-const GENRES = [
-  "Afro House", "Amapiano", "Bass House", "Big Room", "Breakbeat", "Dance",
-  "Deep House", "Disco", "Drum & Bass", "Dubstep", "EDM", "Electro", "Funk",
-  "Future House", "Garage", "Hard Rock", "Hard Techno", "Hardcore", "Hardstyle",
-  "Heavy Metal", "Hip-Hop", "House", "Indie Dance", "Italo Disco", "Jungle",
-  "Latin", "Mainstage", "Melodic House & Techno", "Minimal", "Moombahton",
-  "Pop", "Progressive House", "Psytrance", "R&B", "Reggaeton", "Rock",
-  "Tech House", "Techno", "Trance", "Trap", "Tropical House", "UK Garage",
-];
-
-// Quick picks under an open row's genre field, after the ones this list already uses.
-const GENRE_PICKS = ["House", "Tech House", "Techno", "Afro House", "Melodic House & Techno", "Drum & Bass"];
-
+// The genre list and the one-tap picks live on the server (app/genres.py) and
+// arrive with GET /api/library/rules; see loadGenres().
 const $ = (sel) => document.querySelector(sel);
 const list = $("#trackList");
 // Phones: rows are compact until tapped open. Matches the CSS breakpoint.
@@ -126,7 +115,8 @@ let coverTrackId = null;
 let pollTimer = null;
 let highlightId = null; // newly added (e.g. shared) track to scroll to + flash
 let openId = null; // the row expanded for editing on a phone
-let genrePicks = GENRE_PICKS;
+let genreBasePicks = []; // the server's one-tap picks
+let genrePicks = genreBasePicks;
 const dirtyFields = new Set(); // "id:field" being edited right now
 const rowCache = new Map(); // id -> last-rendered row HTML, to skip untouched DOM
 
@@ -330,7 +320,7 @@ function render() {
   const used = new Map();
   for (const t of tracks) if (t.genre) used.set(t.genre, (used.get(t.genre) || 0) + 1);
   const top = [...used].sort((a, b) => b[1] - a[1]).map(([g]) => g);
-  genrePicks = [...new Set([...top, ...GENRE_PICKS])].slice(0, 8);
+  genrePicks = [...new Set([...top, ...genreBasePicks])].slice(0, 8);
 
   // Reconcile rows keyed by id instead of rebuilding the whole list every poll.
   // Wholesale innerHTML replacement tore down (and repainted) even the input the
@@ -849,8 +839,13 @@ $("#btnCancel").addEventListener("click", async () => {
 });
 $("#btnSettings").addEventListener("click", openSettings);
 
-const dl = $("#genres");
-dl.innerHTML = GENRES.map((g) => `<option value="${g}">`).join("");
+async function loadGenres() {
+  try {
+    const r = await api("/api/library/rules");
+    genreBasePicks = r.genre_picks || [];
+    $("#genres").innerHTML = (r.genres || []).map((g) => `<option value="${g}">`).join("");
+  } catch { /* the picker is optional: no list, free typing */ }
+}
 
 // The list and the toast keep clear of the deck, whatever its height (batch
 // bar, safe area). Ignore 0: the deck hides while a row field has the keyboard.
@@ -869,6 +864,7 @@ if ("serviceWorker" in navigator) {
     applyLang(s.language);
     $("#batchConcurrency").options[0].text = `×${s.concurrency}`;
   } catch { applyLang("en"); }
+  await loadGenres();
   poll();
   refreshStats();
   refreshEngine();
