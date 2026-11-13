@@ -367,7 +367,7 @@ CREATE INDEX edit_changes_edit ON edit_changes (edit_id, file_id);
   `<data>/edits/<edit id>/<file id>.img`, so a cover change can be undone.
 
 **Settings.** One new setting, `edit_history_days` (`GSM_EDIT_HISTORY_DAYS`,
-default 90; 0 keeps the history for good).
+default 30; 0 keeps the history for good).
 
 ### 3.7 What this module needs from the Library module
 
@@ -962,7 +962,7 @@ into the row.
 | What | Kept |
 |---|---|
 | A preview that was never applied | 24 hours |
-| An applied edit: its changes, and the covers it replaced | `edit_history_days`, default 90; 0 keeps them for good |
+| An applied edit: its changes, and the covers it replaced | `edit_history_days`, default 30; 0 keeps them for good |
 | The edit's line in the history (label, date, counts) | for good; without its changes it can no longer be undone, and says so |
 
 A purge runs once a day, with the Library module's trash purge.
@@ -1051,7 +1051,7 @@ by one; the rest were accepted as proposed.
 | 7 | Selection by filter | frozen into ids when the preview is made; at most 10,000 tracks per edit |
 | 8 | Preview | stored on the server; apply writes exactly the stored changes and skips a field that no longer holds the previewed old value; an unused preview expires after 24 hours |
 | 9 | Edits at the same time | one applies at a time; previews are free |
-| 10 | How long an edit can be undone | `edit_history_days`, default 90, covers included |
+| 10 | How long an edit can be undone | `edit_history_days`, default **30**, covers included (the draft proposed 90; the maintainer chose 30) |
 | 11 | Undo against newer changes | undo skips a field changed since and reports it |
 | 12 | The comment | editable with field operations; no rule touches it unless told to, because it holds the source link |
 | 13 | Year or full release date | the year only; a full date in the file is kept unless the year is changed |
