@@ -1,7 +1,8 @@
 # Spike: what a Rekordbox library already holds
 
 Issue: [#21](https://github.com/Fre0Grella/getsetmix/issues/21). Date: 2026-11-13.
-Status: numbers in; the maintainer's verdict on the phrases is pending.
+Status: numbers and verdicts in; the maintainer's review of the 10-track
+phrase sheet can still amend the cue verdict.
 
 ## Question
 
@@ -91,8 +92,9 @@ clearly better than counting bars would.
 This does not show that the phrases are right, because the cues are not all
 hand-made. 1,016 cues, nearly all memory cues, carry a phrase name as their
 comment ("Chorus", "Up", "Outro", "Intro", "Down", "Verse", "Bridge"), and
-982 cues were created on a single day. Those were generated from phrases, by
-Rekordbox or by a tool. Of the cues named after a phrase, only 64% sit on a
+982 cues were created on a single day. The maintainer confirmed where they
+came from: a third-party cue generator that works from Rekordbox's phrase
+analysis. Of the cues named after a phrase, only 64% sit on a
 phrase start today, so the phrases have changed since, or the generator
 offsets its cues. Hand-made and generated cues cannot be told apart
 reliably from the data.
@@ -131,18 +133,29 @@ would read these files with its own code.
 |---|---|---|
 | BPM and key from Rekordbox; match and sort by them | **Continue** | 96 to 100% of tracks covered, exact, nothing to compute |
 | Beat grid from Rekordbox | **Continue** | same coverage as BPM; needed for anything placed on a beat |
-| Cue points from Rekordbox's phrases | **Pending the maintainer's judgement** | see below |
+| Cue points from Rekordbox's phrases | **Stop** | see below |
 
 Against cue points from these phrases:
 
-- The library already holds about a thousand memory cues named after
-  phrases, so this is something Rekordbox, or a tool the DJ already has,
-  does today.
+- It exists already. The library holds about a thousand memory cues placed
+  by a third-party generator from this same phrase analysis.
+- The maintainer's experience with those cues: not awful, but they often do
+  more harm than good. The maintainer puts the weakness in Rekordbox's
+  phrase analysis, so a second generator on the same phrases would inherit
+  it.
 - Phrases cover 72% of the tracks.
 - Half of the phrase lengths are not multiples of 8 bars.
 
 For them: where phrases exist they agree with the existing cues far better
-than a fixed bar grid.
+than a fixed bar grid, but that agreement is partly circular, since many of
+those cues were generated from the phrases.
 
-The maintainer's verdict on the phrases of 10 well-known tracks, laid out by
-`read_rekordbox.py`, goes here once given.
+So cue points are only worth building on a better source of phrase
+boundaries than Rekordbox's. Whether to look for one (a structure model run
+on the audio) is a question for the synthesis
+([#24](https://github.com/Fre0Grella/getsetmix/issues/24)); the cue-write
+spike ([#23](https://github.com/Fre0Grella/getsetmix/issues/23)) does not
+start on Rekordbox's phrases.
+
+The maintainer's review of the phrases of 10 well-known tracks, laid out by
+`read_rekordbox.py`, is still to come and can amend this.
