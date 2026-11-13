@@ -1,6 +1,31 @@
 # CHANGELOG
 
 
+## v1.10.0 (2026-11-13)
+
+### Features
+
+- Ship license notices with every build ([#57](https://github.com/Fre0Grella/getsetmix/pull/57),
+  [`51afcd0`](https://github.com/Fre0Grella/getsetmix/commit/51afcd08a8b816779f4637d872d76f435c0b4b35))
+
+GetSetMix bundles or downloads GPL components (mutagen, ffmpeg), so the notices have to travel with
+  everything it ships (#28).
+
+- Docker image: LICENSE and THIRD-PARTY-NOTICES.md are copied to /usr/share/doc/getsetmix/. -
+  Executables: both files are bundled with --add-data and attached to each GitHub Release as assets.
+  - App: GET /licenses and GET /licenses/agpl serve them, and the footer links to them. - Setup and
+  the companion: both files are embedded, shown from a Licenses link in Setup's window and by
+  gsm-companion licenses.
+
+Refs #28
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.9.0 (2026-11-13)
 
 ### Features
