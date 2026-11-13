@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | draft. The proposals were decided with the maintainer on 2026-11-14 ([section 6](#6-decisions-and-open-questions)); final approval is pending |
+| **Status** | approved by the maintainer on 2026-11-14. The decisions are in [section 6](#6-decisions-and-open-questions); three questions there wait for a check against a real Rekordbox |
 | **Issues** | design [#20](https://github.com/Fre0Grella/getsetmix/issues/20), roadmap [#12](https://github.com/Fre0Grella/getsetmix/issues/12) |
 | **Depends on** | the [Library module](library.md) ([#19](https://github.com/Fre0Grella/getsetmix/issues/19)), approved on 2026-11-14 |
 | **Date** | 2026-11-13 |
