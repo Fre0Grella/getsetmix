@@ -3,6 +3,7 @@ name = "getsetmix"
 version = "1.7.2"
 description = "Self-hosted DJ ingestion service for your homelab."
 requires-python = ">=3.11"
+license = "AGPL-3.0-only"
 
 # --------------------------------------------------------------------------
 # python-semantic-release: version is derived from Conventional Commits on main.

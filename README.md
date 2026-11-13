@@ -369,3 +369,11 @@ companion/       # gsm-companion (Go): imports deliveries into Rekordbox's maste
 | `POST /api/batch/cancel` | Cancel batch, re-stage in-flight |
 | `GET/PUT /api/settings` | Read / update settings |
 | `GET /api/stats` · `GET /api/history` · `POST /api/purge` | Stats, URL history, manual purge |
+
+## Architecture
+
+[`docs/architecture.md`](docs/architecture.md) is the overview: the parts, how they talk, where they run, and the decision log. Design docs for single modules live in `docs/design/`, and the results of research spikes in `docs/research/`.
+
+## License
+
+GetSetMix is free software under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). You can run, study, change and share it; if you offer a modified GetSetMix to others over a network, you have to publish your changes under the same license.
