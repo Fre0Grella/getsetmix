@@ -15,7 +15,10 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, genres, link, metadata, metrics, rekordbox, rules, ytdl
+from . import (
+    __version__, genres, library, library_api, link, metadata, metrics, rekordbox, rules,
+    ytdl,
+)
 from .config import AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, ensure_dirs, settings
 from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
 from .worker import worker
@@ -24,6 +27,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s
 log = logging.getLogger("getsetmix")
 
 app = FastAPI(title="GetSetMix", version=__version__, docs_url=None, redoc_url=None)
+app.include_router(library_api.router)
 STATIC = Path(__file__).parent / "static"
 
 FETCH_CONCURRENCY = asyncio.Semaphore(2)
@@ -513,3 +517,9 @@ async def on_startup():
              settings["library_root"], settings["xml_path"])
     for problem in await asyncio.to_thread(ytdl.problems):
         log.warning("%s", problem)
+    library.start()  # index the library now, in the background, then every 5 minutes
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    library.stop()

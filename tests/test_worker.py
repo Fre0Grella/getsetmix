@@ -69,6 +69,29 @@ def test_file_is_tagged_before_it_is_placed(env, monkeypatch):
     assert ID3(final)["TPE1"].text == ["Some Artist"]
 
 
+def test_a_placed_file_has_its_index_row_at_once(env, monkeypatch):
+    app, tid, music = env
+    from app import library
+    lib = library.current()
+    rows_when_xml_written = []
+    real_add = app.worker.rekordbox.add_track
+
+    def spy_add(*args, **kwargs):
+        # The next step after placing: the row must already be there.
+        rows_when_xml_written.append(lib.list()["items"])
+        return real_add(*args, **kwargs)
+
+    monkeypatch.setattr(app.worker.rekordbox, "add_track", spy_add)
+    monkeypatch.setattr(library.Library, "reconcile",
+                        lambda self: pytest.fail("a download must not need a walk"))
+    app.worker.worker._process(tid)
+
+    [items] = rows_when_xml_written
+    assert [i["path"] for i in items] == ["Some Artist - Night Drive.mp3"]
+    assert items[0]["title"] == "Night Drive" and items[0]["artist"] == "Some Artist"
+    assert lib.file(items[0]["id"])["source_url"] == "https://example.test/x"
+
+
 def test_tagging_failure_leaves_nothing_in_the_library(env, monkeypatch):
     app, tid, music = env
 

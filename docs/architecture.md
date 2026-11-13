@@ -315,7 +315,7 @@ The log starts on 2026-11-13. Earlier choices are described in
 | Hosting downloads for other people carries legal exposure that a self-hosted tool does not. | May limit what a hosted copy can offer. | open |
 | `master.db` is undocumented and changes with Rekordbox versions. | A Rekordbox update can break the importer. | field-by-field checks against a real library; backups before every write |
 | Identity is the path everywhere. | Renames and moves look like a delete plus a new track. | [#19](https://github.com/Fre0Grella/getsetmix/issues/19) |
-| No library index: the app only knows tracks it downloaded, and the listing walks the disk on every request. | No Library view, slow listings on large libraries. | [#19](https://github.com/Fre0Grella/getsetmix/issues/19) |
+| The link listing still walks the disk on every request and knows nothing of the library index, which exists since [#35](https://github.com/Fre0Grella/getsetmix/issues/35). | Slow listings on large libraries; computers cannot learn of changed or deleted tracks. | [#36](https://github.com/Fre0Grella/getsetmix/issues/36) |
 | The tagger writes MP3 and FLAC only, while the link serves nine formats. | Tag edits can't cover the whole library yet. | [#19](https://github.com/Fre0Grella/getsetmix/issues/19), [#20](https://github.com/Fre0Grella/getsetmix/issues/20) |
 | The companion can only add tracks to Rekordbox; it cannot update tags or write cues. | Server-side edits and cue points have no path into the collection. | [#19](https://github.com/Fre0Grella/getsetmix/issues/19), [#23](https://github.com/Fre0Grella/getsetmix/issues/23) |
 | YouTube changes break downloads. | Ingest stops until yt-dlp catches up. | weekly image rebuild; a banner when yt-dlp is stale |

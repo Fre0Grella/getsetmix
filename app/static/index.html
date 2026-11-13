@@ -21,6 +21,7 @@
     })();
   </script>
   <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/library.css" />
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -35,6 +36,10 @@
       <svg class="brand-mark" aria-hidden="true"><use href="#gsm-mark" /></svg>
       <span class="wordmark">getset<em>mix</em></span>
     </a>
+    <nav class="view-switch" aria-label="View">
+      <button type="button" data-view="downloads" aria-pressed="true" data-i18n="viewDownloads">Downloads</button>
+      <button type="button" data-view="library" aria-pressed="false" data-i18n="viewLibrary">Library</button>
+    </nav>
     <button id="btnSettings" class="icon-btn icon-btn--lg" aria-label="Settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
     </button>
@@ -64,6 +69,29 @@
       <p data-i18n="emptyHint">Paste a YouTube or SoundCloud link below. A playlist becomes one row per track.</p>
       <p class="hint hint--touch" data-i18n="shareHint">On Android, install GetSetMix and share links to it straight from YouTube or SoundCloud.</p>
       <p class="hint hint--keys"><kbd>Ctrl</kbd> <kbd>V</kbd> <span data-i18n="pasteAnywhere">works anywhere on this page</span></p>
+    </section>
+  </main>
+
+  <!-- The Library: every audio file under the library root, read-only in this version. -->
+  <main id="libraryView" class="list-wrap lib-wrap">
+    <div id="libUnavailable" class="lib-banner hidden" role="status" data-i18n="libUnavailable"></div>
+    <div id="libProgress" class="lib-progress hidden" role="status">
+      <span id="libProgressText" class="batch-label"></span>
+      <div class="batch-track"><div id="libProgressFill" class="batch-fill"></div></div>
+    </div>
+    <p class="summary"><span id="libCount" class="stats-text"></span></p>
+    <div id="libHead" class="lib-head hidden" aria-hidden="true">
+      <span></span>
+      <span data-i18n="colTrack">Track</span>
+      <span data-i18n="colGenre">Genre</span>
+      <span class="num" data-i18n="colTime">Time</span>
+    </div>
+    <div id="libList" class="lib-list"></div>
+    <div id="libMore" class="lib-more" aria-hidden="true"></div>
+    <section id="libEmpty" class="empty hidden">
+      <svg class="empty-mark" aria-hidden="true"><use href="#gsm-mark" /></svg>
+      <h1 id="libEmptyTitle"></h1>
+      <p id="libEmptyHint"></p>
     </section>
   </main>
 
@@ -126,6 +154,15 @@
         </div>
       </div>
     </div>
+  </footer>
+
+  <!-- The Library's deck: search sits under the thumb, where the link field is. -->
+  <footer id="libDock" class="dock lib-dock">
+    <form id="libSearchForm" class="add" role="search" autocomplete="off">
+      <svg class="add-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="libSearch" type="search" spellcheck="false" enterkeyhint="search"
+             data-i18n-ph="libSearchPh" placeholder="Search title, artist, album, genre or file" aria-label="Search" />
+    </form>
   </footer>
 
   <!-- Settings: a full-screen sheet on phones, a side panel on wide screens -->
@@ -278,5 +315,6 @@
   <div id="toast" class="toast hidden" role="status"></div>
 
   <script src="/static/app.js"></script>
+  <script src="/static/library.js"></script>
 </body>
 </html>

@@ -4,6 +4,8 @@ from __future__ import annotations
 import sqlite3
 import threading
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 from .config import DATA_DIR
@@ -41,6 +43,43 @@ CREATE TABLE IF NOT EXISTS url_history (
 CREATE TABLE IF NOT EXISTS counters (
     key TEXT PRIMARY KEY,
     value REAL DEFAULT 0
+);
+-- The library index (docs/design/library.md, 3.2); written by app/library.py.
+CREATE TABLE IF NOT EXISTS library_files (
+    id               INTEGER PRIMARY KEY,
+    path             TEXT    NOT NULL,
+    audio_id         TEXT    NOT NULL,
+    size             INTEGER NOT NULL,
+    mtime_ns         INTEGER NOT NULL,
+    format           TEXT    NOT NULL,
+    title            TEXT    NOT NULL DEFAULT '',
+    artist           TEXT    NOT NULL DEFAULT '',
+    album            TEXT    NOT NULL DEFAULT '',
+    genre            TEXT    NOT NULL DEFAULT '',
+    year             INTEGER,
+    comment          TEXT    NOT NULL DEFAULT '',
+    has_cover        INTEGER NOT NULL DEFAULT 0,
+    multi            TEXT    NOT NULL DEFAULT '',
+    duration         REAL,
+    bitrate          INTEGER,
+    sample_rate      INTEGER,
+    source_url       TEXT    NOT NULL DEFAULT '',
+    search           TEXT    NOT NULL,
+    added_at         TEXT    NOT NULL,
+    rev              INTEGER NOT NULL,
+    state            TEXT    NOT NULL DEFAULT 'present',
+    state_changed_at TEXT,
+    trash_path       TEXT
+);
+-- One live row per path. Tombstones (trashed, gone) keep their last path,
+-- which a new file may take, so the design's UNIQUE is partial here.
+CREATE UNIQUE INDEX IF NOT EXISTS library_files_path
+    ON library_files (path) WHERE state IN ('present', 'missing');
+CREATE INDEX IF NOT EXISTS library_files_audio ON library_files (audio_id);
+CREATE INDEX IF NOT EXISTS library_files_state ON library_files (state, rev);
+CREATE TABLE IF NOT EXISTS library_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT
 );
 """
 
@@ -89,6 +128,17 @@ class Database:
         with self._lock:
             rows = self._conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
+
+    @contextmanager
+    def transaction(self) -> Iterator[sqlite3.Connection]:
+        """The connection, held for several statements committed as one."""
+        with self._lock:
+            try:
+                yield self._conn
+            except BaseException:
+                self._conn.rollback()
+                raise
+            self._conn.commit()
 
     # -------------------------------------------------------------- tracks
     def create_track(self, url: str, **fields) -> str:
