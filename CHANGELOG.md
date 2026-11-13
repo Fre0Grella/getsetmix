@@ -1,6 +1,89 @@
 # CHANGELOG
 
 
+## v1.7.3 (2026-11-13)
+
+### Bug Fixes
+
+- **worker**: Tag a file before placing it ([#33](https://github.com/Fre0Grella/getsetmix/pull/33),
+  [`82ddbc1`](https://github.com/Fre0Grella/getsetmix/commit/82ddbc16531f86f1b0b5ea8b12cdc3c5e0af80b2))
+
+_process moved the download into the library under its final name and only then tagged it. In that
+  window /api/link already listed and served the file, and paired computers fetch each path once, so
+  they could keep an untagged or half-rewritten copy.
+
+Tag the file in the temporary folder first, then place it. Placing still lands under a hidden name
+  and is renamed, so the file only appears complete. A tagging failure now leaves nothing in the
+  library.
+
+Closes #30
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+### Documentation
+
+- Add AGPL-3.0 license and architecture ([#25](https://github.com/Fre0Grella/getsetmix/pull/25),
+  [`1a44af5`](https://github.com/Fre0Grella/getsetmix/commit/1a44af5e9f457ca58ce7a5e4aec59ac02091a218))
+
+The repository had no license and no architecture document.
+
+- LICENSE: the AGPL-3.0 text; README and pyproject.toml name it (AGPL-3.0-only). -
+  docs/architecture.md: an arc42 overview (goals, constraints, context, strategy, building blocks,
+  runtime, deployment, cross-cutting concepts, risks, glossary) with a decision log holding the six
+  decisions taken while planning the roadmap: license, commercial-use-only components, where
+  analysis runs, audio-hash identity, no renaming in the first Library version, and which roadmap
+  features are in and out.
+
+Closes #17 Refs #12
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+
+- Add third-party notices ([#32](https://github.com/Fre0Grella/getsetmix/pull/32),
+  [`78aef1b`](https://github.com/Fre0Grella/getsetmix/commit/78aef1b4137b11fb8a0dabfc84343124efbfae03))
+
+Follow-up to the license check (#18), for #28.
+
+- THIRD-PARTY-NOTICES.md lists every component GetSetMix ships or downloads, grouped by where it
+  ships, with its license and, for the GPL ones (mutagen, each ffmpeg build), where the source is
+  offered. The README's License section links to it. - docs/research/licenses.md: the macOS ffmpeg
+  build Setup fetches is GPL-3.0-or-later with no non-free parts; madmom bundles its non-commercial
+  models, so madmom and all-in-one are "don't use".
+
+Still open on #28: the ffmpeg check inside the Docker image, the Harmonix Set audio terms, and
+  shipping the notices in the builds.
+
+Refs #28
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+- **research**: Check tool licenses ([#26](https://github.com/Fre0Grella/getsetmix/pull/26),
+  [`be15e67`](https://github.com/Fre0Grella/getsetmix/commit/be15e6703d89d8777c220e79e16f2b6bdbfcec2b))
+
+Read the license of every tool in issue 18 from its own repository, package metadata or model card.
+  Records the verdict for each under AGPL-3.0-only with a paid hosted offering, the findings that
+  need a replacement or a way around, and the correction that the MTG models are CC BY-NC-SA 4.0,
+  not CC BY-NC-ND.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+- **research**: Read Rekordbox analysis ([#27](https://github.com/Fre0Grella/getsetmix/pull/27),
+  [`00e9191`](https://github.com/Fre0Grella/getsetmix/commit/00e9191e56e6538d32af0226ecbcf25e65a10dc3))
+
+Spike for #21: a read-only pass over a copy of a real Rekordbox library, to see how much analysis
+  GetSetMix never has to compute.
+
+- docs/research/rekordbox-read.md: key on 100% of 569 tracks, BPM and beat grid on 96%, phrases on
+  72%, vocal data on 11%. Cues live only in master.db; the cue tags in the local analysis files are
+  empty. - Verdicts: continue for BPM/key match and sort. Stop for cue points from Rekordbox's
+  phrases: on 10 tracks with cues the maintainer vouches for, 64% of the cue positions sit on a
+  phrase start and 57% of the phrase starts have no cue. - spikes/rekordbox-read/: the throwaway
+  scripts behind the numbers.
+
+Closes #21
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+
+
 ## v1.7.2 (2026-11-12)
 
 ### Bug Fixes
