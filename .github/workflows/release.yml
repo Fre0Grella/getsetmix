@@ -85,6 +85,8 @@ jobs:
         run: >
           pyinstaller --onefile --name getsetmix
           --add-data "app/static${{ matrix.sep }}app/static"
+          --add-data "LICENSE${{ matrix.sep }}."
+          --add-data "THIRD-PARTY-NOTICES.md${{ matrix.sep }}."
           --collect-all yt_dlp
           --collect-all yt_dlp_ejs
           ${{ matrix.icon }}
@@ -152,6 +154,13 @@ jobs:
     if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}   # for LICENSE and the notices
+          sparse-checkout: |
+            LICENSE
+            THIRD-PARTY-NOTICES.md
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@v4
         with:
           pattern: getsetmix-*   # only the executables, not the buildx .dockerbuild artifact
@@ -162,6 +171,11 @@ jobs:
           pattern: GetSetMix-Setup-*
           path: dist
           merge-multiple: true
+
+      # The notices go next to the downloads, so anyone who fetches a build
+      # can fetch them too.
+      - name: Add the license files
+        run: cp LICENSE THIRD-PARTY-NOTICES.md dist/
 
       - uses: softprops/action-gh-release@v2
         with:

@@ -13,9 +13,9 @@ on:
   push:
     branches: [main]
     tags: ["companion-v*"]
-    paths: ["companion/**", "app/static/assets/icon.png", ".github/workflows/companion.yml"]
+    paths: ["companion/**", "app/static/assets/icon.png", "LICENSE", "THIRD-PARTY-NOTICES.md", ".github/workflows/companion.yml"]
   pull_request:
-    paths: ["companion/**", "app/static/assets/icon.png", ".github/workflows/companion.yml"]
+    paths: ["companion/**", "app/static/assets/icon.png", "LICENSE", "THIRD-PARTY-NOTICES.md", ".github/workflows/companion.yml"]
   workflow_dispatch:
 
 permissions:

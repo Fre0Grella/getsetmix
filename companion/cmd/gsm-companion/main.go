@@ -21,6 +21,7 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/importer"
 	"github.com/Fre0Grella/getsetmix/companion/internal/install"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
+	"github.com/Fre0Grella/getsetmix/companion/internal/notices"
 	"github.com/Fre0Grella/getsetmix/companion/internal/rekordbox"
 	"github.com/Fre0Grella/getsetmix/companion/internal/scan"
 	"github.com/Fre0Grella/getsetmix/companion/internal/setup"
@@ -42,6 +43,7 @@ Usage:
   gsm-companion watch                   stay running, import as tracks arrive
   gsm-companion status
   gsm-companion uninstall
+  gsm-companion licenses                third-party notices and the AGPL text
   gsm-companion version
 
 Rekordbox has to be closed while tracks are written to its collection, so
@@ -84,6 +86,8 @@ func main() {
 		err = cmdStatus(home)
 	case "version", "--version", "-v":
 		fmt.Println(version)
+	case "licenses":
+		fmt.Print(notices.Text())
 	case "help", "--help", "-h":
 		fmt.Printf(usage, version)
 	default:

@@ -6,6 +6,7 @@ import base64
 import json
 import logging
 import secrets
+import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -470,6 +471,38 @@ async def metrics_endpoint():
 @app.get("/healthz", response_class=PlainTextResponse)
 async def healthz():
     return "ok"
+
+
+# ----------------------------------------------------------------- licenses
+def _notice_file(name: str) -> Path | None:
+    """LICENSE and THIRD-PARTY-NOTICES.md, wherever this build keeps them: the
+    source tree, the Docker image, or the PyInstaller bundle."""
+    roots = [Path(__file__).parent.parent, Path("/usr/share/doc/getsetmix")]
+    if getattr(sys, "_MEIPASS", None):
+        roots.insert(0, Path(sys._MEIPASS))
+    for root in roots:
+        if (root / name).is_file():
+            return root / name
+    return None
+
+
+# Public on purpose, like /healthz: the notices hold no secrets and the footer
+# link must work in a plain browser tab, where no token header is sent.
+@app.get("/licenses", response_class=PlainTextResponse)
+async def licenses():
+    found = _notice_file("THIRD-PARTY-NOTICES.md")
+    if found is None:
+        raise HTTPException(404, "notices not found in this build")
+    return (found.read_text(encoding="utf-8")
+            + "\n\n---\n\nGetSetMix itself is AGPL-3.0-only. Full text: /licenses/agpl\n")
+
+
+@app.get("/licenses/agpl", response_class=PlainTextResponse)
+async def licenses_agpl():
+    found = _notice_file("LICENSE")
+    if found is None:
+        raise HTTPException(404, "license not found in this build")
+    return found.read_text(encoding="utf-8")
 
 
 # --------------------------------------------------------------------- UI
