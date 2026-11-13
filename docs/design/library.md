@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | draft, waiting for the maintainer's approval |
+| **Status** | draft. The proposals were decided with the maintainer on 2026-11-14 ([section 6](#6-decisions-and-open-questions)); final approval is pending |
 | **Issues** | design [#19](https://github.com/Fre0Grella/getsetmix/issues/19), feature [#11](https://github.com/Fre0Grella/getsetmix/issues/11), roadmap [#12](https://github.com/Fre0Grella/getsetmix/issues/12) |
 | **Date** | 2026-11-13 |
 
@@ -14,8 +14,9 @@ features run wherever the app runs (decision 3), and only components that
 allow commercial use ship (decision 2). It adds no new dependency: tags are
 read and written with mutagen, hashes come from the standard libraries.
 
-Choices in this document that the maintainer has not made are marked
-**Proposal** and collected under [Open questions](#6-open-questions).
+The choices this draft proposed were reviewed with the maintainer and are
+recorded under [Decisions and open questions](#6-decisions-and-open-questions).
+What is still marked **Proposal** has not been decided.
 
 ## 1. Goals and non-goals
 
@@ -57,7 +58,7 @@ Checked against the code on 2026-11-13.
 |---|---|
 | The app only knows tracks it downloaded. The `tracks` table is the download queue; *Clear finished rows* deletes ingested rows. | `app/db.py` |
 | `/api/link/files` walks the disk on every request and returns `path`, `size`, `mtime` per file. Names starting with `.` or `~`, or ending in `.part` or `.tmp`, are skipped, folders included. | `app/link.py` |
-| The worker moves a download into the library root under its final name and tags it afterwards. For a moment the untagged file is listed and can be fetched. | `app/worker.py`, `_process` |
+| The worker tags a download in the temp folder and then moves it into the library root (since [#33](https://github.com/Fre0Grella/getsetmix/pull/33)). Nothing records the file in a table that outlives *Clear finished rows*. | `app/worker.py`, `_process` |
 | The tagger writes MP3 (ID3v2.4) and FLAC only, always rewrites title, artist and comment, and is only ever called on a fresh download. | `app/tagger.py` |
 | The link serves nine extensions: mp3, flac, m4a, aac, aif, aiff, wav, ogg, opus. | `app/link.py` |
 | The companion imports seven of them. Ogg and Opus files are downloaded and then ignored, because Rekordbox cannot import them. | `companion/internal/audio/probe.go` |
@@ -133,7 +134,8 @@ CREATE TABLE library_meta (
 - `rev` is one counter for the whole library. Every change to a row (new,
   tags changed, moved, trashed, restored, gone) takes the next value.
 - `audio_id` is not unique. Two files with the same audio are two rows, and
-  the view says so.
+  the view says so. The link lists only one of them (the oldest row), so a
+  computer fetches the audio once.
 - A row in state `trashed` or `gone` is a **tombstone**. It keeps the audio
   id, the last path and the time.
 
@@ -277,6 +279,11 @@ ignore what they don't know.
 
 `GET /api/link/file?path=` is unchanged.
 
+**Proposal**: a companion does not download a file Rekordbox cannot import
+(Ogg and Opus today), and its `status` says how many it skipped and why.
+The server keeps listing them, so the Library view stays complete
+([#31](https://github.com/Fre0Grella/getsetmix/issues/31)).
+
 **Compatibility.**
 
 | Companion | Server | Behaviour |
@@ -354,14 +361,14 @@ stateDiagram-v2
    tags changed outside GetSetMix; they are read again. Different audio id:
    the content was replaced, which is the old track gone and a new one.
 5. A `present` row whose path is not on disk becomes `missing`. It becomes
-   `gone` only when it is still missing after the grace time (**Proposal**:
-   15 minutes), because sync clients delete and recreate files while they
-   update them.
+   `gone` only when it is still missing after the grace time, 24 hours.
+   Sync clients delete and recreate files while they update them, and a
+   folder can be reorganised by hand over an evening; a day leaves room for
+   both.
 6. Every change takes the next `rev`.
 
 **The guard.** If one pass would mark more than 20% of the library, and more
-than 10 files, as missing, it marks none and sets `unavailable`
-(**Proposal**). An unmounted volume or a network share that dropped must
+than 10 files, as missing, it marks none and sets `unavailable`. An unmounted volume or a network share that dropped must
 never look like a mass delete. The Library view shows a banner, and the next
 pass that finds the files clears it.
 
@@ -370,17 +377,17 @@ pass that finds the files clears it.
 | Trigger | Why |
 |---|---|
 | App start | catch what changed while it was off |
-| Every 5 minutes (**Proposal**) | files added, changed or removed by Nextcloud, Syncthing or by hand |
+| Every 5 minutes | files added, changed or removed by Nextcloud, Syncthing or by hand |
 | `/api/link/files`, if the last pass is older than 60 seconds | computers see new tracks as fast as today |
 | `POST /api/library/rescan`, and opening the Library view | the DJ wants it now |
 | The worker, directly | a finished download is inserted without a walk |
 
 Passes never overlap; a trigger during a pass is dropped.
 
-**The worker.** Today a download is visible under its final name before it
-is tagged. This design changes the order: tag the file in the temp folder,
-then move it into the library, then insert its row. A computer never sees
-an untagged track, and the row is there the moment the file is.
+**The worker.** A download is tagged in the temp folder and then moved into
+the library, so a computer never sees an untagged track. This design adds
+the last step: the worker inserts the row right after the move, so the row
+is there the moment the file is.
 
 **First run over an existing library.** Every file is hashed once, in the
 background, in batches committed as they go, so a restart resumes. The
@@ -465,7 +472,7 @@ offsets in `moov`, but the bytes inside `mdat` stay the same.
 pages that follow and changes their checksums. The rule is to rebuild the
 packets from the pages of the first stream and hash every packet except the
 second, which is the comment packet in both Vorbis and Opus. A chained file
-gets the fallback id. **Proposal**: this is not built in the first version.
+gets the fallback id. This is not built in the first version.
 Rekordbox cannot import these files, the worker never produces them, and
 they are read-only in the Library view, so the fallback id serves them until
 they matter.
@@ -528,8 +535,8 @@ A cover edit goes the same way, with the existing cover search and upload.
 - **Purge** runs once a day and on demand. It deletes trash folders older
   than `trash_days` and turns their rows to `gone`.
 - **A tombstone** is a row in state `trashed` or `gone`. It is what
-  `removed[]` in the link listing is built from. **Proposal**: tombstones
-  are kept for good. A paired computer can be off for months and must still
+  `removed[]` in the link listing is built from. Tombstones are kept for
+  good. A paired computer can be off for months and must still
   learn of a delete when it comes back; the rows are tiny.
 
 A file that vanishes without GetSetMix (deleted in the Nextcloud app, or by
@@ -634,7 +641,7 @@ sequenceDiagram
 5. **Only fields that changed on the server are written.** If the DJ changed
    the artist in Rekordbox and the server changed the genre, the artist in
    Rekordbox is kept. If both changed the same field, the server's value
-   wins (**Proposal**).
+   wins.
 6. If no row has that path, the DJ removed the track from Rekordbox. It is
    not imported again.
 
@@ -647,7 +654,7 @@ sequenceDiagram
 2. Nothing is removed from the collection. Removing a track would also lose
    its cues, grid and playlist entries; that decision is the DJ's.
 3. With the option *Delete the local file too* (off by default) the local
-   file goes to the system's recycle bin (**Proposal**), so even that is
+   file goes to the system's recycle bin, so even that is
    recoverable. Without the option the file stays.
 4. If the id is listed again later (a restore), the track is taken out of
    that playlist.
@@ -659,7 +666,7 @@ imports do.
 folder is already synced here*, there is no fetch. Nextcloud or Syncthing
 replaces a changed file itself, and the importer's scan picks the change up
 by size and time, as in step 3. Without a paired server the importer has no
-remembered tags to compare with, so it writes all four fields (**Proposal**).
+remembered tags to compare with, so it writes all four fields.
 Deletes arrive as files that vanish; see local mode below.
 
 **Migration of `fetched.json`**, on the first fetch against a protocol 2
@@ -691,8 +698,8 @@ news.
 An edit can fail with `423` when Rekordbox has the file loaded on a deck.
 The view says to unload it and try again.
 
-**Proposal**: the "handled file is gone" rule is used in local mode and for
-synced folders only. With a paired server a missing local file means the DJ
+The "handled file is gone" rule is used in local mode and for synced
+folders only. With a paired server a missing local file means the DJ
 deleted it on purpose, and the tombstone from the server is what counts.
 
 ### 4.8 Who may delete
@@ -733,27 +740,34 @@ before the companion slices ship:
 - [ ] A USB export of an edited track works and carries the new tags.
 - [ ] The same with Cloud Library Sync on, if available.
 
-## 6. Open questions
+## 6. Decisions and open questions
 
-Each is a choice made in this draft that the maintainer can overrule.
+Decided with the maintainer on 2026-11-14. The first four were discussed one
+by one; the rest were accepted as proposed.
 
-| # | Question | Proposed here |
+| # | Question | Decision |
 |---|---|---|
-| 1 | Id format | `a1_` plus 128 bits of SHA-256 in hex; `f1_` for the fallback |
-| 2 | Ogg and Opus hashing | specified, not built in the first version; fallback id until then |
-| 3 | FLAC: hash the frame bytes, or use the MD5 in STREAMINFO | the frame bytes |
-| 4 | Exact duplicates (same audio, two files) | two rows, flagged in the view; a computer fetches one |
-| 5 | Grace time before a missing file counts as deleted | 15 minutes |
-| 6 | The guard against mass deletes | no tombstones when more than 20% and more than 10 files go missing in one pass |
-| 7 | How often to reconcile | every 5 minutes, plus the triggers in 4.1 |
-| 8 | How long tombstones are kept | for good |
-| 9 | Server and Rekordbox both changed the same field | the server's value wins |
-| 10 | Synced-folder mode with no paired server | all four fields are written on a change |
-| 11 | "Handled file is gone" as a delete signal | local mode and synced folders only |
-| 12 | Where the trash lives | inside the library root, as #11 says. A library synced by Nextcloud or Syncthing carries `.trash/` with it when hidden files are synced; the alternative is a folder under the data directory, at the price of a copy instead of a rename. |
+| 1 | Grace time before a file that vanished outside GetSetMix counts as deleted | **24 hours** (the draft proposed 15 minutes; the maintainer asked for longer) |
+| 2 | The guard against mass deletes | no tombstones when more than 20% and more than 10 files go missing in one pass |
+| 3 | Server and Rekordbox both changed the same field | the server's value wins |
+| 4 | Where the trash lives | inside the library root, `<library>/.trash/`. A library synced by Nextcloud or Syncthing carries it along when hidden files are synced. |
+| 5 | Exact duplicates (same audio, two files) | two rows, flagged in the view; a computer fetches one |
+| 6 | Id format | `a1_` plus 128 bits of SHA-256 in hex; `f1_` for the fallback |
+| 7 | Ogg and Opus hashing | specified, not built in the first version; fallback id until then |
+| 8 | FLAC: hash the frame bytes, or use the MD5 in STREAMINFO | the frame bytes |
+| 9 | How often to reconcile | every 5 minutes, plus the triggers in 4.1 |
+| 10 | How long tombstones are kept | for good |
+| 11 | Synced-folder mode with no paired server | all four fields are written on a change |
+| 12 | "Handled file is gone" as a delete signal | local mode and synced folders only |
 | 13 | Search | a folded `search` column matched with `LIKE`; SQLite full-text search if it proves too slow |
 | 14 | Editing M4A and AIFF | a later slice |
 | 15 | *Delete the local file too*: where the local file goes | the system's recycle bin, not a hard delete |
+
+Still a proposal:
+
+| # | Question | Proposed here |
+|---|---|---|
+| 16 | Files Rekordbox cannot import (Ogg, Opus) | the companion skips them and says so; the server keeps listing them ([3.5](#35-link-protocol-2), [#31](https://github.com/Fre0Grella/getsetmix/issues/31)) |
 
 Still open, with no proposal:
 
@@ -794,8 +808,8 @@ Thin slices, each working end to end, in the order they would be built.
 Issues are cut from this list once the design is approved.
 
 1. **Index and a read-only Library list.** The tables, the Python audio hash
-   with its fixtures, reconcile with the guard, the worker's new order (tag,
-   then place, then insert), `GET /api/library` and a plain list in the UI
+   with its fixtures, reconcile with the guard, the worker inserting the row
+   after it places a file, `GET /api/library` and a plain list in the UI
    with search. Measures the costs estimated in 4.1.
 2. **Link protocol 2.** `id`, `rev` and `removed[]` in the listing, served
    from the index. The Go audio hash against the shared fixtures. The
