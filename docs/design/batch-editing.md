@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Status** | draft, waiting for the maintainer's approval |
+| **Status** | draft. The proposals were decided with the maintainer on 2026-11-14 ([section 6](#6-decisions-and-open-questions)); final approval is pending |
 | **Issues** | design [#20](https://github.com/Fre0Grella/getsetmix/issues/20), roadmap [#12](https://github.com/Fre0Grella/getsetmix/issues/12) |
-| **Depends on** | the [Library module](library.md) ([#19](https://github.com/Fre0Grella/getsetmix/issues/19)), itself a draft |
+| **Depends on** | the [Library module](library.md) ([#19](https://github.com/Fre0Grella/getsetmix/issues/19)), approved on 2026-11-14 |
 | **Date** | 2026-11-13 |
 
 System-level decisions are in the
@@ -16,8 +16,8 @@ components that allow commercial use ship (decision 2). It adds no
 dependency: the rules are plain Python, and tags are written with mutagen
 through the Library module.
 
-Choices in this document that the maintainer has not made are marked
-**Proposal** and collected under [Open questions](#6-open-questions).
+The choices this draft proposed were reviewed with the maintainer and are
+recorded under [Decisions and open questions](#6-decisions-and-open-questions).
 Where this module needs something the Library draft does not provide, it is
 written as a requirement on that module in
 [3.7](#37-what-this-module-needs-from-the-library-module), not redefined
@@ -92,7 +92,7 @@ Because the word "batch" is taken by downloads, this module calls one run an
 | Field | Type | Notes |
 |---|---|---|
 | `title`, `artist`, `album`, `genre` | text | the four fields the Library module edits |
-| `year` | integer, 1900 to next year, or empty | **Proposal**: the year only; a full release date in the file is kept untouched unless the year is changed |
+| `year` | integer, 1900 to next year, or empty | the year only; a full release date in the file is kept untouched unless the year is changed |
 | `comment` | text | editable with field operations; **no rule touches it by default**, because it holds the source link |
 | `cover` | image | set or clear for a whole selection; not a target of rules |
 
@@ -111,12 +111,12 @@ A selection is one of two things:
 - `ids` are Library file ids. `filter` takes the same `q`, `genre` and
   `folder` as `GET /api/library`, so "select all" on a filtered view is one
   request and not thousands of ids.
-- **Proposal**: a filter is resolved into a list of ids **when the preview
+- A filter is resolved into a list of ids **when the preview
   is made** and frozen there. Tracks that arrive later are not part of the
   edit, and what is applied is what was previewed.
 - Only rows in state `present` take part. Rows that are not `editable`
   (read-only format, fallback id) are counted as *skipped*, with the reason.
-- **Proposal**: at most 10,000 tracks per edit. A larger selection is
+- At most 10,000 tracks per edit. A larger selection is
   refused with `413`, to be split by filter.
 
 ### 3.4 Steps
@@ -145,7 +145,7 @@ A step is a JSON object. There are two kinds.
 | `set_cover` | cover | the image from an upload made first with `POST /api/library/edits/covers`, or from `{"source": "url:https://…"}` |
 | `clear_cover` | cover | the embedded cover is removed |
 
-**Proposal**: `replace` matches plain text, not regular expressions. See
+`replace` matches plain text, not regular expressions. See
 [4.1](#41-the-rule-model).
 
 **Rules**
@@ -232,7 +232,7 @@ will download again because of this edit
       "file_id": 319,
       "path": "Nova - Night Drive.mp3",
       "field": "title",
-      "old": "NIGHT DRIVE (Original Mix) [FREE DOWNLOAD]",
+      "old": "night drive (original mix) [free download]",
       "new": "Night Drive",
       "by": [
         { "step": 0, "rule": "promo.remove" },
@@ -367,7 +367,7 @@ CREATE INDEX edit_changes_edit ON edit_changes (edit_id, file_id);
   `<data>/edits/<edit id>/<file id>.img`, so a cover change can be undone.
 
 **Settings.** One new setting, `edit_history_days` (`GSM_EDIT_HISTORY_DAYS`,
-**Proposal**: default 90; 0 keeps the history for good).
+default 90; 0 keeps the history for good).
 
 ### 3.7 What this module needs from the Library module
 
@@ -394,8 +394,8 @@ the settings), because the `genre.map` rule runs there.
 
 ### 4.1 The rule model
 
-**Proposal: a fixed menu of parameterised rules, plus plain find and
-replace. No rule language.**
+**A fixed menu of parameterised rules, plus plain find and replace. No rule
+language.**
 
 - The catalogue in 4.2 is the menu. Each rule is one Python function with a
   few parameters, a default set of fields, and a table of examples that is
@@ -422,7 +422,7 @@ rule that is missing can be added to the catalogue in one small change. A
 language would be paid for in full on the first day and used for the same
 dozen fixes.
 
-**Proposal: no regular expressions in the first version**, not even in
+**No regular expressions in the first version**, not even in
 find and replace. They are the rule language by another door, they are
 unusable on a phone, and a pattern that backtracks badly can pin the server.
 If the menu proves too narrow, a regex option on `replace` is the smallest
@@ -465,7 +465,7 @@ works on when the step names none.
 | `mix.remove_default` | "(Original Mix)" and its kin | title | `labels` (list below) |
 | `mix.brackets` | one bracket style for mix and remix names | title | `mix_words` (list below) |
 | `artist.separators` | one separator between artists | artist | `from` (list below), `to` (`, `), `keep` (empty) |
-| `case.title` | fixes ALL CAPS and all lower case | title, album | `only_uniform` (true), `small_words`, `keep` |
+| `case.title` | fixes values written all in lower case | title, album | `scope` (`lower`), `small_words`, `keep` |
 | `genre.map` | genre spellings onto the app's list | genre | `aliases` (table below) |
 | `year.extract` | a year out of the title or album | year, title, album | `remove` (false) |
 
@@ -553,7 +553,7 @@ Works on title and artist together. Run it after `feat.normalise`.
 
 The featured artist goes before a mix name in the title, never after it.
 
-**Proposal**: the default is `title`. On a player, browsing by artist then
+The default is `title`. On a player, browsing by artist then
 shows one entry per artist and not one per collaboration.
 
 #### `mix.remove_default`
@@ -599,7 +599,7 @@ never touched.
 | `"Nova & Kito"`, with ` & ` added to `from` | `"Nova, Kito"` |
 | `"Sun & Moon"`, same step, `keep: ["Sun & Moon"]` | unchanged |
 
-**Proposal**: ` & ` and ` and ` are not separators by default. Many acts
+` & ` and ` and ` are not separators by default. Many acts
 carry them in their name, and a rule cannot tell an act from a pair.
 
 #### `case.title`
@@ -611,23 +611,25 @@ capitalised. A word in `keep` is written exactly as listed; the default
 holds DJ, MC, UK, US, USA, NYC, LA, EP, LP, VIP, ID, II, III, IV, EDM, BPM,
 R&B, and the DJ adds artist spellings to it.
 
-| `only_uniform` | Meaning |
+| `scope` | Meaning |
 |---|---|
-| true (default) | only a value that is entirely upper case or entirely lower case is changed |
-| false | every value is re-cased |
+| `lower` (default) | only a value that is entirely lower case is changed |
+| `uniform` | a value entirely in lower case, or entirely in upper case, is changed |
+| `all` | every value is re-cased |
 
 | Before | After |
 |---|---|
-| `"NIGHT DRIVE"` | `"Night Drive"` |
 | `"night drive (extended mix)"` | `"Night Drive (Extended Mix)"` |
-| `"LOST IN THE CITY"` | `"Lost in the City"` |
-| `"NIGHT DRIVE (VIP MIX)"` | `"Night Drive (VIP Mix)"` |
+| `"lost in the city"` | `"Lost in the City"` |
+| `"night drive (vip mix)"` | `"Night Drive (VIP Mix)"` |
+| `"NIGHT DRIVE"` | unchanged with the default. With `scope: uniform`: `"Night Drive"` |
 | `"Night Drive"` | unchanged |
 | `"night Drive pt. II"` | unchanged with the default: the value is mixed case |
 
-**Proposal**: the artist is not a default field. An artist written in
-capitals is usually written that way on purpose. The rule can be aimed at
-the artist by naming the field in the step.
+Capitals are left alone by default: a title or a name written in capitals
+is usually written that way on purpose. For the same reason the artist is
+not a default field. The rule can be aimed at the artist, or widened to
+capitals, by naming the field or the scope in the step.
 
 #### `genre.map`
 
@@ -667,7 +669,7 @@ already reads it.
 
 #### The built-in rule set
 
-**Proposal**: one rule set ships with the app, **Standard cleanup**, as a
+One rule set ships with the app, **Standard cleanup**, as a
 starting point. It can be copied and changed, not removed. Its order:
 
 1. `promo.remove`
@@ -722,7 +724,7 @@ second.
 run the rules again. This is the heart of "nothing is written blind": the
 DJ confirms a list of changes, and that exact list is what happens.
 
-**Proposal**: a preview that is not applied expires after 24 hours. It also
+A preview that is not applied expires after 24 hours. It also
 cannot be applied when it is older than another edit applied since: the
 answer is `410`, and the UI makes a fresh preview with the same steps.
 
@@ -794,7 +796,7 @@ For each track with pending changes:
 | `no space` | the disk is full | free space, apply again |
 | `write error` | anything else from the tagger or the file system | read the detail; apply again |
 
-**One edit applies at a time** (**Proposal**). A second apply is refused
+**One edit applies at a time.** A second apply is refused
 with `409` until the first is done. Previews can be made meanwhile.
 
 **Together with downloads.** A download only ever creates a new file, and
@@ -829,7 +831,7 @@ the rest is read-only until that module opens them.
 
 - **Year.** When a file holds a full date and the year is not changed, the
   date is not touched. When the year is changed, the tag is written as the
-  year alone (**Proposal**).
+  year alone.
 - **Several values.** Where a file holds several values for a field, an
   edit of that field writes one value, and the preview warns
   (`merges_values`). A field that is not edited keeps its several values.
@@ -885,7 +887,7 @@ Rekordbox starts and every 15 minutes otherwise, so a large edit arrives
 over several runs; each track is consistent on its own, so a half-arrived
 edit is harmless. The preview says how many tracks and bytes will travel
 (`resend`), so the DJ decides with the number in front of them.
-**Proposal**: accept this in the first version. The Library draft rejects
+This is accepted in the first version. The Library design rejects
 sending tags without the file, for good reasons; if large edits prove
 painful in use, that decision is the one to revisit, in that module.
 
@@ -915,7 +917,7 @@ covers them
 ([L4](#37-what-this-module-needs-from-the-library-module)).
 
 When the DJ changed a field in Rekordbox and the server changed the same
-field, the Library module's rule decides (its proposal: the server wins). A
+field, the Library module's rule decides: the server wins. A
 batch makes that rule matter more, since it touches many tracks at once;
 nothing here changes it.
 
@@ -932,7 +934,7 @@ swapped: the field must still hold the value the edit wrote.
 | Case | What undo does |
 |---|---|
 | The field still holds what the edit wrote | writes the old value back; the original change becomes `undone` |
-| The field was changed again since, by hand or by a later edit | leaves it alone and reports it as `conflict` (**Proposal**). Undo never overwrites newer work. |
+| The field was changed again since, by hand or by a later edit | leaves it alone and reports it as `conflict`. Undo never overwrites newer work. |
 | The track is in the trash | reports it as `gone`. Restore the track, then undo again. |
 | The track was deleted for good | nothing to undo |
 | Only some tracks are asked for | only their changes are reverted; the edit shows as partly undone |
@@ -955,7 +957,7 @@ into the row.
 - Undo cannot reach a USB stick that was exported in between. The next
   export carries the reverted tags.
 
-**Retention** (**Proposal**).
+**Retention.**
 
 | What | Kept |
 |---|---|
@@ -1033,17 +1035,18 @@ cannot disagree.
       on a deck: that track fails with a clear message, the others are
       written.
 
-## 6. Open questions
+## 6. Decisions and open questions
 
-Each is a choice made in this draft that the maintainer can overrule.
+Decided with the maintainer on 2026-11-14. The first four were discussed one
+by one; the rest were accepted as proposed.
 
-| # | Question | Proposed here |
+| # | Question | Decision |
 |---|---|---|
 | 1 | The rule model | a fixed menu of parameterised rules, saved as ordered rule sets, plus plain find and replace; no rule language |
 | 2 | Regular expressions in find and replace | not in the first version |
 | 3 | Where a featured artist goes by default | into the title, `(feat. X)`, before the mix name |
-| 4 | What the case rule touches | only values entirely in upper or lower case; title and album, not the artist |
-| 5 | `&` and "and" as artist separators | not by default; opt-in, with a keep list |
+| 4 | What the case rule touches | **only values written entirely in lower case**; capitals are left alone (the draft proposed fixing both). Title and album, not the artist. |
+| 5 | The separator between several artists | a comma: `Nova, Kito`. `&` and "and" are not separators by default; opt-in, with a keep list. |
 | 6 | A built-in rule set | *Standard cleanup*, eleven rules in the order of [4.2](#42-the-rule-catalogue), copyable, not removable |
 | 7 | Selection by filter | frozen into ids when the preview is made; at most 10,000 tracks per edit |
 | 8 | Preview | stored on the server; apply writes exactly the stored changes and skips a field that no longer holds the previewed old value; an unused preview expires after 24 hours |
