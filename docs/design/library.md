@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | draft. The proposals were decided with the maintainer on 2026-11-14 ([section 6](#6-decisions-and-open-questions)); final approval is pending |
+| **Status** | **approved** by the maintainer on 2026-11-14. Three proposals stay open and are decided before the slice that needs them: 16 (files Rekordbox cannot import), 17 (fields with several values) and 18 (a full date when the year is edited); see [section 6](#6-decisions-and-open-questions) |
 | **Issues** | design [#19](https://github.com/Fre0Grella/getsetmix/issues/19), feature [#11](https://github.com/Fre0Grella/getsetmix/issues/11), roadmap [#12](https://github.com/Fre0Grella/getsetmix/issues/12) |
 | **Date** | 2026-11-13 |
 
@@ -18,14 +18,21 @@ The choices this draft proposed were reviewed with the maintainer and are
 recorded under [Decisions and open questions](#6-decisions-and-open-questions).
 What is still marked **Proposal** has not been decided.
 
+The batch editing module ([`batch-editing.md`](batch-editing.md),
+[#20](https://github.com/Fre0Grella/getsetmix/issues/20)) builds on this
+one. What it needs from the Library is designed here, where it belongs: a
+checked write of several fields, year and comment as editable fields, and
+values indexed exactly as the file holds them.
+
 ## 1. Goals and non-goals
 
 ### Goals
 
 - **A Library view** of every audio file under the library root, on a phone
   and on a desktop: search, sort, filter, play a preview.
-- **Fix a track for good**: edit title, artist, album, genre and cover, and
-  have the edit reach the file, every paired computer and Rekordbox.
+- **Fix a track for good**: edit title, artist, album, genre, year,
+  comment and cover, and have the edit reach the file, every paired computer
+  and Rekordbox.
 - **Delete, recoverably**: a delete moves the file to a trash folder, can be
   undone, and is purged after a set number of days.
 - **Bulk actions** on a selection: delete, restore, set genre.
@@ -110,6 +117,7 @@ CREATE TABLE library_files (
     year             INTEGER,
     comment          TEXT    NOT NULL DEFAULT '',
     has_cover        INTEGER NOT NULL DEFAULT 0,
+    multi            TEXT    NOT NULL DEFAULT '',  -- fields holding several values, e.g. "artist,genre"
     duration         REAL,                     -- seconds
     bitrate          INTEGER,                  -- kbps
     sample_rate      INTEGER,
@@ -138,6 +146,19 @@ CREATE TABLE library_meta (
   computer fetches the audio once.
 - A row in state `trashed` or `gone` is a **tombstone**. It keeps the audio
   id, the last path and the time.
+- **Tag columns hold the file's values exactly.** `title`, `artist`,
+  `album`, `genre` and `comment` are stored as they are in the file: not
+  trimmed, not case-folded, nothing normalised. Lowercasing and accent
+  folding exist only in `search`. A caller that shows "the old value" of a
+  field, as the batch editing preview does, shows what the file holds.
+- `year` is the year of the file's date tag (`TDRC` in ID3, `date` in
+  Vorbis comments), or empty.
+- **Several values in one field** (**Proposal**, 17). A file can hold
+  several values for a field: a multi-value `TPE1`, or several `ARTIST`
+  comments in a FLAC. The index stores them joined with `"; "` in file
+  order, and names the field in `multi`. Reading never changes the file. An
+  edit of such a field writes the one value it was given; a field that is
+  not edited keeps its several values.
 
 ### 3.3 Library API
 
@@ -186,6 +207,7 @@ All under `/api/library`, behind the same auth as the rest of `/api`.
       "year": null, "duration": 312.4, "has_cover": true,
       "size": 12518400, "added_at": "2026-11-12T21:04:10+00:00",
       "editable": true,
+      "multi": [],
       "same_audio": []
     }
   ]
@@ -193,18 +215,51 @@ All under `/api/library`, behind the same auth as the rest of `/api`.
 ```
 
 `editable` is false for formats the tagger cannot write and for fallback
-ids. `same_audio` lists the ids of other files with the same audio id.
+ids. `multi` names the fields that hold several values in the file.
+`same_audio` lists the ids of other files with the same audio id. The item
+of `GET /api/library/{id}` also carries `comment`, `bitrate`, `sample_rate`
+and `source_url`.
 
-**Edit.** `PATCH /api/library/{id}` with any of `title`, `artist`, `album`,
-`genre`. Only the fields sent are written; every other tag in the file stays
-as it is.
+The query behind the list is one internal function,
+`library.select(filter)`. Besides serving the pages above, it resolves a
+filter (`q`, `genre`, `folder`, `state`) to the full set of matching ids,
+each with its `editable` flag, without paging. The batch editing module uses
+it to turn "everything matching this filter" into a selection.
+
+**Edit.** `PATCH /api/library/{id}` with any of the fields below. Only the
+fields sent are written; every other tag in the file stays as it is. All the
+fields of one request are written in one step and take one `rev`.
+
+| Field | Value |
+|---|---|
+| `title`, `artist`, `album`, `genre` | text; `""` clears the tag |
+| `year` | an integer from 1000 to 9999, or `null` to clear it |
+| `comment` | text; `""` clears the tag |
+| `expect` | optional: an object with the values the caller believes some of these fields hold now |
+
+```json
+{ "genre": "Tech House", "year": 2019, "expect": { "genre": "tech-house" } }
+```
+
+With `expect`, the write happens only if every named field still holds the
+given value in the file. If one differs, nothing is written and the answer
+says which:
+
+```json
+{ "detail": "the file changed", "differs": { "genre": "House" } }
+```
 
 | Answer | When |
 |---|---|
 | `200` with the updated item | written, index updated, `rev` advanced |
+| `400` | a value is not valid for its field (a year out of range) |
 | `409` | the format is read-only in this version, or the id is a fallback id |
 | `410` | the file is in the trash or gone |
+| `412` | `expect` did not match; `differs` holds the file's current values |
 | `423` | the file is in use (Windows, local mode, a deck has it loaded) |
+
+`PATCH` is a thin caller of the internal write described in
+[4.3](#43-editing-tags), which other modules call without HTTP.
 
 **Bulk.** `POST /api/library/bulk`
 
@@ -218,6 +273,11 @@ per id, so one failure does not hide the rest:
 ```json
 { "done": [319, 512], "failed": [{ "id": 320, "status": 409, "detail": "read-only format" }] }
 ```
+
+Once the batch editing module exists, `set_genre` creates one of its edits,
+so a bulk genre change is previewed, journalled and undoable like every
+other change to many tags. The request stays the same. Until then it works
+as described here. Bulk delete and restore stay in this module either way.
 
 **Settings.** One new setting, `trash_days` (`GSM_TRASH_DAYS`, default 30;
 0 keeps the trash until it is purged by hand).
@@ -238,6 +298,29 @@ The worker only produces MP3 and FLAC, so everything GetSetMix downloaded is
 editable. The read-only formats are files the DJ put in the library by other
 means. mutagen can write M4A and AIFF; adding them is a later slice, once
 their audio hash is covered by fixtures.
+
+What an edit writes, per field:
+
+| Field | MP3 (ID3v2.4) | FLAC (Vorbis comment) |
+|---|---|---|
+| Title | `TIT2` | `title` |
+| Artist | `TPE1` | `artist` |
+| Album | `TALB` | `album` |
+| Genre | `TCON` | `genre` |
+| Year | `TDRC` | `date` |
+| Comment | `COMM` (language `eng`, empty description) | `comment` |
+| Cover | `APIC` (type 3, front cover) | `PICTURE` block (type 3) |
+
+- **Year.** The download path never writes a year, so today no downloaded
+  file has one. When a file holds a full date (`2019-06-14`) and the year is
+  not edited, the date is not touched. When the year is edited, the tag is
+  written as the year alone (**Proposal**, 18).
+- **Comment.** For a downloaded track the comment is
+  `Source: <url> | via GetSetMix`, the only record of the track's origin
+  inside the file. It is editable, but the detail sheet asks before it
+  replaces a comment that holds a source link.
+- **Other tags** (BPM, key, label, remixer, track number, anything a DJ app
+  wrote) are never changed by an edit.
 
 ### 3.5 Link protocol 2
 
@@ -308,7 +391,8 @@ the index.
       "path": "Artist - Title.mp3",
       "rev": 4790,
       "at": "2026-11-12T21:10:00Z",
-      "tags": { "title": "Title", "artist": "Artist", "album": "", "genre": "House" }
+      "tags": { "title": "Title", "artist": "Artist", "album": "", "genre": "House",
+                "year": 2019, "comment": "Source: https://… | via GetSetMix" }
     }
   },
   "legacy": { "Gone From Server.mp3": "2026-10-01T18:00:00Z" },
@@ -318,7 +402,7 @@ the index.
 
 | Key | Meaning |
 |---|---|
-| `tracks` | what this computer has fetched: the server path, the `rev` it holds, and the tags it last saw |
+| `tracks` | what this computer has fetched: the server path, the `rev` it holds, and the six tag fields it last saw (title, artist, album, genre, year, comment) |
 | `legacy` | paths from the old file that the server no longer lists; kept so they are never fetched again if they come back |
 | `removed` | tombstones already handled |
 
@@ -513,13 +597,43 @@ ways:
   (`.<name>.part`, already skipped by the link and by the companion's
   scanner), the copy is tagged, and it replaces the original in one rename.
   A crash leaves the old file intact, and a computer can never fetch half a
-  file. It costs one copy of the file per edit.
+  file. It costs one copy of the file per write, however many fields the
+  write changes.
 
-After the rename the row gets the new tags, size and time, and the next
-`rev`. The audio id is unchanged by construction. When the tests run, they
-also check it by rehashing.
+**One internal write.** All tag edits go through one function in the
+Library module, callable without HTTP:
 
-A cover edit goes the same way, with the existing cover search and upload.
+```python
+library.write_tags(file_id, changes, expect=None) -> WriteResult
+```
+
+| Argument | Meaning |
+|---|---|
+| `changes` | any set of the six fields (title, artist, album, genre, year, comment) with their new values |
+| `expect` | optional: the values the caller believes some fields hold now |
+
+1. Read the fields named in `expect` from the file itself, not from the
+   index. If one differs, stop: nothing is written, and the result names the
+   fields that differ with the values the file holds.
+2. Copy, tag the copy with every change, rename it over the original.
+3. Update the row (tags, size, time) and take **one** `rev` for the whole
+   write.
+
+The result holds the new row, or the mismatch. `PATCH /api/library/{id}` is
+a thin caller. The batch editing module calls the function directly, once
+per track, with the old values its preview showed as `expect`; a batch
+therefore copies each file once, not once per field, and only overwrites
+what the DJ saw.
+
+The audio id is unchanged by construction. When the tests run, they also
+check it by rehashing.
+
+**The cover** goes the same way, through
+`library.write_cover(file_id, image_or_none)`, with the existing cover
+search and upload in front of it. The function returns the image it
+replaced, or says there was none, so a caller that keeps a journal can undo
+a cover change. `POST /api/library/{id}/cover` does not return the old
+image.
 
 ### 4.4 Deleting, the trash and tombstones
 
@@ -560,8 +674,10 @@ bar moves between **Downloads** and **Library**.
   debounce.
 - Genre chips above the list filter with one tap. A sort menu holds added,
   artist, title and genre.
-- Tapping a row opens a sheet: the fields, the same one-tap genre picks as
-  in the download view, cover, preview player, delete.
+- Tapping a row opens a sheet: the fields (title, artist, album, genre,
+  year, comment), the same one-tap genre picks as in the download view,
+  cover, preview player, delete. The comment is shown with its source link;
+  the sheet asks before it replaces one.
 - A long press starts a selection. A bar then offers *Delete* and
   *Set genre*, with the count.
 
@@ -629,6 +745,8 @@ sequenceDiagram
 |---|---|
 | `Title` | new value, if the title changed on the server |
 | `ArtistID`, `AlbumID`, `GenreID` | the id of the row with that exact name, created when missing, as an import does |
+| `ReleaseYear` | new value, if the year changed on the server; empty when it was cleared |
+| `Commnt` | new value, if the comment changed on the server |
 | `FileSize` | the file's new size |
 | `rb_file_id` | the file's new filesystem id, since the file was replaced |
 | `updated_at`, `rb_local_usn` | now, and the next change number |
@@ -666,7 +784,8 @@ imports do.
 folder is already synced here*, there is no fetch. Nextcloud or Syncthing
 replaces a changed file itself, and the importer's scan picks the change up
 by size and time, as in step 3. Without a paired server the importer has no
-remembered tags to compare with, so it writes all four fields.
+remembered tags to compare with, so it writes all six fields (title,
+artist, album, genre, year, comment).
 Deletes arrive as files that vanish; see local mode below.
 
 **Migration of `fetched.json`**, on the first fetch against a protocol 2
@@ -719,7 +838,8 @@ not something this module solves.
 | **Hash fixtures, both languages** | `testdata/audiohash/` holds small audio files of a few kilobytes and `expected.json`. For each file it gives the expected id; for each group it lists files that must share an id (the same audio with no tags, ID3v2.3, ID3v2.4, ID3v1, APEv2, a cover, grown padding, `moov` before and after `mdat`, extra RIFF chunks) and files that must differ. `tests/test_audiohash.py` and `companion/internal/audio/hash_test.go` read the same folder, so the two implementations cannot drift. A script next to the fixtures records how they were made. |
 | **Hash properties** | Edit every tag field with the tagger and with the edit path: the id holds. Truncate or corrupt a file: fallback id, no exception. |
 | **Index and reconcile** (pytest, `tmp_path`) | New, changed, moved, missing and back, gone after the grace time, the 20% guard, the settle time, resume after an interrupted first index. |
-| **Library API** (pytest, as `tests/test_api.py`) | List with search, filters, sorts and paging; edit per format; the `409`, `410` and `423` answers; delete, restore, purge; bulk with a partial failure. |
+| **Edit path** (pytest, on fixture files) | A write changes only the fields it was given: every other tag, the cover and the audio id are the same before and after. Several fields in one call make one copy and take one `rev`. Year and comment are written to the right frame per format; a full date is left alone when the year is not edited. With `expect`, a mismatch writes nothing and names the fields that differ. `write_cover` returns the image it replaced. A field with several values is indexed joined, listed in `multi`, and kept when another field is edited. Index columns hold the file's values unfolded. |
+| **Library API** (pytest, as `tests/test_api.py`) | List with search, filters, sorts and paging; `library.select` returns every matching id with its `editable` flag; edit per format, including year and comment; the `400`, `409`, `410`, `412` and `423` answers; delete, restore, purge; bulk with a partial failure. |
 | **Link protocol** (pytest and Go) | The listing's new fields; an old companion's reading of a new listing; a new companion against an old listing; trashed files are neither listed nor served. |
 | **Companion** (Go, with the `librarytest` fixture) | State migration; a changed track updates exactly the columns in [4.6](#46-what-a-computer-does) and leaves cues and playlist rows alone; a deleted track lands in the playlist once; a restore removes it; a locally deleted file is not fetched again; everything is refused while Rekordbox runs; the backup is restored when the check fails. |
 | **UI** | The virtualised list with a few thousand rows on a phone-sized viewport; selection and bulk bar; both languages. |
@@ -727,8 +847,8 @@ not something this module solves.
 **Manual checklist against a real Rekordbox**, on a copy of a library,
 before the companion slices ship:
 
-- [ ] Edit title, artist, album and genre on the server; after fetch and
-      launch the row shows them.
+- [ ] Edit title, artist, album, genre, year and comment on the server;
+      after fetch and launch the row shows them.
 - [ ] That track keeps its hot cues, memory cues, beat grid, rating and its
       place in every playlist.
 - [ ] Rekordbox does not flag the file as missing and does not ask to
@@ -757,17 +877,32 @@ by one; the rest were accepted as proposed.
 | 8 | FLAC: hash the frame bytes, or use the MD5 in STREAMINFO | the frame bytes |
 | 9 | How often to reconcile | every 5 minutes, plus the triggers in 4.1 |
 | 10 | How long tombstones are kept | for good |
-| 11 | Synced-folder mode with no paired server | all four fields are written on a change |
+| 11 | Synced-folder mode with no paired server | every tag field the companion handles is written on a change (six, with year and comment) |
 | 12 | "Handled file is gone" as a delete signal | local mode and synced folders only |
 | 13 | Search | a folded `search` column matched with `LIKE`; SQLite full-text search if it proves too slow |
 | 14 | Editing M4A and AIFF | a later slice |
 | 15 | *Delete the local file too*: where the local file goes | the system's recycle bin, not a hard delete |
+
+Added on approval, from what the batch editing module needs
+([its section 3.7](batch-editing.md#37-what-this-module-needs-from-the-library-module)):
+
+| Addition | Where |
+|---|---|
+| One internal write of several fields, atomic, one `rev`, with an optional check of the old values | [3.3](#33-library-api), [4.3](#43-editing-tags) |
+| Year and comment are editable and reach Rekordbox (`ReleaseYear`, `Commnt`) | [3.3](#33-library-api), [3.4](#34-tag-fields-per-format), [3.6](#36-the-companions-state), [4.6](#46-what-a-computer-does) |
+| The cover write returns the image it replaced | [4.3](#43-editing-tags) |
+| A filter resolves to ids with their `editable` flag | [3.3](#33-library-api) |
+| Tag values are indexed exactly as the file holds them | [3.2](#32-the-index) |
+| A rule for fields with several values | [3.2](#32-the-index), proposal 17 |
+| Bulk *set genre* goes through batch editing once it exists | [3.3](#33-library-api) |
 
 Still a proposal:
 
 | # | Question | Proposed here |
 |---|---|---|
 | 16 | Files Rekordbox cannot import (Ogg, Opus) | the companion skips them and says so; the server keeps listing them ([3.5](#35-link-protocol-2), [#31](https://github.com/Fre0Grella/getsetmix/issues/31)) |
+| 17 | A field that holds several values in the file | the index shows them joined with `"; "` and names the field in `multi`; an edit of that field writes one value; a field that is not edited keeps its values ([3.2](#32-the-index)). Needed by slice 1 for reading and slice 3 for writing. |
+| 18 | A full date in the file when the year is edited | the date is left alone unless the year is edited; then the tag is written as the year alone ([3.4](#34-tag-fields-per-format)). Needed by slice 3. |
 
 Still open, with no proposal:
 
@@ -805,7 +940,8 @@ Still open, with no proposal:
 ## 8. Build slices
 
 Thin slices, each working end to end, in the order they would be built.
-Issues are cut from this list once the design is approved.
+Each slice is an issue under
+[#11](https://github.com/Fre0Grella/getsetmix/issues/11).
 
 1. **Index and a read-only Library list.** The tables, the Python audio hash
    with its fixtures, reconcile with the guard, the worker inserting the row
@@ -814,9 +950,11 @@ Issues are cut from this list once the design is approved.
 2. **Link protocol 2.** `id`, `rev` and `removed[]` in the listing, served
    from the index. The Go audio hash against the shared fixtures. The
    companion reads protocol 2 and migrates `fetched.json`; its behaviour
-   does not change yet.
-3. **Edit one track, all the way.** The tagger's edit path, `PATCH`, the
-   detail sheet, and on the computer: re-download, the importer's change
+   does not change yet, except that it stops downloading files Rekordbox
+   cannot import, if proposal 16 is accepted.
+3. **Edit one track, all the way.** The tagger's edit path and the
+   internal write with its check of old values, `PATCH` for the six fields,
+   the detail sheet, and on the computer: re-download, the importer's change
    detection, the update of the Rekordbox row. Ends with the manual
    checklist.
 4. **Delete and restore, all the way.** Trash, restore, purge, tombstones,
