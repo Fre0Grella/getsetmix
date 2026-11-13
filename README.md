@@ -376,4 +376,4 @@ companion/       # gsm-companion (Go): imports deliveries into Rekordbox's maste
 
 ## License
 
-GetSetMix is free software under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). You can run, study, change and share it; if you offer a modified GetSetMix to others over a network, you have to publish your changes under the same license.
+GetSetMix is free software under the [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). You can run, study, change and share it; if you offer a modified GetSetMix to others over a network, you have to publish your changes under the same license. The components GetSetMix ships or downloads, and their licenses, are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
