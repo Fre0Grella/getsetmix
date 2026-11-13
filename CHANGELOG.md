@@ -1,6 +1,101 @@
 # CHANGELOG
 
 
+## v1.8.0 (2026-11-13)
+
+### Documentation
+
+- Record cue and ogg/opus decisions ([#54](https://github.com/Fre0Grella/getsetmix/pull/54),
+  [`17fbf43`](https://github.com/Fre0Grella/getsetmix/commit/17fbf430d75498e81ee469438333750b5fb42c91))
+
+Two decisions the maintainer took on 2026-11-14:
+
+- Auto cue points leave the roadmap (decision 7 in the architecture log). - Library proposal 16 is
+  accepted: the companion skips files Rekordbox cannot import and says so (#31).
+
+Refs #23 Refs #31
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+- **design**: Add the batch editing design ([#34](https://github.com/Fre0Grella/getsetmix/pull/34),
+  [`74313ee`](https://github.com/Fre0Grella/getsetmix/commit/74313ee5dd3234c8d8ed2297b59a547da98223f4))
+
+The design doc for batch tag editing, approved by the maintainer on 2026-11-14.
+
+- Edits on a selection: field operations on title, artist, album, genre, year, comment and cover.
+  Only tags change. - Cleanup rules: a fixed menu of twelve parameterised rules saved as ordered
+  rule sets; no rule language, no regular expressions. - Every edit is previewed and stored, apply
+  writes exactly the stored changes, and applied edits can be undone for 90 days. - Decided in
+  review: a featured artist goes into the title, several artists are separated by a comma, and the
+  case rule only fixes values written entirely in lower case.
+
+Closes #20
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+- **design**: Add the library design ([#29](https://github.com/Fre0Grella/getsetmix/pull/29),
+  [`436ca2b`](https://github.com/Fre0Grella/getsetmix/commit/436ca2bce1a699a7489974bbf141202b08656711))
+
+docs/design/library.md: the design of the Library module (#11), approved by the maintainer on
+  2026-11-14.
+
+- Identity: a hash of the audio payload per container, in Python and Go, kept equal by shared
+  fixtures. - Index: one row per file, reconciled with the disk; a guard against mass deletes and a
+  24-hour grace time for files that vanish outside GetSetMix. - Editing: one atomic write of title,
+  artist, album, genre, year and comment, with an optional check of the old values. - Delete: a
+  trash in the library root, restore, purge, tombstones. - Computers: link protocol 2; a changed
+  track updates its row in Rekordbox, a deleted one lands in a "removed on server" playlist. - The
+  view: a virtualised, paged list for phone and desktop.
+
+Three proposals stay open (16, 17, 18) and are decided before the slice that needs them.
+
+Closes #19 Refs #11
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+- **design**: Undo edits for 30 days ([#44](https://github.com/Fre0Grella/getsetmix/pull/44),
+  [`dc38644`](https://github.com/Fre0Grella/getsetmix/commit/dc3864400037f51130e9b74cbd7c32c24f0e910f))
+
+The maintainer shortened the time an applied batch edit can be undone: edit_history_days defaults to
+  30 days, not 90.
+
+Refs #20
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+### Features
+
+- **rules**: Add the cleanup rule catalogue ([#55](https://github.com/Fre0Grella/getsetmix/pull/55),
+  [`95740e4`](https://github.com/Fre0Grella/getsetmix/commit/95740e462bfc80c31721bc2f2024eb1eefdb4be3))
+
+First slice of batch tag editing (#46): the cleanup rules as pure functions, with the table of cases
+  that is both their documentation and their test. No file is written and no table is added yet.
+
+- app/rules.py: the twelve rules, the tidy pass, a runner for an ordered list of steps, the built-in
+  Standard cleanup set. - app/genres.py: the genre list and the one-tap picks move from the UI to
+  the server. - GET /api/library/rules: the catalogue, the built-in set, the genre list and the
+  picks. - tests/rules_cases.json: 118 cases; a test fails when the design doc's examples and the
+  cases drift apart. - Design corrections in docs/design/batch-editing.md: feat. stays lower case in
+  the case rule; US, LA, ID and IV leave the default keep list; a list parameter replaces the
+  default list.
+
+Closes #46
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.7.3 (2026-11-13)
 
 ### Bug Fixes
