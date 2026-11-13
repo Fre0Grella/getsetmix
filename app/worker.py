@@ -131,8 +131,10 @@ class Worker:
             audio = self._download(track, tmpdir)
 
             db.update_track(tid, status="tagging", progress=100)
+            # Tag first, place second: once the file has its final name,
+            # paired computers can fetch it, so it must be complete by then.
+            tagger.tag_file(str(audio), {**track, "file_path": str(audio)})
             final = self._place_in_library(track, audio)
-            tagger.tag_file(str(final), {**track, "file_path": str(final)})
             rekordbox.add_track(
                 settings["xml_path"], track, str(final), settings["playlist_name"]
             )
