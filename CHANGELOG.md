@@ -1,6 +1,34 @@
 # CHANGELOG
 
 
+## v1.9.0 (2026-11-13)
+
+### Features
+
+- **library**: Index and a read-only list ([#56](https://github.com/Fre0Grella/getsetmix/pull/56),
+  [`7013794`](https://github.com/Fre0Grella/getsetmix/commit/7013794cef26608c181570c6a12d3a0846afd792))
+
+First slice of the Library module (#35): the app now knows every audio file under the library root,
+  not only the ones it downloaded.
+
+- app/audiohash.py: the audio id, a hash of the audio payload that skips the tags, for MP3, FLAC,
+  WAV, AIFF and MP4; a fallback id otherwise. 45 shared fixtures in testdata/audiohash/. -
+  app/library.py: the index tables, the first index in resumable batches, the reconcile pass, the
+  guard against mass deletes, one rev counter. The worker inserts a row when it places a file. - GET
+  /api/library, GET /api/library/status and POST /api/library/rescan. - UI: a switch between
+  Downloads and Library and a read-only list with search, in English and Italian. - The first index
+  dates each file by its own modification time. - docs/design/library.md records what the
+  implementation settled and the measured costs.
+
+Closes #35
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.8.0 (2026-11-13)
 
 ### Documentation
