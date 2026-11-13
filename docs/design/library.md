@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **approved** by the maintainer on 2026-11-14. Three proposals stay open and are decided before the slice that needs them: 16 (files Rekordbox cannot import), 17 (fields with several values) and 18 (a full date when the year is edited); see [section 6](#6-decisions-and-open-questions) |
+| **Status** | **approved** by the maintainer on 2026-11-14. Two proposals stay open and are decided before the slice that needs them: 17 (fields with several values) and 18 (a full date when the year is edited); see [section 6](#6-decisions-and-open-questions) |
 | **Issues** | design [#19](https://github.com/Fre0Grella/getsetmix/issues/19), feature [#11](https://github.com/Fre0Grella/getsetmix/issues/11), roadmap [#12](https://github.com/Fre0Grella/getsetmix/issues/12) |
 | **Date** | 2026-11-13 |
 
@@ -362,7 +362,7 @@ ignore what they don't know.
 
 `GET /api/link/file?path=` is unchanged.
 
-**Proposal**: a companion does not download a file Rekordbox cannot import
+A companion does not download a file Rekordbox cannot import
 (Ogg and Opus today), and its `status` says how many it skipped and why.
 The server keeps listing them, so the Library view stays complete
 ([#31](https://github.com/Fre0Grella/getsetmix/issues/31)).
@@ -882,6 +882,7 @@ by one; the rest were accepted as proposed.
 | 13 | Search | a folded `search` column matched with `LIKE`; SQLite full-text search if it proves too slow |
 | 14 | Editing M4A and AIFF | a later slice |
 | 15 | *Delete the local file too*: where the local file goes | the system's recycle bin, not a hard delete |
+| 16 | Files Rekordbox cannot import (Ogg, Opus) | the companion skips them and says so; the server keeps listing them ([3.5](#35-link-protocol-2), [#31](https://github.com/Fre0Grella/getsetmix/issues/31)). Decided after approval, on 2026-11-14. |
 
 Added on approval, from what the batch editing module needs
 ([its section 3.7](batch-editing.md#37-what-this-module-needs-from-the-library-module)):
@@ -900,7 +901,6 @@ Still a proposal:
 
 | # | Question | Proposed here |
 |---|---|---|
-| 16 | Files Rekordbox cannot import (Ogg, Opus) | the companion skips them and says so; the server keeps listing them ([3.5](#35-link-protocol-2), [#31](https://github.com/Fre0Grella/getsetmix/issues/31)) |
 | 17 | A field that holds several values in the file | the index shows them joined with `"; "` and names the field in `multi`; an edit of that field writes one value; a field that is not edited keeps its values ([3.2](#32-the-index)). Needed by slice 1 for reading and slice 3 for writing. |
 | 18 | A full date in the file when the year is edited | the date is left alone unless the year is edited; then the tag is written as the year alone ([3.4](#34-tag-fields-per-format)). Needed by slice 3. |
 
@@ -951,7 +951,7 @@ Each slice is an issue under
    from the index. The Go audio hash against the shared fixtures. The
    companion reads protocol 2 and migrates `fetched.json`; its behaviour
    does not change yet, except that it stops downloading files Rekordbox
-   cannot import, if proposal 16 is accepted.
+   cannot import.
 3. **Edit one track, all the way.** The tagger's edit path and the
    internal write with its check of old values, `PATCH` for the six fields,
    the detail sheet, and on the computer: re-download, the importer's change

@@ -25,7 +25,7 @@ it, stage by stage, into a suite for managing a DJ library:
 | 1. Ingest | share a link, set the tags, download, deliver to Rekordbox | built |
 | 2. Library | see and fix every track: search, edit tags, delete | design ([#19](https://github.com/Fre0Grella/getsetmix/issues/19)) |
 | 3. Metadata | batch tag editing and saved cleanup rules | design ([#20](https://github.com/Fre0Grella/getsetmix/issues/20)) |
-| 4. Analysis | BPM/key match and sort, similar tracks, scatter map, graph playlist, auto cue points | research spikes |
+| 4. Analysis | BPM/key match and sort, similar tracks, scatter map, graph playlist | research spikes |
 
 Quality goals, in order:
 
@@ -302,6 +302,7 @@ probes; `/metrics` exposes job counts, durations and errors.
 | 4 | 2026-11-13 | A track is identified by a hash of its audio payload, skipping tag blocks. | It survives tag edits, moves and renames, never modifies a file, and gives the same answer on the server and on the computer. | An ID written into a tag: every existing file has to be rewritten, a copy carries the same ID, another tagger can strip it. The path: breaks on rename, and matching by relative path is guesswork. |
 | 5 | 2026-11-13 | The first Library version does not rename files. | A rename ripples into Rekordbox's paths on every paired computer; tags are what the DJ sees. Decision 4 keeps renaming possible later. | Rename per track or in bulk from the filename template, as first proposed in #11. |
 | 6 | 2026-11-13 | Roadmap scope. In: Library view, batch editing and cleanup rules, BPM/key match and sort, similar tracks, scatter map and graph playlist. To try: auto cue points. Out: online tag lookup, duplicates by audio fingerprint, identifying untagged files, genre detection. | The features in are the ones worth their cost to a DJ; each uncertain one starts with a spike. Tag lookup and fingerprint services add terms and rate limits for doubtful matches on this kind of library; genre is already one tap at ingest. | Building the whole list in #12. |
+| 7 | 2026-11-14 | Auto cue points leave the roadmap. This replaces "to try: auto cue points" in decision 6. | The spike on a real library ([rekordbox-read](research/rekordbox-read.md)) showed Rekordbox's phrases are not a reliable source of cue positions: on tracks with hand-checked cues, a third of the cues are not on a phrase start and more than half of the phrase starts have no cue. A generator that works from those phrases already exists outside GetSetMix. | Building a cue generator on Rekordbox's phrases. Analysing song structure with a model of our own: not ruled out for later, not planned. |
 
 The log starts on 2026-11-13. Earlier choices are described in
 [section 4](#4-solution-strategy).
