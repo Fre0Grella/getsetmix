@@ -1,8 +1,7 @@
 # Spike: what a Rekordbox library already holds
 
 Issue: [#21](https://github.com/Fre0Grella/getsetmix/issues/21). Date: 2026-11-13.
-Status: numbers and verdicts in; the maintainer's review of the 10-track
-phrase sheet can still amend the cue verdict.
+Status: done. Numbers and verdicts are in.
 
 ## Question
 
@@ -157,5 +156,29 @@ on the audio) is a question for the synthesis
 spike ([#23](https://github.com/Fre0Grella/getsetmix/issues/23)) does not
 start on Rekordbox's phrases.
 
-The maintainer's review of the phrases of 10 well-known tracks, laid out by
-`read_rekordbox.py`, is still to come and can amend this.
+### Ten tracks with cues the maintainer vouches for
+
+The 10 most-played tracks carry cues the maintainer set and checked by
+hand, so they serve as a reference. `top10.py` compares them with
+Rekordbox's phrase starts on the same tracks.
+
+| Measure | Count | Share |
+|---|---|---|
+| Good cue positions | 81 | |
+| ...that sit on a phrase start | 52 | 64% |
+| ...that miss by up to one bar | 15 | 19% |
+| ...that miss by 2 to 4 bars | 7 | 9% |
+| ...that miss by more than 4 bars | 7 | 9% |
+| Phrase starts | 121 | |
+| ...where the DJ put no cue | 69 | 57% |
+
+- A generator that put a cue on every phrase start would place more than
+  half of its cues where the DJ wants none, and would miss a third of the
+  places the DJ does want one.
+- Results vary a lot per track: on two tracks every cue sits on a phrase
+  start; on one track none does, with most cues exactly one beat away from
+  a phrase start, which means the phrases are shifted against the music
+  there.
+
+This confirms the stop: Rekordbox's phrases are a useful hint, not a
+reliable source of cue positions.
