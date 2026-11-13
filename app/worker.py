@@ -2,7 +2,8 @@
 
 Runs batch downloads with bounded parallelism (global default 2, optional
 per-batch override). Each track: download (yt-dlp + ffmpeg) -> tag (mutagen)
--> move into the library root -> append to the Rekordbox XML. Failed tracks
+-> move into the library root -> add its library index row -> append to the
+Rekordbox XML. Failed tracks
 don't halt the batch; they are marked `error` and can be retried per-track.
 """
 from __future__ import annotations
@@ -15,7 +16,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import rekordbox, tagger, ytdl
+from . import library, rekordbox, tagger, ytdl
 from .config import DATA_DIR, settings
 from .db import db, now_iso
 from .naming import render_filename, unique_path
@@ -135,6 +136,7 @@ class Worker:
             # paired computers can fetch it, so it must be complete by then.
             tagger.tag_file(str(audio), {**track, "file_path": str(audio)})
             final = self._place_in_library(track, audio)
+            self._index(track, final)
             rekordbox.add_track(
                 settings["xml_path"], track, str(final), settings["playlist_name"]
             )
@@ -218,6 +220,14 @@ class Worker:
         shutil.move(str(audio), partial)
         os.replace(partial, final)
         return final
+
+    def _index(self, track: dict, final: Path) -> None:
+        # The row is there the moment the file is; the next reconcile would
+        # find the file anyway, so a failure here never fails the download.
+        try:
+            library.current().add_file(final, source_url=track.get("url") or "")
+        except Exception:
+            log.exception("could not add %s to the library index", final.name)
 
 
 worker = Worker()

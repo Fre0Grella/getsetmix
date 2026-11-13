@@ -105,7 +105,9 @@ Two tables in `getsetmix.db`, next to the existing ones.
 ```sql
 CREATE TABLE library_files (
     id               INTEGER PRIMARY KEY,      -- key used by the Library API
-    path             TEXT    NOT NULL UNIQUE,  -- library-relative, "/"-separated
+    path             TEXT    NOT NULL,         -- library-relative, "/"-separated; unique among
+                                               -- present and missing rows (a partial index):
+                                               -- a tombstone keeps its last path
     audio_id         TEXT    NOT NULL,         -- "a1_…" or "f1_…"
     size             INTEGER NOT NULL,         -- bytes, as last seen
     mtime_ns         INTEGER NOT NULL,         -- as last seen
@@ -123,7 +125,8 @@ CREATE TABLE library_files (
     sample_rate      INTEGER,
     source_url       TEXT    NOT NULL DEFAULT '',  -- from the download, when known
     search           TEXT    NOT NULL,         -- lowercased, accents folded
-    added_at         TEXT    NOT NULL,         -- first seen, or downloaded_at
+    added_at         TEXT    NOT NULL,         -- when it was downloaded or first seen; in the
+                                               -- first index, the file's own modification time
     rev              INTEGER NOT NULL,         -- change number of the last change
     state            TEXT    NOT NULL DEFAULT 'present',
                      -- present | missing | trashed | gone
@@ -184,8 +187,8 @@ All under `/api/library`, behind the same auth as the rest of `/api`.
 
 | Parameter | Values | Default |
 |---|---|---|
-| `q` | free text, matched against `search` (title, artist, album, genre, file name) | none |
-| `genre`, `folder` | exact match; `folder` is a library-relative directory | none |
+| `q` | free text, matched against `search` (title, artist, album, genre, file name); every word has to match | none |
+| `genre`, `folder` | exact match; `folder` is a library-relative directory and matches the files directly in it | none |
 | `state` | `present`, `trashed` | `present` |
 | `sort` | `added`, `artist`, `title`, `genre` | `added` |
 | `order` | `asc`, `desc` | `desc` for `added`, else `asc` |
@@ -435,15 +438,19 @@ stateDiagram-v2
 
 1. Walk the library root with the same skip rules as the link (`.`, `~`,
    `.part`, `.tmp`), and skip files modified in the last 10 seconds, the
-   settle time the companion already uses.
+   settle time the companion already uses. A file in its settle time that
+   already has a row is left as it is: not read again, not marked missing.
 2. A path whose `size` and `mtime_ns` match its row is unchanged. Nothing is
    read. This is the common case and costs one `stat` per file.
-3. A path with no row is hashed and its tags are read. If a `missing` row
-   has the same audio id, the file was moved or renamed outside GetSetMix:
-   that row takes the new path. Otherwise it is a new row.
+3. A path with no row is hashed and its tags are read. If a row with the
+   same audio id is `missing`, or its path vanished in this same pass, the
+   file was moved or renamed outside GetSetMix: that row takes the new path.
+   A move seen in one pass is therefore a move, not a delete and an add, and
+   it does not count towards the guard below. Otherwise it is a new row.
 4. A path whose size or time changed is hashed again. Same audio id: the
    tags changed outside GetSetMix; they are read again. Different audio id:
-   the content was replaced, which is the old track gone and a new one.
+   the content was replaced. The old row becomes `gone` at once, with no
+   grace time, and a new row is inserted.
 5. A `present` row whose path is not on disk becomes `missing`. It becomes
    `gone` only when it is still missing after the grace time, 24 hours.
    Sync clients delete and recreate files while they update them, and a
@@ -452,9 +459,18 @@ stateDiagram-v2
 6. Every change takes the next `rev`.
 
 **The guard.** If one pass would mark more than 20% of the library, and more
-than 10 files, as missing, it marks none and sets `unavailable`. An unmounted volume or a network share that dropped must
-never look like a mass delete. The Library view shows a banner, and the next
-pass that finds the files clears it.
+than 10 files, as missing, it marks none and sets `unavailable`. The size of
+the library is the number of `present` rows before the pass. While the guard
+is tripped nothing moves from `missing` to `gone` either. An unmounted
+volume or a network share that dropped must never look like a mass delete.
+The Library view shows a banner, and the next pass that does not trip the
+guard clears it.
+
+**The date a track was added.** A downloaded track is dated when the worker
+places it. A file the index finds later is dated when it is first seen. The
+first index of an existing library is the exception: every file would get
+the same date, so each is dated by its own modification time and sorting by
+"added" means something from the start.
 
 **When it runs.**
 
@@ -477,14 +493,23 @@ is there the moment the file is.
 background, in batches committed as they go, so a restart resumes. The
 Library view shows progress and lists what is indexed so far.
 
-**Cost** (estimates, to be measured in the first build slice):
+**Cost.** Estimated for 3,000 tracks of about 10 MB, then measured in the
+first build slice ([#35](https://github.com/Fre0Grella/getsetmix/issues/35))
+on a laptop with a local SSD.
 
-| Operation | Work | Expected on 3,000 tracks of about 10 MB |
-|---|---|---|
-| First index | read 30 GB once, SHA-256, read tags | minutes; bound by the disk, not the CPU |
-| Reconcile, nothing changed | one `stat` per file | well under a second on a local disk, a few seconds on a network share |
-| Reconcile, one file changed | read and hash that file | tens of milliseconds |
-| Index size | one row per file | about 1 MB |
+| Operation | Work | Estimate | Measured |
+|---|---|---|---|
+| First index | read every file once, SHA-256, read tags | minutes; bound by the disk, not the CPU | a real library of 568 tracks, 6.3 GB: 12 s for the hashing (about 500 MB/s). 3,000 small generated files: 2.7 s, or 23 s when the files had just been written. |
+| Reconcile, nothing changed | one `stat` per file | well under a second on a local disk, a few seconds on a network share | 45 ms for 3,000 files |
+| Reconcile, one file changed | read and hash that file | tens of milliseconds | 29 to 57 ms |
+| List with a search, 3,000 rows | one query | | 7 ms |
+| Index size | one row per file | about 1 MB | 1.24 MB for 3,000 rows |
+
+At that rate a 30 GB library indexes in about a minute from an SSD, and in a
+few minutes from a hard disk or over a network. The first index of files
+that were just copied is several times slower per file on Windows, most
+likely the virus scanner reading each new file on first open (not
+confirmed).
 
 ### 4.2 The audio hash
 
@@ -563,6 +588,23 @@ they matter.
 
 **Anything else, and anything damaged.** A file that does not parse by its
 rule gets the fallback id, `f1_` over the whole file. Nothing is guessed.
+
+**Details the first implementation settled.** They are written into the
+code and into `testdata/audiohash/README.md`, so the Go side matches:
+
+- The container is chosen by the file extension (`.m4a` and `.mp4` are MP4,
+  `.aif` and `.aiff` are AIFF).
+- An empty payload gets the fallback id.
+- An ID3v2 size byte with its top bit set means the file does not parse.
+- A chunk or atom that runs past the end of the file means the file does not
+  parse; fewer than 8 stray bytes at the end are ignored.
+- The frame after the first MP3 frame must have the sync bits and the same
+  version, layer and sample rate. Its bitrate is not checked.
+- The first `fmt ` and `data` chunk, and the first `COMM` and `SSND` chunk,
+  are the ones used.
+- A file cut short in the middle of its audio still parses: it gets an `a1_`
+  id, different from the whole file's. Only a file cut in its header or tag
+  region gets the fallback id. Either way nothing raises.
 
 **When it is computed, and the cache.** A hash is computed when a file is
 first seen and whenever its size or modification time differ from the row.
@@ -912,6 +954,10 @@ Still open, with no proposal:
   filesystem id and gives up the atomic rename.
 - **What does Rekordbox do with the cover** of a track whose file changed?
   Its artwork is cached in its own files. This version does not touch them.
+- **Changing the library root in Settings.** Every row vanishes at once, so
+  the guard trips and stays tripped, while the files under the new root are
+  indexed as new rows. It needs a rule: most likely, a changed root starts a
+  fresh index. Found while building the first slice.
 
 #11's open questions, for the record:
 

@@ -1,0 +1,128 @@
+/* GetSetMix: the Library view and the switch that opens it.
+   Same tokens, rows and deck as the download list (styles.css), read-only:
+   cover, title over artist, a genre chip, the duration. Search sits in the
+   deck at the bottom, under the thumb. From 721px rows become columns.   */
+
+/* ----------------------------------------------------- the view switch */
+.view-switch {
+  display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 3px;
+  margin-left: auto;
+  background: var(--field); border-radius: 12px;
+}
+.view-switch button {
+  height: 34px; padding: 0 12px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--text-2);
+  font-size: .88rem; font-weight: 500; cursor: pointer;
+  transition: background-color .15s var(--ease), color .15s var(--ease);
+}
+.view-switch button[aria-pressed="true"] {
+  background: var(--surface); color: var(--text); font-weight: 600;
+  box-shadow: 0 1px 2px oklch(0.2 0.02 262 / 0.18);
+}
+.view-switch button:not([aria-pressed="true"]):hover { color: var(--text); }
+/* A narrow phone keeps the mark and drops the word, to make room. */
+@media (max-width: 419px) {
+  .topbar .wordmark { display: none; }
+}
+
+/* One view at a time; the download list keeps polling underneath. */
+body:not(.view-library) .lib-wrap,
+body:not(.view-library) .lib-dock,
+body.view-library .list-wrap:not(.lib-wrap),
+body.view-library .dock:not(.lib-dock),
+body.view-library .engine-banner { display: none !important; }
+
+/* ------------------------------------------------------------- notices */
+.lib-banner {
+  margin: 12px var(--gutter) 0; padding: 12px 14px;
+  border: 1px solid color-mix(in oklch, var(--warn) 50%, transparent);
+  background: color-mix(in oklch, var(--warn) 11%, transparent);
+  border-radius: var(--radius); font-size: .9rem; line-height: 1.5;
+}
+.lib-progress {
+  display: flex; align-items: center; gap: 12px;
+  margin: 14px var(--gutter) 0; font-size: .82rem;
+}
+.lib-progress .batch-label { white-space: normal; }
+.lib-progress .batch-track { min-width: 80px; }
+
+/* ---------------------------------------------------------------- rows */
+.lib-wrap { width: 100%; } /* centred by .list-wrap, but never shrunk to its rows */
+.lib-head { display: none; }
+.lib-list { display: flex; flex-direction: column; }
+.lib-more { height: 1px; }
+
+.lib-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "art who genre"
+    "art who dur";
+  column-gap: 12px; align-items: center;
+  min-height: 64px; padding: 8px var(--gutter);
+  border-bottom: 1px solid var(--line-soft);
+}
+.lib-art {
+  grid-area: art; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: 8px;
+  background: var(--field); color: var(--text-3);
+}
+.lib-art svg { width: 20px; height: 20px; }
+.lib-art.has-cover { color: var(--accent); background: var(--accent-wash); }
+.lib-who { grid-area: who; display: flex; flex-direction: column; min-width: 0; }
+.lib-title, .lib-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-title { font-weight: 600; }
+.lib-file { font-weight: 500; color: var(--text-2); }
+.lib-artist { color: var(--text-2); font-size: .875rem; min-height: 1.2em; }
+.lib-genre { grid-area: genre; justify-self: end; min-width: 0; max-width: 9.5rem; }
+.lib-chip {
+  display: inline-block; max-width: 100%; padding: 2px 9px; border-radius: 999px;
+  background: var(--accent-wash); color: var(--accent);
+  font-size: .76rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;
+}
+.lib-dur {
+  grid-area: dur; justify-self: end;
+  color: var(--text-3); font-size: .8rem; font-variant-numeric: tabular-nums;
+}
+
+/* The search field in the deck: the link field's shape, without a button. */
+.lib-dock .add { padding-right: 14px; }
+.lib-dock input[type="search"] { -webkit-appearance: none; appearance: none; }
+
+/* --------------------------------------------- wide screens: columns */
+@media (min-width: 721px) {
+  .view-switch { margin-left: 0; margin-right: auto; }
+  .view-switch button { height: 30px; font-size: .86rem; }
+
+  .lib-head, .lib-row {
+    grid-template-columns: 40px minmax(0, 3fr) minmax(0, 1fr) 52px;
+    grid-template-areas: none;
+    column-gap: 16px;
+  }
+  .lib-head {
+    display: grid; align-items: center;
+    position: sticky; top: 57px; z-index: 2;
+    height: 34px; padding: 0 10px;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+    color: var(--text-3); font-size: .74rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  }
+  .lib-head.hidden { display: none; }
+  .lib-row {
+    min-height: 52px; padding: 6px 10px;
+    border-bottom: 0; border-radius: 8px; position: relative;
+  }
+  .lib-row + .lib-row::before {
+    content: ""; position: absolute; left: 10px; right: 10px; top: 0; border-top: 1px solid var(--line-soft);
+  }
+  .lib-row:hover { background: var(--hover); }
+  .lib-row:hover::before, .lib-row:hover + .lib-row::before { opacity: 0; }
+  .lib-art { grid-area: auto; width: 40px; height: 40px; border-radius: 6px; }
+  .lib-who, .lib-genre, .lib-dur { grid-area: auto; }
+  .lib-title { font-size: .96rem; }
+  .lib-artist { font-size: .88rem; }
+  .lib-genre { justify-self: start; max-width: 100%; }
+  .lib-dur { font-size: .86rem; text-align: right; }
+  .lib-banner, .lib-progress { margin-left: 16px; margin-right: 16px; }
+  .lib-dock .add { margin-left: auto; margin-right: auto; }
+}
