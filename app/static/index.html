@@ -79,12 +79,25 @@
       <span id="libProgressText" class="batch-label"></span>
       <div class="batch-track"><div id="libProgressFill" class="batch-fill"></div></div>
     </div>
-    <p class="summary"><span id="libCount" class="stats-text"></span></p>
+    <div class="summary lib-bar">
+      <button id="libBack" type="button" class="lib-tool lib-back hidden">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span data-i18n="viewLibrary">Library</span>
+      </button>
+      <span id="libCount" class="stats-text"></span>
+      <button id="libTrashBtn" type="button" class="lib-tool lib-trash-btn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="libTrashLabel">Trash</span>
+      </button>
+      <button id="libEmptyTrash" type="button" class="lib-tool lib-empty-trash hidden" data-i18n="libEmptyTrash">Empty trash</button>
+    </div>
+    <p id="libTrashNote" class="lib-note hidden"></p>
     <div id="libHead" class="lib-head hidden" aria-hidden="true">
       <span></span>
       <span data-i18n="colTrack">Track</span>
       <span data-i18n="colGenre">Genre</span>
       <span class="num" data-i18n="colTime">Time</span>
+      <span></span>
     </div>
     <div id="libList" class="lib-list"></div>
     <div id="libMore" class="lib-more" aria-hidden="true"></div>
@@ -245,6 +258,11 @@
               <button type="button" class="btn btn-quiet" data-pick="collection" data-i18n="browse">Browse</button>
             </div>
             <small data-i18n="collectionHint">With your exported collection set, tracks you already own are flagged as duplicates and dropped from the inbox.</small>
+          </div>
+          <div class="set-row">
+            <label for="setTrashDays" data-i18n="trashDays">Keep deleted tracks (days)</label>
+            <input id="setTrashDays" type="number" inputmode="numeric" min="0" max="3650" />
+            <small class="set-note" data-i18n="trashDaysHint">Then the trash removes them for good. 0 keeps them until you empty the trash.</small>
           </div>
         </section>
 

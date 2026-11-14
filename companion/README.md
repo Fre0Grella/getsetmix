@@ -144,3 +144,15 @@ the first fetch against it rewrites `fetched.json` and keeps the old file as
 
 Files Rekordbox cannot import (Ogg, Opus) are not downloaded. The server
 keeps them, and `gsm-companion status` says how many were skipped and why.
+
+A track deleted in GetSetMix's Library (or gone from the server's disk for
+more than a day) is never removed from your Rekordbox collection: removing it
+would also lose its cues, beat grid and playlist entries. Instead it is
+listed once in a root playlist, **GetSetMix: removed on server**, written
+under the same safety as an import (Rekordbox closed, backup, integrity
+check). Restore the track on the server and it leaves that playlist. The
+local file stays, unless `companion.json` has `"delete_removed_files": true`
+in its `server` entry (*Delete the local file too*, off by default): the file
+then goes to the Recycle Bin or the Trash, never further, and is left in
+place where no bin is available (a network share, a USB stick). On macOS the
+first time asks whether GetSetMix may control the Finder, which does the move.

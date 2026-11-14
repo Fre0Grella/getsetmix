@@ -10,6 +10,10 @@ files missing and, after 24 hours, gone. If a pass would mark more than 20%
 of the library, and more than 10 files, as missing, it marks none and sets
 `unavailable` instead.
 
+A delete moves the file to `<root>/.trash/<UTC time>-<id>/<path>` and makes
+its row a `trashed` tombstone; a restore moves it back; a daily purge deletes
+trash older than `trash_days` and turns those rows `gone` (design 4.4).
+
 Time comes from an injectable clock, so the settle and grace times are
 testable without waiting.
 """
@@ -17,10 +21,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 import logging
 import os
 import re
+import shutil
 import sqlite3
 import threading
 import time
@@ -55,6 +61,25 @@ SORTS = {"added": "added_at", "artist": "artist COLLATE NOCASE",
 SORT_COLUMNS = {"added": "added_at", "artist": "artist", "title": "title", "genre": "genre"}
 STATES = ("present", "trashed")
 TAG_FIELDS = ("title", "artist", "album", "genre", "comment")
+TRASH_DIR = ".trash"        # inside the root; the dot keeps it out of the walk and the link
+DAY = 24 * 3600
+
+
+class LibraryError(Exception):
+    """A request the library refuses, with the HTTP status that says why."""
+
+    def __init__(self, status: int, detail: str) -> None:
+        super().__init__(detail)
+        self.status = status
+        self.detail = detail
+
+
+def _trash_folder(root: Path, trash_rel: str | None) -> Path | None:
+    """The `<UTC time>-<id>` folder a trash path lives in, or None if it is not one."""
+    parts = (trash_rel or "").split("/")
+    if len(parts) < 3 or parts[0] != TRASH_DIR or parts[1] in ("", ".", ".."):
+        return None
+    return root / TRASH_DIR / parts[1]
 
 
 def fold(text: str) -> str:
@@ -182,10 +207,12 @@ def _walk(root: Path) -> list[tuple[str, int, int]]:
 # --------------------------------------------------------------- the index
 class Library:
     def __init__(self, database, root: Callable[[], Path] | None = None,
-                 clock: Callable[[], float] = time.time) -> None:
+                 clock: Callable[[], float] = time.time,
+                 trash_days: Callable[[], int] | None = None) -> None:
         self.db = database
         self.root = root or (lambda: Path(config.settings["library_root"]))
         self.clock = clock
+        self.trash_days = trash_days or (lambda: int(config.settings.get("trash_days", 30)))
         self._pass = threading.Lock()
         self._idle = threading.Event()
         self._idle.set()
@@ -436,6 +463,142 @@ class Library:
             return self._insert(conn, rel, st.st_size, st.st_mtime_ns, aid, tags, _iso(now),
                                 source_url)
 
+    # ------------------------------------------------------------ the trash
+    def trash(self, fid: int) -> dict:
+        """Move a file to `<root>/.trash/<UTC time>-<id>/<path>` (design 4.4).
+
+        The row becomes `trashed`, keeps its path and takes the next rev. Raises
+        LibraryError: 404 unknown id, 410 already in the trash or gone, 409 the
+        file is not on disk (missing).
+        """
+        root = Path(self.root())
+        now = self.clock()
+        with self.db.transaction() as conn:
+            row = conn.execute("SELECT * FROM library_files WHERE id = ?", (fid,)).fetchone()
+            if row is None:
+                raise LibraryError(404, "no such track")
+            if row["state"] in ("trashed", "gone"):
+                raise LibraryError(410, "the track is already deleted")
+            src = root / row["path"]
+            if row["state"] != "present" or not src.is_file():
+                raise LibraryError(409, "the file is not on disk")
+            stamp = datetime.fromtimestamp(now, timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            trash_rel = f"{TRASH_DIR}/{stamp}-{fid}/{row['path']}"
+            rev = self._next_rev(conn)
+            conn.execute(
+                "UPDATE library_files SET state = 'trashed', state_changed_at = ?, "
+                "trash_path = ?, rev = ? WHERE id = ?", (_iso(now), trash_rel, rev, fid))
+            # Moved inside the transaction: if the move fails, the row rolls back.
+            dest = root / trash_rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(src), str(dest))
+        log.info("library: moved %s to the trash", row["path"])
+        return {"id": fid, "state": "trashed", "rev": rev}
+
+    def restore(self, fid: int) -> dict:
+        """Move a trashed file back to its path; the row is `present` again.
+
+        Raises LibraryError: 404 unknown id, 409 not in the trash or its path is
+        taken (nothing is renamed to make room), 410 purged, or the trashed file
+        itself has vanished (the row is then `gone`).
+        """
+        root = Path(self.root())
+        now = self.clock()
+        vanished = False
+        with self.db.transaction() as conn:
+            row = conn.execute("SELECT * FROM library_files WHERE id = ?", (fid,)).fetchone()
+            if row is None:
+                raise LibraryError(404, "no such track")
+            if row["state"] == "gone":
+                raise LibraryError(410, "the track was purged from the trash")
+            if row["state"] != "trashed" or not row["trash_path"]:
+                raise LibraryError(409, "the track is not in the trash")
+            src = root / row["trash_path"]
+            dest = root / row["path"]
+            if not src.is_file():
+                conn.execute("UPDATE library_files SET state = 'gone', state_changed_at = ?, "
+                             "rev = ? WHERE id = ?", (_iso(now), self._next_rev(conn), fid))
+                vanished = True
+            else:
+                taken = conn.execute(
+                    "SELECT 1 FROM library_files WHERE path = ? AND state IN ('present', 'missing')",
+                    (row["path"],)).fetchone()
+                if taken or dest.exists():
+                    raise LibraryError(409, "another file has taken this track's place: "
+                                            + row["path"])
+                rev = self._next_rev(conn)
+                conn.execute("UPDATE library_files SET state = 'present', state_changed_at = ?, "
+                             "trash_path = NULL, rev = ? WHERE id = ?", (_iso(now), rev, fid))
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(src), str(dest))
+        if vanished:
+            raise LibraryError(410, "the file is no longer in the trash")
+        self._tidy_trash(root, row["trash_path"])
+        log.info("library: restored %s", row["path"])
+        return {"id": fid, "state": "present", "rev": rev}
+
+    def purge(self, everything: bool = False) -> int:
+        """Delete trash older than `trash_days` (all of it with `everything`).
+
+        Each purged row becomes `gone` and keeps its trash path, so its
+        tombstone still says it was deleted in GetSetMix. `trash_days` 0 keeps
+        the trash until it is emptied by hand. Returns how many were purged.
+        """
+        days = self.trash_days()
+        if not everything and days <= 0:
+            return 0
+        root = Path(self.root())
+        now = self.clock()
+        with self.db.transaction() as conn:
+            rows = [dict(r) for r in conn.execute(
+                "SELECT id, path, trash_path, state_changed_at FROM library_files "
+                "WHERE state = 'trashed' ORDER BY id")]
+        purged = 0
+        for row in rows:
+            if not everything and (not row["state_changed_at"]
+                                   or now - _ts(row["state_changed_at"]) < days * DAY):
+                continue
+            folder = _trash_folder(root, row["trash_path"])
+            try:
+                if folder is not None and folder.exists():
+                    shutil.rmtree(folder)
+            except OSError:
+                log.warning("library: could not purge %s from the trash", row["path"],
+                            exc_info=True)
+                continue
+            with self.db.transaction() as conn:
+                conn.execute("UPDATE library_files SET state = 'gone', state_changed_at = ?, "
+                             "rev = ? WHERE id = ? AND state = 'trashed'",
+                             (_iso(now), self._next_rev(conn), row["id"]))
+            purged += 1
+        if purged:
+            log.info("library: purged %d file(s) from the trash", purged)
+        return purged
+
+    def purge_due(self) -> int:
+        """The daily purge: runs when the last one is a day old or more."""
+        with self.db.transaction() as conn:
+            last = self._meta(conn, "last_purge")
+        now = self.clock()
+        if last is not None and now - _ts(last) < DAY:
+            return 0
+        purged = self.purge()
+        with self.db.transaction() as conn:
+            self._set_meta(conn, "last_purge", _iso(now))
+        return purged
+
+    @staticmethod
+    def _tidy_trash(root: Path, trash_rel: str) -> None:
+        """Remove the empty folders a restore leaves in the trash."""
+        folder = _trash_folder(root, trash_rel)
+        if folder is None:
+            return
+        for path in sorted((p for p in folder.rglob("*") if p.is_dir()), reverse=True):
+            with contextlib.suppress(OSError):
+                path.rmdir()
+        with contextlib.suppress(OSError):
+            folder.rmdir()
+
     # ------------------------------------------------------------- reads
     def status(self) -> dict:
         with self.db.transaction() as conn:
@@ -634,11 +797,16 @@ def current() -> Library:
 async def _every_interval() -> None:
     while True:
         current().trigger()
+        try:
+            await asyncio.to_thread(current().purge_due)
+        except Exception:
+            log.exception("library: the daily purge of the trash failed")
         await asyncio.sleep(INTERVAL_SECONDS)
 
 
 def start() -> None:
-    """At app start: a pass now (the first index, in the background), then every 5 minutes."""
+    """At app start: a pass now (the first index, in the background), then every 5
+    minutes; the trash is purged of what is older than `trash_days` once a day."""
     global _periodic
     _periodic = asyncio.get_running_loop().create_task(_every_interval())
 

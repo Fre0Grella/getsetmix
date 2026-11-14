@@ -133,7 +133,8 @@ CREATE TABLE library_files (
     state            TEXT    NOT NULL DEFAULT 'present',
                      -- present | missing | trashed | gone
     state_changed_at TEXT,
-    trash_path       TEXT                      -- set while state = 'trashed'
+    trash_path       TEXT                      -- set when trashed; kept after the purge, so a
+                                               -- gone tombstone still says "deleted" (3.5)
 );
 CREATE INDEX library_files_audio ON library_files (audio_id);
 CREATE INDEX library_files_state ON library_files (state, rev);
@@ -401,7 +402,8 @@ the index.
     }
   },
   "legacy": { "Gone From Server.mp3": "2026-10-01T18:00:00Z" },
-  "removed": { "a1_9b2e…": "2026-11-12T22:15:00Z" }
+  "removed": { "a1_9b2e…": { "path": "Other - Track.mp3", "at": "2026-11-12T22:15:00Z",
+                             "reason": "deleted" } }
 }
 ```
 
@@ -409,7 +411,7 @@ the index.
 |---|---|
 | `tracks` | what this computer has fetched: the server path, the `rev` it holds, and the six tag fields it last saw (title, artist, album, genre, year, comment) |
 | `legacy` | paths from the old file that the server no longer lists; kept so they are never fetched again if they come back |
-| `removed` | tombstones already handled |
+| `removed` | tombstones already handled, for tracks this computer holds: the server path, when, the reason, and `recycle` / `recycled` for the opt-in local delete. The first draft held the time alone; that form still reads. Built in [#38](https://github.com/Fre0Grella/getsetmix/issues/38): the path is kept because a track known from `legacy` has no `tracks` entry to take it from |
 | `skipped` | listed files of the last fetch that Rekordbox cannot import, counted by extension, for `status` |
 
 While the server speaks protocol 1 the file stays version 1, so an older
@@ -418,7 +420,9 @@ companion can still read it.
 `state.json` (which local files the importer has handled) stays keyed by
 local path, since nothing is renamed. Its values grow from a time to
 `{at, size, mtime}`, so the importer can tell that a handled file has
-changed ([4.6](#46-what-a-computer-does)).
+changed ([4.6](#46-what-a-computer-does)). It gains `removed`: the local
+paths the importer has listed in the *removed on server* playlist, so none
+is listed twice and a restore can take it out again.
 
 ## 4. Design
 
@@ -709,6 +713,27 @@ server delete**, with the grace time and the guard of [4.1](#41-the-index-and-ho
 as the safety. There is no trash to restore from in that case, and the view
 says so.
 
+**As built** ([#38](https://github.com/Fre0Grella/getsetmix/issues/38)):
+
+| Request | Answer |
+|---|---|
+| `DELETE /api/library/{id}` | `200` with `{id, state: "trashed", rev}`; `404` unknown id; `410` already trashed or gone; `409` the row is `missing` (nothing on disk to move) |
+| `POST /api/library/{id}/restore` | `200` with `{id, state: "present", rev}`; `404`; `409` not in the trash, or its path is taken by a file on disk or a live row; `410` purged, or the file in the trash has vanished (the row then becomes `gone`) |
+| `DELETE /api/library/trash` | `200` with `{purged: n}`: the whole trash, whatever its age |
+
+- The row is updated and the file moved in one database transaction: if the
+  move fails, the row rolls back. A restore keeps `content_rev`, and the
+  rename keeps the file's time, so a paired computer does not download it
+  again. The empty `<UTC time>-<id>` folder is removed after a restore.
+- The purge only deletes `<UTC time>-<id>` folders of trashed rows; anything
+  else in `.trash/` is left alone. A folder it cannot delete stays, with its
+  row `trashed`, and is tried again the next day.
+- `trash_days` 0 means no purge by age: the trash keeps everything until
+  *Empty trash*. The daily purge runs with the 5-minute pass, at most once
+  per 24 hours (`last_purge` in `library_meta`).
+- Routes that take an id use the `int` path convertor, so `/api/library/trash`
+  and `/api/library/rules` are never read as an id.
+
 ### 4.5 The Library view
 
 One more place in the app, beside the download list. A switch in the top
@@ -828,6 +853,35 @@ sequenceDiagram
 Both need a write to `master.db`, so both wait while Rekordbox is open, as
 imports do.
 
+**As built** for deleted tracks ([#38](https://github.com/Fre0Grella/getsetmix/issues/38)):
+
+- *Fetch* owns `fetched.json`. It records a tombstone only for a track this
+  computer holds (in `tracks`, or by path in `legacy`), drops it when the id
+  is listed again, and does the opt-in local delete. It never opens
+  `master.db`.
+- *The importer* reads `fetched.json` without writing it and compares its
+  tombstones with the paths it has listed (`state.json`, `removed`). The
+  difference is written in the same sync as the imports, under the same
+  backup, after the imports, so a track fetched and removed while Rekordbox
+  was open has its row by then. Nothing to list means `master.db` is not
+  opened. A path with no row in the collection (the DJ removed it) is
+  recorded as handled and not looked for again.
+- Taking a track out of the playlist deletes its `djmdSongPlaylist` row in
+  that playlist only and renumbers the rest, each moved entry with the next
+  change number, as pyrekordbox does.
+- *Delete the local file too* is `"delete_removed_files": true` in the
+  `server` entry of `companion.json`; Setup does not offer it yet. It acts
+  on tombstones handled while it is on, never on older ones. Windows: the
+  Recycle Bin through `SHFileOperationW` with undo, only on a fixed drive
+  (a network share or a USB stick has no bin and Windows would delete for
+  good), and asking rather than deleting if the bin is turned off. macOS:
+  the Finder moves it to the Trash, which asks once for permission to
+  control the Finder. A failed move leaves the file and is tried again on
+  the next fetch. If the track is restored on the server and its file went
+  to the bin, it is downloaded again.
+- The "handled file is gone" rule for local mode and synced folders is slice
+  7; without a paired server nothing is listed.
+
 **Folders filled by a sync client.** When Setup was told *My server's music
 folder is already synced here*, there is no fetch. Nextcloud or Syncthing
 replaces a changed file itself, and the importer's scan picks the change up
@@ -907,6 +961,27 @@ before the companion slices ship:
       survives a Rekordbox restart.
 - [ ] A USB export of an edited track works and carries the new tags.
 - [ ] The same with Cloud Library Sync on, if available.
+
+**Delete and restore** ([#38](https://github.com/Fre0Grella/getsetmix/issues/38)),
+by the maintainer, on a **copy** of a Rekordbox library (never the one for a
+gig), with Rekordbox closed while the companion syncs:
+
+- [ ] Delete two fetched tracks in the Library view, run
+      `gsm-companion fetch`, open Rekordbox: a root playlist
+      *GetSetMix: removed on server* holds exactly those two tracks.
+- [ ] Both tracks are still in the collection with their hot cues, memory
+      cues, beat grid and their place in every other playlist.
+- [ ] Quit and reopen Rekordbox: the playlist is still there, with the same
+      tracks (the `masterPlaylists6.xml` mirror agrees with `master.db`).
+- [ ] Fetch again: neither track is listed twice.
+- [ ] Restore one in the Trash view, fetch, open Rekordbox: it has left the
+      playlist and plays as before; the other is still listed.
+- [ ] With Rekordbox open, delete a track and fetch: nothing changes until
+      Rekordbox is closed and the launcher or the next fetch runs.
+- [ ] With `"delete_removed_files": true` (on a test folder): a deleted
+      track's local file is in the Recycle Bin (Windows) or the Trash
+      (macOS, after allowing control of the Finder), and Rekordbox shows it
+      as missing, still in the playlist.
 
 ## 6. Decisions and open questions
 

@@ -7,6 +7,11 @@
 // Rekordbox cannot import (Ogg, Opus) stay on the server and are not
 // downloaded; the state counts them for `gsm-companion status`.
 //
+// A protocol 2 listing also names the tracks the server removed. Fetch only
+// records the ones this computer holds (removed.go); the importer lists them
+// in a playlist. With the option "Delete the local file too" the local file
+// goes to the recycle bin, never further.
+//
 // Files land as "name.part" and are renamed when complete, which the scanner
 // already ignores, so the importer never sees half a track.
 package fetch
@@ -35,6 +40,10 @@ type Server struct {
 	Token string `json:"token"` // this computer's link token
 	// Folder receives the tracks; it is also one of the watched folders.
 	Folder string `json:"folder"`
+	// DeleteRemovedFiles is the option "Delete the local file too": a track
+	// the server removed then goes to the system's recycle bin. Off by
+	// default; the file stays.
+	DeleteRemovedFiles bool `json:"delete_removed_files,omitempty"`
 }
 
 // File is one track the server offers.
@@ -77,6 +86,12 @@ type Report struct {
 	Downloaded []string          // local paths
 	Failed     map[string]string // server path -> reason; retried next time
 	Remaining  int               // left for next time (deadline reached)
+	// Tombstones (removed.go), by server path: tracks this computer holds
+	// that the server removed, ones it brought back, and local files sent
+	// to the recycle bin.
+	Removed  []string
+	Restored []string
+	Recycled []string
 }
 
 // ErrUnauthorized means the server no longer knows this computer.
@@ -86,6 +101,9 @@ var ErrUnauthorized = errors.New("the server doesn't recognise this computer any
 type Client struct {
 	Server Server
 	HTTP   *http.Client
+	// Recycle sends a local file to the recycle bin (recycle.Move when nil;
+	// replaced in tests).
+	Recycle func(path string) error
 }
 
 func (c *Client) http() *http.Client {
@@ -187,6 +205,7 @@ func (c *Client) Run(ctx context.Context, state *State, now func() time.Time) (R
 		return rep, err
 	}
 	state.Begin(listing, c.Server.Folder)
+	c.tombstones(listing, state, now(), &rep)
 	var todo []File
 	for _, f := range listing.Files {
 		// The server keeps listing what Rekordbox cannot import, so its Library
