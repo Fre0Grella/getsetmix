@@ -107,7 +107,8 @@ Seconds per track, whole library, six windows:
 
 Measured on 2026-11-14 on the maintainer's home server (Intel Core i5-8400,
 6 cores, 15 GB, Linux), where GetSetMix runs in microk8s with a limit of
-2 CPUs and 1 GiB. General model, the same fixed pick of 20 tracks from the
+2 CPUs and 1 GiB (a temporary setting, to be raised for this project).
+General model, the same fixed pick of 20 tracks from the
 server's music folder (opened read-only), 6 windows per track:
 
 | Run | Decode | Features | Inference | Total per track | Peak memory |
@@ -126,9 +127,9 @@ Model load: about 1 s.
   2 threads without a limit. The product should set the thread count from
   the container's CPU limit (cgroup `cpu.max`).
 - Peak memory is 0.5 GB for the model alone. The app idles at about 55 MB,
-  so it fits in the 1 GiB limit, but not with much to spare: the analysis
-  should run one track at a time and the setup docs should say that it needs
-  the memory.
+  so it fits even in today's 1 GiB limit, if not with much to spare: the
+  analysis should run one track at a time and the setup docs should say how
+  much memory it needs.
 
 How it was run: a one-off Job in its own namespace, `python:3.12-slim` with
 ffmpeg, `onnxruntime`, `numpy` and `psutil`, the music folder mounted
