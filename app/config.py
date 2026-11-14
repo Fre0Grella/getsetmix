@@ -22,6 +22,7 @@ DEFAULTS = {
     "concurrency": 2,                   # global default parallel downloads
     "filename_template": "{artist} - {title}",
     "language": "en",                   # "en" | "it"
+    "trash_days": 30,                   # Library trash kept this long; 0 = until emptied by hand
 }
 
 ENV_MAP = {
@@ -33,7 +34,10 @@ ENV_MAP = {
     "GSM_CONCURRENCY": "concurrency",
     "GSM_FILENAME_TEMPLATE": "filename_template",
     "GSM_LANGUAGE": "language",
+    "GSM_TRASH_DAYS": "trash_days",
 }
+INT_KEYS = ("concurrency", "trash_days")
+TRASH_DAYS_MAX = 3650
 
 _lock = threading.Lock()
 
@@ -56,7 +60,7 @@ class Settings:
             for env, key in ENV_MAP.items():
                 if env in os.environ and os.environ[env] != "":
                     val: object = os.environ[env]
-                    if key == "concurrency":
+                    if key in INT_KEYS:
                         try:
                             val = int(val)  # type: ignore[arg-type]
                         except ValueError:
@@ -85,6 +89,11 @@ class Settings:
             self.data["concurrency"] = max(1, min(8, int(self.data.get("concurrency", 2))))
         except (TypeError, ValueError):
             self.data["concurrency"] = 2
+        try:
+            days = int(self.data.get("trash_days", DEFAULTS["trash_days"]))
+            self.data["trash_days"] = max(0, min(TRASH_DAYS_MAX, days))
+        except (TypeError, ValueError):
+            self.data["trash_days"] = DEFAULTS["trash_days"]
         if self.data.get("language") not in ("it", "en"):
             self.data["language"] = "en"
         if not str(self.data.get("filename_template") or "").strip():

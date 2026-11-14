@@ -289,8 +289,11 @@ func cmdLaunch(home string, logger *log.Logger) error {
 			logger.Printf("launch: import skipped: %v", err)
 		} else if rep, err := im.Sync(false); err != nil {
 			logger.Printf("launch: import failed: %v", err)
-		} else if len(rep.Imported) > 0 {
-			logger.Printf("launch: imported %d track(s) into %q", len(rep.Imported), cfg.Playlist)
+		} else {
+			if len(rep.Imported) > 0 {
+				logger.Printf("launch: imported %d track(s) into %q", len(rep.Imported), cfg.Playlist)
+			}
+			logRemoved(logger, rep)
 		}
 	}
 	if inst.Exe == "" {
@@ -340,7 +343,7 @@ func cmdFetch(home string, logger *log.Logger, args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(rep.Downloaded) == 0 {
+	if len(rep.Downloaded) == 0 && len(rep.Removed) == 0 && len(rep.Restored) == 0 {
 		return nil
 	}
 	im, err := newImporter(home, logger)
@@ -361,6 +364,7 @@ func cmdFetch(home string, logger *log.Logger, args []string) error {
 	if err == nil && len(irep.Imported) > 0 {
 		logger.Printf("fetch: imported %d track(s) into %q", len(irep.Imported), cfg.Playlist)
 	}
+	logRemoved(logger, irep)
 	return err
 }
 
@@ -389,6 +393,15 @@ func runFetch(home string, cfg config.Config, logger *log.Logger, budget time.Du
 	}
 	for _, p := range rep.Downloaded {
 		logger.Printf("fetched %s", p)
+	}
+	for _, p := range rep.Removed {
+		logger.Printf("removed on the server: %s", p)
+	}
+	for _, p := range rep.Restored {
+		logger.Printf("restored on the server: %s", p)
+	}
+	for _, p := range rep.Recycled {
+		logger.Printf("moved to the recycle bin: %s", p)
 	}
 	for p, why := range rep.Failed {
 		logger.Printf("fetch failed %s: %s", p, why)
@@ -471,6 +484,16 @@ func cmdStatus(home string) error {
 	return nil
 }
 
+// logRemoved notes the changes a sync made to the "removed on server" playlist.
+func logRemoved(logger *log.Logger, rep importer.Report) {
+	if n := len(rep.MarkedRemoved); n > 0 {
+		logger.Printf("listed %d track(s) in %q", n, library.RemovedPlaylist)
+	}
+	if n := len(rep.Unmarked); n > 0 {
+		logger.Printf("took %d restored track(s) out of %q", n, library.RemovedPlaylist)
+	}
+}
+
 func printReport(rep importer.Report) {
 	verb := "imported"
 	if rep.DryRun {
@@ -478,6 +501,12 @@ func printReport(rep importer.Report) {
 	}
 	for _, p := range rep.Imported {
 		fmt.Printf("%s  %s\n", verb, filepath.Base(p))
+	}
+	for _, p := range rep.MarkedRemoved {
+		fmt.Printf("removed on server  %s\n", filepath.Base(p))
+	}
+	for _, p := range rep.Unmarked {
+		fmt.Printf("restored on server  %s\n", filepath.Base(p))
 	}
 	for p, why := range rep.Failed {
 		fmt.Printf("failed       %s: %s\n", filepath.Base(p), why)

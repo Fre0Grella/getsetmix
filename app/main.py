@@ -20,7 +20,9 @@ from . import (
     __version__, genres, library, library_api, link, metadata, metrics, rekordbox, rules,
     ytdl,
 )
-from .config import AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, ensure_dirs, settings
+from .config import (
+    AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, TRASH_DAYS_MAX, ensure_dirs, settings,
+)
 from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
 from .worker import worker
 
@@ -100,6 +102,7 @@ class SettingsPatch(BaseModel):
     concurrency: int | None = None
     filename_template: str | None = None
     language: str | None = None
+    trash_days: int | None = None
 
 
 class Purge(BaseModel):
@@ -397,6 +400,8 @@ async def put_settings(body: SettingsPatch):
         raise HTTPException(400, "language must be 'it' or 'en'")
     if "concurrency" in patch and not 1 <= int(patch["concurrency"]) <= 8:
         raise HTTPException(400, "concurrency must be between 1 and 8")
+    if "trash_days" in patch and not 0 <= int(patch["trash_days"]) <= TRASH_DAYS_MAX:
+        raise HTTPException(400, f"trash_days must be between 0 and {TRASH_DAYS_MAX}")
     if "filename_template" in patch and not patch["filename_template"].strip():
         raise HTTPException(400, "filename_template cannot be empty")
     settings.update(patch)

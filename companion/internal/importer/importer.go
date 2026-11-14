@@ -3,8 +3,9 @@
 //
 // The order is what makes it safe:
 //
-//  1. scan the folders; stop here if nothing is new (the common case — no
-//     database is opened at all);
+//  1. scan the folders, and compare the tracks the server removed with the
+//     ones already listed in the "removed on server" playlist; stop here if
+//     nothing is new (the common case — no database is opened at all);
 //  2. refuse to write while Rekordbox is running;
 //  3. read the collection to drop files it already has, and probe the rest;
 //  4. back up master.db, write everything in one transaction, check integrity,
@@ -49,6 +50,10 @@ type Report struct {
 	Failed   map[string]string // path -> reason; retried next sync
 	Deferred bool              // Rekordbox is open: nothing was written
 	DryRun   bool
+	// Tracks the server removed, listed in the "removed on server"
+	// playlist, and restored ones taken out of it (removed.go).
+	MarkedRemoved []string
+	Unmarked      []string
 }
 
 // ErrRekordboxRunning is returned by Sync when files wait but Rekordbox is open.
@@ -85,7 +90,11 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 		}
 	}
 	rep.New = len(pending)
-	if len(pending) == 0 {
+	marks, err := im.removals(state)
+	if err != nil {
+		return rep, err
+	}
+	if len(pending) == 0 && marks.empty() {
 		return rep, nil
 	}
 
@@ -96,18 +105,21 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 		return rep, ErrRekordboxRunning
 	}
 
-	tracks, err := im.prepare(pending, &rep)
-	if err != nil {
-		return rep, err
+	var tracks []library.Track
+	if len(pending) > 0 {
+		if tracks, err = im.prepare(pending, &rep); err != nil {
+			return rep, err
+		}
 	}
 	if dryRun {
 		for _, t := range tracks {
 			rep.Imported = append(rep.Imported, t.Path)
 		}
+		rep.MarkedRemoved, rep.Unmarked = marks.add, marks.drop
 		return rep, nil
 	}
-	if len(tracks) > 0 {
-		if err := im.write(tracks, now, &rep); err != nil {
+	if len(tracks) > 0 || !marks.empty() {
+		if err := im.write(tracks, marks, now, &rep); err != nil {
 			return rep, err
 		}
 	}
@@ -120,6 +132,7 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 		}
 		state.Mark(now, f)
 	}
+	marks.record(state, now)
 	return rep, state.Save(im.Home)
 }
 
@@ -154,8 +167,9 @@ func (im *Importer) prepare(pending []scan.File, rep *Report) ([]library.Track, 
 	return tracks, nil
 }
 
-// write imports tracks under a backup that is restored if anything is off.
-func (im *Importer) write(tracks []library.Track, now time.Time, rep *Report) error {
+// write imports tracks and updates the "removed on server" playlist under a
+// backup that is restored if anything is off.
+func (im *Importer) write(tracks []library.Track, marks removals, now time.Time, rep *Report) error {
 	backup := filepath.Join(im.Home, "backup")
 	if err := snapshot(im.Install.Dir, backup); err != nil {
 		return fmt.Errorf("backing up master.db (nothing was changed): %w", err)
@@ -172,10 +186,20 @@ func (im *Importer) write(tracks []library.Track, now time.Time, rep *Report) er
 	if err != nil {
 		return err
 	}
-	res, importErr := db.Import(tracks, im.Config.Playlist, now)
+	var res library.Result
+	var importErr, markErr error
+	if len(tracks) > 0 {
+		res, importErr = db.Import(tracks, im.Config.Playlist, now)
+	}
+	var marked library.RemovedResult
+	if importErr == nil && !marks.empty() {
+		// After the import, so a track fetched and removed before Rekordbox
+		// was closed has its row by now.
+		marked, markErr = db.MarkRemoved(marks.add, marks.drop, now)
+	}
 	checkErr := db.QuickCheck()
 	closeErr := db.Close()
-	if err := errors.Join(importErr, checkErr, closeErr); err != nil {
+	if err := errors.Join(importErr, markErr, checkErr, closeErr); err != nil {
 		if restoreErr := restore(backup, im.Install.Dir); restoreErr != nil {
 			return fmt.Errorf("%w; restoring the backup also failed: %v (copy %s back by hand)",
 				err, restoreErr, backup)
@@ -184,9 +208,16 @@ func (im *Importer) write(tracks []library.Track, now time.Time, rep *Report) er
 	}
 	rep.Imported = append(rep.Imported, res.Added...)
 	rep.Already = append(rep.Already, res.Skipped...)
-	if err := library.SyncPlaylistXML(im.Install.PlaylistXML(), res.Playlist); err != nil {
-		// The tracks are in; Rekordbox rebuilds this mirror if it must.
-		im.Log.Printf("warning: masterPlaylists6.xml not updated: %v", err)
+	rep.MarkedRemoved = append(rep.MarkedRemoved, marked.Added...)
+	rep.Unmarked = append(rep.Unmarked, marked.Dropped...)
+	for _, pl := range []library.Playlist{res.Playlist, marked.Playlist} {
+		if pl.ID == "" {
+			continue
+		}
+		if err := library.SyncPlaylistXML(im.Install.PlaylistXML(), pl); err != nil {
+			// The rows are in; Rekordbox rebuilds this mirror if it must.
+			im.Log.Printf("warning: masterPlaylists6.xml not updated: %v", err)
+		}
 	}
 	return nil
 }
