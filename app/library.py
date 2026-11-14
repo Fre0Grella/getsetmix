@@ -35,7 +35,7 @@ from mutagen.mp4 import MP4Tags
 
 from . import audiohash, config
 from . import db as dbmod
-from .link import AUDIO_EXTS
+from .link import AUDIO_EXTS, served
 from .link import _skip as skipped  # the link's skip rules, shared on purpose
 
 log = logging.getLogger("getsetmix.library")
@@ -46,6 +46,8 @@ GUARD_SHARE = 0.20
 GUARD_MIN = 10
 BATCH = 50                  # files hashed per committed batch
 INTERVAL_SECONDS = 5 * 60   # the periodic pass
+LINK_MAX_AGE = 60           # /api/link/files reconciles when the last pass is older
+LINK_WAIT = 10              # ...and waits this long for it, once the library is indexed
 EDITABLE_FORMATS = ("mp3", "flac")
 LIVE = ("present", "missing")
 SORTS = {"added": "added_at", "artist": "artist COLLATE NOCASE",
@@ -371,8 +373,16 @@ class Library:
 
     def _update(self, conn: sqlite3.Connection, fid: int, rel: str, size: int, mtime_ns: int,
                 aid: str, tags: dict, now: float, back: bool) -> None:
+        was = conn.execute("SELECT size, mtime_ns FROM library_files WHERE id = ?",
+                           (fid,)).fetchone()
+        rev = self._next_rev(conn)
         fields = {**self._columns(rel, size, mtime_ns, aid, tags), "state": "present",
-                  "rev": self._next_rev(conn)}
+                  "rev": rev}
+        # The bytes changed (a tag edit) when the size or time did; a move or a
+        # file coming back as it was keeps its content_rev, so a paired computer
+        # does not download it again (link protocol 2, files[].rev).
+        if was is None or (was["size"], was["mtime_ns"]) != (size, mtime_ns):
+            fields["content_rev"] = rev
         if back:
             fields["state_changed_at"] = _iso(now)
         sets = ", ".join(f"{k} = ?" for k in fields)
@@ -380,9 +390,10 @@ class Library:
 
     def _insert(self, conn: sqlite3.Connection, rel: str, size: int, mtime_ns: int, aid: str,
                 tags: dict, added_at: str, source_url: str) -> int:
+        rev = self._next_rev(conn)
         fields = {**self._columns(rel, size, mtime_ns, aid, tags), "source_url": source_url,
                   "added_at": added_at, "state": "present", "state_changed_at": added_at,
-                  "rev": self._next_rev(conn)}
+                  "rev": rev, "content_rev": rev}
         cols = ", ".join(fields)
         marks = ", ".join("?" for _ in fields)
         cur = conn.execute(f"INSERT INTO library_files ({cols}) VALUES ({marks})",
@@ -439,6 +450,59 @@ class Library:
             "indexed": meta.get("indexed") == "1",
             "indexing": dict(self.progress),
         }
+
+    # -------------------------------------------------------------- link
+    def link_listing(self, refresh: bool = False) -> dict | None:
+        """What paired computers read, as link protocol 2 (design 3.5).
+
+        None until the first index is complete: the link then answers as
+        protocol 1, from a disk walk. With `refresh`, a pass is started when the
+        last one is older than LINK_MAX_AGE, and waited for (up to LINK_WAIT)
+        only once the library is indexed, so a computer never waits for a first
+        index.
+
+        Each audio id is listed once, from its oldest row (decision 5). A
+        file's `rev` is the last change of its bytes, not of its row, so a move
+        outside GetSetMix is not downloaded again. `removed` holds one entry per
+        tombstoned audio id that no listed file has.
+        """
+        if refresh:
+            with self.db.transaction() as conn:
+                last = self._meta(conn, "last_reconcile")
+                indexed = self._meta(conn, "indexed") is not None
+            if last is None or self.clock() - _ts(last) > LINK_MAX_AGE:
+                self.trigger()
+            if indexed:
+                self.wait(LINK_WAIT)
+        with self.db.transaction() as conn:
+            if self._meta(conn, "indexed") is None:
+                return None
+            rev = int(self._meta(conn, "rev") or 0)
+            rows = conn.execute(
+                "SELECT path, size, mtime_ns, audio_id, content_rev FROM library_files "
+                "WHERE state = 'present' ORDER BY id").fetchall()
+            tombstones = conn.execute(
+                "SELECT path, audio_id, state, state_changed_at, trash_path FROM library_files "
+                "WHERE state IN ('trashed', 'gone') ORDER BY rev, id").fetchall()
+        files: dict[str, dict] = {}
+        for r in rows:
+            if r["audio_id"] in files or r["size"] <= 0 or not served(r["path"]):
+                continue
+            files[r["audio_id"]] = {"path": r["path"], "size": r["size"],
+                                    "mtime": r["mtime_ns"] // 1_000_000_000,
+                                    "id": r["audio_id"], "rev": r["content_rev"]}
+        removed: dict[str, dict] = {}
+        for r in tombstones:
+            if r["audio_id"] in files or not served(r["path"]):
+                continue
+            removed.pop(r["audio_id"], None)  # the latest tombstone of an id counts
+            deleted = r["state"] == "trashed" or r["trash_path"]
+            removed[r["audio_id"]] = {"id": r["audio_id"], "path": r["path"],
+                                      "at": r["state_changed_at"],
+                                      "reason": "deleted" if deleted else "missing"}
+        return {"protocol": 2, "rev": rev,
+                "files": sorted(files.values(), key=lambda f: f["path"]),
+                "removed": list(removed.values())}
 
     def file(self, fid: int) -> dict | None:
         """One row, all fields."""

@@ -45,6 +45,13 @@ def _skip(name: str) -> bool:
     return name.startswith((".", "~")) or name.endswith((".part", ".tmp"))
 
 
+def served(rel: str) -> bool:
+    """Whether the link serves a library-relative, "/"-separated path."""
+    parts = rel.split("/")
+    return (not any(_skip(part) for part in parts)
+            and os.path.splitext(parts[-1])[1].lower() in AUDIO_EXTS)
+
+
 def list_files(root: Path) -> list[dict]:
     """Every finished audio file under root, as library-relative paths."""
     out = []

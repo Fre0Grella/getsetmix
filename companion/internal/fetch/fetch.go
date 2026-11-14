@@ -2,6 +2,11 @@
 // folder, one way. The server keeps its copy (it is the backup); a track
 // fetched once is never fetched again, so deleting it here sticks.
 //
+// A server that speaks link protocol 2 names each track by its audio id, so a
+// track the server renames or moves is not fetched a second time. Files
+// Rekordbox cannot import (Ogg, Opus) stay on the server and are not
+// downloaded; the state counts them for `gsm-companion status`.
+//
 // Files land as "name.part" and are renamed when complete, which the scanner
 // already ignores, so the importer never sees half a track.
 package fetch
@@ -19,6 +24,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
 )
 
 // Server is where tracks come from: written by the setup when it pairs this
@@ -35,17 +42,38 @@ type File struct {
 	Path  string `json:"path"` // library-relative, "/"-separated
 	Size  int64  `json:"size"`
 	MTime int64  `json:"mtime"`
+	// Protocol 2 (docs/design/library.md, 3.5); empty from an older server.
+	ID  string `json:"id,omitempty"`  // the audio id
+	Rev int64  `json:"rev,omitempty"` // change number of the last change of its bytes
+}
+
+// Removed is a tombstone in a protocol 2 listing: a track trashed in
+// GetSetMix ("deleted") or that vanished from the server's disk ("missing").
+type Removed struct {
+	ID     string `json:"id"`
+	Path   string `json:"path"`
+	At     string `json:"at"`
+	Reason string `json:"reason"`
 }
 
 // Listing is the server's answer to /api/link/files.
 type Listing struct {
 	Version string `json:"version"`
-	Files   []File `json:"files"`
+	// Protocol is 2 or more from a server that lists audio ids; an older
+	// server leaves it out (protocol 1), and tracks are then known by path.
+	Protocol int       `json:"protocol,omitempty"`
+	Rev      int64     `json:"rev,omitempty"`
+	Files    []File    `json:"files"`
+	Removed  []Removed `json:"removed,omitempty"`
 }
+
+// ByID reports whether the listing identifies tracks by audio id.
+func (l Listing) ByID() bool { return l.Protocol >= 2 }
 
 // Report says what a fetch did.
 type Report struct {
-	Offered    int
+	Offered    int               // tracks this computer can import
+	Skipped    map[string]int    // extension -> files Rekordbox cannot import, not downloaded
 	Downloaded []string          // local paths
 	Failed     map[string]string // server path -> reason; retried next time
 	Remaining  int               // left for next time (deadline reached)
@@ -150,21 +178,36 @@ func (c *Client) download(ctx context.Context, f File, dest string) error {
 }
 
 // Run downloads every track the server has that this computer hasn't fetched
-// before, until ctx ends. state is updated in place; the caller saves it.
+// before and Rekordbox can import, until ctx ends. state is updated in place;
+// the caller saves it.
 func (c *Client) Run(ctx context.Context, state *State, now func() time.Time) (Report, error) {
-	rep := Report{Failed: map[string]string{}}
+	rep := Report{Failed: map[string]string{}, Skipped: map[string]int{}}
 	listing, err := c.List(ctx)
 	if err != nil {
 		return rep, err
 	}
-	rep.Offered = len(listing.Files)
-	for i, f := range listing.Files {
-		if _, done := state.Fetched[f.Path]; done {
+	state.Begin(listing, c.Server.Folder)
+	var todo []File
+	for _, f := range listing.Files {
+		// The server keeps listing what Rekordbox cannot import, so its Library
+		// view stays complete; downloading it would only fill the disk (#31).
+		if !audio.Supported(f.Path) {
+			rep.Skipped[strings.ToLower(path.Ext(f.Path))]++
 			continue
 		}
+		rep.Offered++
+		if !state.Has(f) {
+			todo = append(todo, f)
+		}
+	}
+	state.Skipped = rep.Skipped
+	for i, f := range todo {
 		if ctx.Err() != nil {
-			rep.Remaining = countNew(listing.Files[i:], state)
+			rep.Remaining = len(todo) - i
 			break
+		}
+		if state.Has(f) {
+			continue
 		}
 		dest, err := Local(c.Server.Folder, f.Path)
 		if err != nil {
@@ -172,8 +215,8 @@ func (c *Client) Run(ctx context.Context, state *State, now func() time.Time) (R
 			continue
 		}
 		// Already here (copied by hand, or a first run over an old library).
-		if info, err := os.Stat(dest); err == nil && info.Size() == f.Size {
-			state.Fetched[f.Path] = now()
+		if sizeIs(dest, f.Size) {
+			state.Record(f, now())
 			continue
 		}
 		if err := c.download(ctx, f, dest); err != nil {
@@ -181,63 +224,19 @@ func (c *Client) Run(ctx context.Context, state *State, now func() time.Time) (R
 				return rep, err
 			}
 			if ctx.Err() != nil {
-				rep.Remaining = countNew(listing.Files[i:], state)
+				rep.Remaining = len(todo) - i
 				break
 			}
 			rep.Failed[f.Path] = err.Error()
 			continue
 		}
-		state.Fetched[f.Path] = now()
+		state.Record(f, now())
 		rep.Downloaded = append(rep.Downloaded, dest)
 	}
 	return rep, nil
 }
 
-func countNew(files []File, state *State) int {
-	n := 0
-	for _, f := range files {
-		if _, done := state.Fetched[f.Path]; !done {
-			n++
-		}
-	}
-	return n
-}
-
-// State remembers which server tracks were fetched.
-type State struct {
-	Fetched map[string]time.Time `json:"fetched"`
-}
-
-const stateFile = "fetched.json"
-
-// LoadState reads the state from dir; a missing file is an empty state.
-func LoadState(dir string) (*State, error) {
-	s := &State{Fetched: map[string]time.Time{}}
-	data, err := os.ReadFile(filepath.Join(dir, stateFile))
-	if errors.Is(err, os.ErrNotExist) {
-		return s, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(data, s); err != nil {
-		return nil, err
-	}
-	if s.Fetched == nil {
-		s.Fetched = map[string]time.Time{}
-	}
-	return s, nil
-}
-
-// Save writes the state to dir.
-func (s *State) Save(dir string) error {
-	data, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
-	}
-	tmp := filepath.Join(dir, stateFile+".tmp")
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, filepath.Join(dir, stateFile))
+func sizeIs(file string, size int64) bool {
+	info, err := os.Stat(file)
+	return err == nil && info.Mode().IsRegular() && info.Size() == size
 }

@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS library_files (
     search           TEXT    NOT NULL,
     added_at         TEXT    NOT NULL,
     rev              INTEGER NOT NULL,
+    content_rev      INTEGER NOT NULL DEFAULT 0,
     state            TEXT    NOT NULL DEFAULT 'present',
     state_changed_at TEXT,
     trash_path       TEXT
@@ -116,6 +117,14 @@ class Database:
         ):
             if col not in have:
                 self._conn.execute(f"ALTER TABLE tracks ADD COLUMN {ddl}")
+        # Link protocol 2 (docs/design/library.md, 3.5): the change number of the
+        # last time a file's bytes changed. A row from before it starts at its
+        # `rev`, which is never older than the last change of its bytes.
+        have = {r["name"] for r in self._conn.execute("PRAGMA table_info(library_files)")}
+        if "content_rev" not in have:
+            self._conn.execute("ALTER TABLE library_files "
+                               "ADD COLUMN content_rev INTEGER NOT NULL DEFAULT 0")
+            self._conn.execute("UPDATE library_files SET content_rev = rev")
 
     # ------------------------------------------------------------- helpers
     def _exec(self, sql: str, params: tuple = ()):  # write

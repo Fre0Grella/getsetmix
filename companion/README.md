@@ -137,4 +137,10 @@ Rekordbox is closed.
 
 It only ever reads from the server. A track fetched once is never fetched
 again (`fetched.json`), so deleting it here sticks, and nothing done on this
-computer changes the server's copy.
+computer changes the server's copy. A server that speaks link protocol 2
+names each track by its audio, so a track renamed on the server is not fetched twice;
+the first fetch against it rewrites `fetched.json` and keeps the old file as
+`fetched.v1.json`.
+
+Files Rekordbox cannot import (Ogg, Opus) are not downloaded. The server
+keeps them, and `gsm-companion status` says how many were skipped and why.

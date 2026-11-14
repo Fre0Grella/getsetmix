@@ -397,7 +397,7 @@ func same(a, b string) bool {
 // seedFetchState decides what the first fetch downloads: everything the
 // server has, or (copyExisting false) only what arrives from now on.
 func (w *Wizard) seedFetchState(ctx context.Context, srv fetch.Server, copyExisting bool) error {
-	state := &fetch.State{Fetched: map[string]time.Time{}}
+	state := fetch.NewState()
 	if !copyExisting {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -405,10 +405,7 @@ func (w *Wizard) seedFetchState(ctx context.Context, srv fetch.Server, copyExist
 		if err != nil {
 			return err
 		}
-		now := time.Now()
-		for _, f := range l.Files {
-			state.Fetched[f.Path] = now
-		}
+		state.RecordAll(l, time.Now())
 	}
 	return state.Save(w.opts.Home)
 }

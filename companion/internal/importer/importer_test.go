@@ -3,6 +3,7 @@ package importer
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -188,5 +189,73 @@ func TestFailedIntegrityRestoresBackup(t *testing.T) {
 	}
 	if n := e.count(t, "SELECT count(*) FROM djmdGenre"); n != 0 {
 		t.Error("restore did not bring the database back")
+	}
+}
+
+// A state.json from before link protocol 2 holds a time per handled file. The
+// first sync widens each value to {at, size, mtime} in place and acts on
+// nothing (docs/design/library.md, 4.6).
+func TestOldStateIsWidenedInPlace(t *testing.T) {
+	e := newEnv(t)
+	kept := e.add(t, "removed in rekordbox.mp3") // handled, then deleted from the collection
+	already := filepath.Join(e.music, "already.mp3")
+	keyAlready, keyKept := library.PathKey(already), library.PathKey(kept)
+	keyGone := library.PathKey(filepath.Join(e.music, "gone.mp3"))
+	old := fmt.Sprintf(`{"baseline": "2026-10-01T18:00:00Z", "seen": {%q: "2026-10-01T18:00:00Z", %q: "2026-10-02T18:00:00Z", %q: "2026-10-03T18:00:00Z"}}`,
+		keyAlready, keyKept, keyGone)
+	statePath := filepath.Join(e.im.Home, "state.json")
+	os.WriteFile(statePath, []byte(old), 0o644)
+	dbPath := filepath.Join(e.rbDir, "master.db")
+	dbBefore, _ := os.Stat(dbPath)
+
+	// A dry run writes nothing, not even the widened state.
+	if rep, err := e.im.Sync(true); err != nil || rep.New != 0 {
+		t.Fatalf("dry run: %+v, %v", rep, err)
+	}
+	if data, _ := os.ReadFile(statePath); string(data) != old {
+		t.Fatal("dry run wrote state.json")
+	}
+
+	rep, err := e.im.Sync(false)
+	if err != nil || rep.New != 0 || len(rep.Imported) != 0 || len(rep.Already) != 0 {
+		t.Fatalf("migration acted: %+v, %v", rep, err)
+	}
+	if dbAfter, _ := os.Stat(dbPath); !dbAfter.ModTime().Equal(dbBefore.ModTime()) {
+		t.Error("master.db was touched by the migration")
+	}
+	if n := e.count(t, "SELECT count(*) FROM djmdContent"); n != 1 {
+		t.Errorf("collection has %d tracks, want 1", n)
+	}
+	state, err := config.LoadState(e.im.Home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	day := func(d int) time.Time { return time.Date(2026, 10, d, 18, 0, 0, 0, time.UTC) }
+	for key, want := range map[string]struct {
+		path string
+		at   time.Time
+	}{keyAlready: {already, day(1)}, keyKept: {kept, day(2)}} {
+		info, _ := os.Stat(want.path)
+		got := state.Seen[key]
+		if !got.At.Equal(want.at) || got.Size != info.Size() || got.MTime != info.ModTime().UnixNano() {
+			t.Errorf("%s: %+v, want at %v size %d mtime %d", key, got, want.at, info.Size(), info.ModTime().UnixNano())
+		}
+	}
+	if got := state.Seen[keyGone]; !got.At.Equal(day(3)) || got.Widened() {
+		t.Errorf("a vanished file: %+v", got)
+	}
+	if !state.Baseline.Equal(day(1)) {
+		t.Errorf("baseline %v", state.Baseline)
+	}
+
+	// A track imported from now on is recorded with its size and time.
+	added := e.add(t, "new.mp3")
+	if rep, err := e.im.Sync(false); err != nil || len(rep.Imported) != 1 {
+		t.Fatalf("%+v, %v", rep, err)
+	}
+	state, _ = config.LoadState(e.im.Home)
+	info, _ := os.Stat(added)
+	if got := state.Seen[library.PathKey(added)]; got.Size != info.Size() || got.MTime != info.ModTime().UnixNano() {
+		t.Errorf("new track: %+v", got)
 	}
 }

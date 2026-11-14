@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
+	"github.com/Fre0Grella/getsetmix/companion/internal/scan"
 )
 
 // Config is the user's setup, written by `gsm-companion setup`.
@@ -79,13 +80,36 @@ func (c Config) Save(dir string) error {
 // already in the collection — so a track you delete from Rekordbox stays
 // deleted instead of being re-imported on the next run.
 type State struct {
-	Baseline time.Time            `json:"baseline"`
-	Seen     map[string]time.Time `json:"seen"` // library.PathKey -> when handled
+	Baseline time.Time          `json:"baseline"`
+	Seen     map[string]Handled `json:"seen"` // library.PathKey -> how it was when handled
 }
+
+// Handled is one file the companion has handled: when, and the size and
+// modification time the file had then, so a later change to it can be told
+// (docs/design/library.md, 3.6). A state written before link protocol 2
+// holds the time alone; Size and MTime are then zero until Widen fills them.
+type Handled struct {
+	At    time.Time `json:"at"`
+	Size  int64     `json:"size,omitempty"`
+	MTime int64     `json:"mtime,omitempty"` // Unix nanoseconds
+}
+
+// UnmarshalJSON also reads the old form of a value: the time alone.
+func (h *Handled) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		*h = Handled{}
+		return json.Unmarshal(data, &h.At)
+	}
+	type plain Handled
+	return json.Unmarshal(data, (*plain)(h))
+}
+
+// Widened reports whether the size and time of the file are known.
+func (h Handled) Widened() bool { return h.Size > 0 }
 
 // LoadState reads the state from dir; a missing file is an empty state.
 func LoadState(dir string) (*State, error) {
-	s := &State{Seen: map[string]time.Time{}}
+	s := &State{Seen: map[string]Handled{}}
 	data, err := os.ReadFile(filepath.Join(dir, "state.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
@@ -97,7 +121,7 @@ func LoadState(dir string) (*State, error) {
 		return nil, err
 	}
 	if s.Seen == nil {
-		s.Seen = map[string]time.Time{}
+		s.Seen = map[string]Handled{}
 	}
 	return s, nil
 }
@@ -107,11 +131,32 @@ func (s *State) Save(dir string) error {
 	return writeJSON(filepath.Join(dir, "state.json"), s)
 }
 
-// Mark records keys as handled.
-func (s *State) Mark(now time.Time, keys ...string) {
-	for _, k := range keys {
-		s.Seen[k] = now
+// Mark records files as handled, as they are now.
+func (s *State) Mark(now time.Time, files ...scan.File) {
+	for _, f := range files {
+		h := Handled{At: now, Size: f.Size}
+		if !f.ModTime.IsZero() {
+			h.MTime = f.ModTime.UnixNano()
+		}
+		s.Seen[f.Key] = h
 	}
+}
+
+// Widen gives every handled file of files that lacks them the size and time
+// it has now, keeping when it was handled; nothing else changes. Reports
+// whether anything was widened.
+func (s *State) Widen(files []scan.File) bool {
+	widened := false
+	for _, f := range files {
+		h, ok := s.Seen[f.Key]
+		if !ok || h.Widened() {
+			continue
+		}
+		h.Size, h.MTime = f.Size, f.ModTime.UnixNano()
+		s.Seen[f.Key] = h
+		widened = true
+	}
+	return widened
 }
 
 func writeJSON(path string, v any) error {

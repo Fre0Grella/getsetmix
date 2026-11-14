@@ -38,18 +38,18 @@ func Baseline(home string, inst rekordbox.Install, folders []string, importExist
 	if err != nil {
 		return rep, err
 	}
-	state := &config.State{Baseline: now, Seen: map[string]time.Time{}}
+	state := &config.State{Baseline: now, Seen: map[string]config.Handled{}}
 	for _, f := range found.Ready {
 		rep.Files++
 		switch {
 		case known[f.Key]:
 			rep.InCollection++
-			state.Mark(now, f.Key)
+			state.Mark(now, f)
 		case importExisting:
 			rep.Outside++
 		default:
 			rep.Outside++
-			state.Mark(now, f.Key)
+			state.Mark(now, f)
 		}
 	}
 	return rep, state.Save(home)
