@@ -128,6 +128,8 @@ CREATE TABLE library_files (
     added_at         TEXT    NOT NULL,         -- when it was downloaded or first seen; in the
                                                -- first index, the file's own modification time
     rev              INTEGER NOT NULL,         -- change number of the last change
+    content_rev      INTEGER NOT NULL,         -- change number of the last change of the
+                                               -- file's bytes: the link's files[].rev (3.5)
     state            TEXT    NOT NULL DEFAULT 'present',
                      -- present | missing | trashed | gone
     state_changed_at TEXT,
@@ -408,6 +410,10 @@ the index.
 | `tracks` | what this computer has fetched: the server path, the `rev` it holds, and the six tag fields it last saw (title, artist, album, genre, year, comment) |
 | `legacy` | paths from the old file that the server no longer lists; kept so they are never fetched again if they come back |
 | `removed` | tombstones already handled |
+| `skipped` | listed files of the last fetch that Rekordbox cannot import, counted by extension, for `status` |
+
+While the server speaks protocol 1 the file stays version 1, so an older
+companion can still read it.
 
 `state.json` (which local files the importer has handled) stays keyed by
 local path, since nothing is renamed. Its values grow from a time to

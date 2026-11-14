@@ -2,9 +2,10 @@
 
 Small audio files, a few kilobytes each, and the audio id each one must get.
 The Python implementation (`app/audiohash.py`, tested by
-`tests/test_audiohash.py`) and the Go implementation (planned for
-`companion/internal/audio/hash.go`) both read this folder, so the two cannot
-drift apart. The rules are in
+`tests/test_audiohash.py`) and the Go implementation
+(`companion/internal/audio/hash.go`, tested by `hash_test.go` next to it)
+both read this folder, so the two cannot drift apart. A change here runs both
+test suites in CI. The rules are in
 [`docs/design/library.md`, section 4.2](../../docs/design/library.md#42-the-audio-hash).
 
 ## `expected.json`

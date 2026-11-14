@@ -379,7 +379,11 @@ func runFetch(home string, cfg config.Config, logger *log.Logger, budget time.Du
 	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
 	c := &fetch.Client{Server: *cfg.Server}
+	skippedBefore := state.SkippedSummary()
 	rep, err := c.Run(ctx, state, time.Now)
+	if s := state.SkippedSummary(); s != "" && s != skippedBefore {
+		logger.Printf("fetch: skipped %s", s)
+	}
 	if serr := state.Save(home); err == nil {
 		err = serr
 	}

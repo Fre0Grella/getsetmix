@@ -68,10 +68,20 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 		return rep, err
 	}
 	rep.Settling = len(found.Settling)
+	// A state from before link protocol 2 holds when each file was handled,
+	// not its size and time: they are taken from the file as it is now, and
+	// nothing is acted on (docs/design/library.md, 4.6).
+	if state.Widen(found.Ready) && !dryRun {
+		if err := state.Save(im.Home); err != nil {
+			return rep, err
+		}
+	}
 	var pending []scan.File
+	byKey := map[string]scan.File{}
 	for _, f := range found.Ready {
 		if _, done := state.Seen[f.Key]; !done {
 			pending = append(pending, f)
+			byKey[f.Key] = f
 		}
 	}
 	rep.New = len(pending)
@@ -103,7 +113,12 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 	}
 
 	for _, p := range slices.Concat(rep.Imported, rep.Already) {
-		state.Mark(now, library.PathKey(p))
+		key := library.PathKey(p)
+		f, ok := byKey[key]
+		if !ok {
+			f = scan.File{Path: p, Key: key}
+		}
+		state.Mark(now, f)
 	}
 	return rep, state.Save(im.Home)
 }

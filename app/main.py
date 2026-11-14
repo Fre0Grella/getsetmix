@@ -450,6 +450,10 @@ async def library_rules():
 # ------------------------------------------------------------------- link
 @app.get("/api/link/files")
 async def link_files():
+    """Link protocol 2 from the index; protocol 1, from a disk walk, until it is built."""
+    listing = await asyncio.to_thread(library.current().link_listing, refresh=True)
+    if listing is not None:
+        return {"version": __version__, **listing}
     root = Path(settings["library_root"])
     files = await asyncio.to_thread(link.list_files, root)
     return {"version": __version__, "files": files}
