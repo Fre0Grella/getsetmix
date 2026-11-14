@@ -82,6 +82,16 @@ func (c Config) Save(dir string) error {
 type State struct {
 	Baseline time.Time          `json:"baseline"`
 	Seen     map[string]Handled `json:"seen"` // library.PathKey -> how it was when handled
+	// Removed holds the tracks the importer listed in the "removed on server"
+	// playlist, by library.PathKey, so none is listed twice and a restore
+	// can take it out again (docs/design/library.md, 4.6).
+	Removed map[string]Listed `json:"removed,omitempty"`
+}
+
+// Listed is a track listed in the "removed on server" playlist.
+type Listed struct {
+	Path string    `json:"path"` // the local path
+	At   time.Time `json:"at"`
 }
 
 // Handled is one file the companion has handled: when, and the size and
@@ -109,7 +119,7 @@ func (h Handled) Widened() bool { return h.Size > 0 }
 
 // LoadState reads the state from dir; a missing file is an empty state.
 func LoadState(dir string) (*State, error) {
-	s := &State{Seen: map[string]Handled{}}
+	s := &State{Seen: map[string]Handled{}, Removed: map[string]Listed{}}
 	data, err := os.ReadFile(filepath.Join(dir, "state.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
@@ -122,6 +132,9 @@ func LoadState(dir string) (*State, error) {
 	}
 	if s.Seen == nil {
 		s.Seen = map[string]Handled{}
+	}
+	if s.Removed == nil {
+		s.Removed = map[string]Listed{}
 	}
 	return s, nil
 }

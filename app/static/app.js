@@ -13,6 +13,8 @@ const STR = {
     xmlPath: "XML inbox", playlist: "Playlist",
     collectionXml: "Export della collezione (opzionale)",
     collectionHint: "Con l'export della collezione impostato, i brani che hai già vengono segnati come duplicati e tolti dall'inbox.",
+    trashDays: "Tieni i brani eliminati (giorni)",
+    trashDaysHint: "Poi il cestino li cancella per sempre. 0 li tiene finché non svuoti il cestino.",
     rekordboxHint: "In Rekordbox imposta Preferenze › Avanzate › rekordbox xml su questo file, poi aggiorna l'albero xml dopo ogni batch.",
     browse: "Sfoglia", select: "Seleziona", fileName: "Nome file",
     pickerTitle: "Scegli un percorso",
@@ -61,6 +63,8 @@ const STR = {
     xmlPath: "Inbox XML", playlist: "Playlist",
     collectionXml: "Collection export (optional)",
     collectionHint: "With your exported collection set, tracks you already own are flagged as duplicates and dropped from the inbox.",
+    trashDays: "Keep deleted tracks (days)",
+    trashDaysHint: "Then the trash removes them for good. 0 keeps them until you empty the trash.",
     rekordboxHint: "In Rekordbox, point Preferences › Advanced › rekordbox xml at this file, then refresh the xml tree after each batch.",
     browse: "Browse", select: "Select", fileName: "File name",
     pickerTitle: "Choose a path",
@@ -141,7 +145,9 @@ async function api(path, opts = {}) {
   if (!res.ok) {
     let detail = res.statusText;
     try { detail = (await res.json()).detail || detail; } catch { /* noop */ }
-    throw new Error(detail);
+    const err = new Error(detail);
+    err.status = res.status;
+    throw err;
   }
   if (res.status === 204) return null;
   return res.json();
@@ -463,7 +469,7 @@ async function refreshEngine() {
 function toast(msg) {
   const el = $("#toast");
   el.textContent = msg;
-  el.classList.remove("hidden");
+  el.classList.remove("hidden", "toast--action");
   clearTimeout(toast._t);
   toast._t = setTimeout(() => el.classList.add("hidden"), 2600);
 }
@@ -691,6 +697,7 @@ async function openSettings() {
   $("#setCollection").value = settingsCache.collection_xml_path || "";
   $("#setPlaylist").value = settingsCache.playlist_name;
   $("#setLanguage").value = settingsCache.language;
+  $("#setTrashDays").value = settingsCache.trash_days ?? 30;
   save.disabled = false;
   gate(false);
 }
@@ -708,6 +715,9 @@ $("#btnSaveSettings").addEventListener("click", async () => {
         collection_xml_path: $("#setCollection").value.trim(),
         playlist_name: $("#setPlaylist").value,
         language: $("#setLanguage").value,
+        // An empty field keeps the current value (JSON drops undefined).
+        trash_days: $("#setTrashDays").value.trim() === ""
+          ? undefined : Math.max(0, Math.round(Number($("#setTrashDays").value) || 0)),
       }),
     });
     $("#settingsModal").classList.add("hidden");

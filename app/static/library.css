@@ -1,7 +1,8 @@
 /* GetSetMix: the Library view and the switch that opens it.
-   Same tokens, rows and deck as the download list (styles.css), read-only:
-   cover, title over artist, a genre chip, the duration. Search sits in the
-   deck at the bottom, under the thumb. From 721px rows become columns.   */
+   Same tokens, rows and deck as the download list (styles.css): cover,
+   title over artist, a genre chip, the duration, a delete button (Restore
+   in the trash). Search sits in the deck at the bottom, under the thumb.
+   From 721px rows become columns.                                         */
 
 /* ----------------------------------------------------- the view switch */
 .view-switch {
@@ -46,6 +47,38 @@ body.view-library .engine-banner { display: none !important; }
 .lib-progress .batch-label { white-space: normal; }
 .lib-progress .batch-track { min-width: 80px; }
 
+/* -------------------------------------------- the count, and the trash */
+.lib-bar { align-items: center; flex-wrap: wrap; row-gap: 6px; }
+.lib-bar .stats-text { margin-right: auto; }
+.lib-tool {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 0 12px 0 10px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--text-2);
+  font: inherit; font-size: .84rem; font-weight: 500; cursor: pointer;
+  transition: background-color .15s var(--ease), color .15s var(--ease);
+}
+.lib-tool svg { width: 16px; height: 16px; flex: none; }
+.lib-tool:hover { background: var(--hover); color: var(--text); }
+.lib-back { border-color: transparent; padding-left: 4px; margin-left: -6px; color: var(--text); font-weight: 600; }
+.lib-empty-trash { padding: 0 14px; color: var(--danger); border-color: color-mix(in oklch, var(--danger) 45%, transparent); }
+.lib-empty-trash:hover { color: var(--danger); background: color-mix(in oklch, var(--danger) 10%, transparent); }
+.lib-tool:disabled { opacity: .45; cursor: default; background: transparent; }
+.lib-note { margin: 0; padding: 0 var(--gutter) 8px; font-size: .82rem; color: var(--text-3); line-height: 1.45; }
+
+/* A toast with an action (Undo): the message, then the button. */
+.toast.toast--action {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 6px 6px 16px;
+}
+.toast-msg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast-act {
+  flex: none; min-height: 40px; padding: 0 14px; border: 0; border-radius: 9px;
+  background: color-mix(in oklch, var(--bg) 16%, transparent); color: var(--bg);
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+.toast-act:hover { background: color-mix(in oklch, var(--bg) 26%, transparent); }
+
 /* ---------------------------------------------------------------- rows */
 .lib-wrap { width: 100%; } /* centred by .list-wrap, but never shrunk to its rows */
 .lib-head { display: none; }
@@ -54,14 +87,21 @@ body.view-library .engine-banner { display: none !important; }
 
 .lib-row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto auto;
   grid-template-areas:
-    "art who genre"
-    "art who dur";
+    "art who genre act"
+    "art who dur act";
   column-gap: 12px; align-items: center;
   min-height: 64px; padding: 8px var(--gutter);
   border-bottom: 1px solid var(--line-soft);
 }
+.lib-act { grid-area: act; }
+.lib-del { margin-right: -10px; color: var(--text-3); }
+.lib-del svg { width: 19px; height: 19px; }
+@media (hover: hover) {
+  .lib-del:hover { color: var(--danger); background: color-mix(in oklch, var(--danger) 10%, transparent); }
+}
+.lib-restore { height: 36px; padding: 0 12px; font-size: .86rem; }
 .lib-art {
   grid-area: art; display: grid; place-items: center;
   width: 44px; height: 44px; border-radius: 8px;
@@ -96,10 +136,18 @@ body.view-library .engine-banner { display: none !important; }
   .view-switch button { height: 30px; font-size: .86rem; }
 
   .lib-head, .lib-row {
-    grid-template-columns: 40px minmax(0, 3fr) minmax(0, 1fr) 52px;
+    grid-template-columns: 40px minmax(0, 3fr) minmax(0, 1fr) 52px 32px;
     grid-template-areas: none;
     column-gap: 16px;
   }
+  body.lib-in-trash .lib-head, body.lib-in-trash .lib-row {
+    grid-template-columns: 40px minmax(0, 3fr) minmax(0, 1fr) 52px 112px;
+  }
+  .lib-act { grid-area: auto; justify-self: end; }
+  .lib-del { margin-right: 0; }
+  .lib-restore { height: 30px; font-size: .84rem; }
+  .lib-bar { padding-top: 14px; padding-bottom: 8px; }
+  .lib-note { padding: 0 16px 10px; }
   .lib-head {
     display: grid; align-items: center;
     position: sticky; top: 57px; z-index: 2;
@@ -125,4 +173,8 @@ body.view-library .engine-banner { display: none !important; }
   .lib-dur { font-size: .86rem; text-align: right; }
   .lib-banner, .lib-progress { margin-left: 16px; margin-right: 16px; }
   .lib-dock .add { margin-left: auto; margin-right: auto; }
+}
+/* With a mouse, a row's delete button shows on hover or focus, as in the download list. */
+@media (min-width: 721px) and (hover: hover) and (pointer: fine) {
+  .lib-row:not(:hover):not(:focus-within) .lib-del { opacity: 0; }
 }
