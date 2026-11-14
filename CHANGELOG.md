@@ -1,6 +1,48 @@
 # CHANGELOG
 
 
+## v1.11.0 (2026-11-14)
+
+### Documentation
+
+- Check ffmpeg in the Docker image ([#58](https://github.com/Fre0Grella/getsetmix/pull/58),
+  [`4af8d76`](https://github.com/Fre0Grella/getsetmix/commit/4af8d765c227a1942d364f46229bd5c37b8f732d))
+
+Ran the published image (release 1.10.0, Debian 13): ffmpeg 7.1.5 is built with --enable-gpl and
+  without --enable-nonfree, so it is GPL-2.0-or-later, and Debian's copyright file ships next to
+  ours.
+
+The Harmonix audio terms are no longer needed: all-in-one is "don't use" for reasons that do not
+  depend on them. Nothing is left under "Not verified".
+
+Closes #28
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+### Features
+
+- **link**: Protocol 2 with audio ids ([#59](https://github.com/Fre0Grella/getsetmix/pull/59),
+  [`0cdc31e`](https://github.com/Fre0Grella/getsetmix/commit/0cdc31e39f9128af279a84de1f7d4f5158177a62))
+
+The server serves /api/link/files from the library index, with protocol, rev, files[].id,
+  files[].rev and removed[]; it answers as protocol 1, from a disk walk, until the first index is
+  complete. Of two files with the same audio it lists one. A move keeps a file's rev (new
+  content_rev column), so it is not downloaded again.
+
+The companion gets the audio hash in Go, tested against the shared fixtures; reads protocol 2 and
+  still works against protocol 1; migrates fetched.json to version 2 keyed by audio id, keeping the
+  old file as fetched.v1.json; widens state.json values to {at, size, mtime}. Files Rekordbox cannot
+  import (Ogg, Opus) are no longer downloaded, and `gsm-companion status` says how many and why.
+
+Closes #36 Closes #31
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.10.0 (2026-11-13)
 
 ### Features
