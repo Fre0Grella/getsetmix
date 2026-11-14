@@ -1,8 +1,7 @@
 # Spike: embeddings, similar tracks and a map
 
 Issue: [#22](https://github.com/Fre0Grella/getsetmix/issues/22). Date: 2026-11-13.
-Status: numbers in; the maintainer's verdict, by ear and by eye, is pending.
-Server numbers are not measured yet.
+Status: numbers in, server included; the maintainer's verdict, by ear and by eye, is pending.
 
 ## Question
 
@@ -106,25 +105,42 @@ Seconds per track, whole library, six windows:
 
 ### Cost on the server
 
-**Not measured.** `bench.py` is self-contained for that: it needs ffmpeg,
-Python and three packages, takes a fixed random pick of 20 tracks, opens the
-audio read-only and prints the same split as above. With Docker, on the
-server, from a folder holding `bench.py`:
+Measured on 2026-11-14 on the maintainer's home server (Intel Core i5-8400,
+6 cores, 15 GB, Linux), where GetSetMix runs in microk8s with a limit of
+2 CPUs and 1 GiB. General model, the same fixed pick of 20 tracks from the
+server's music folder (opened read-only), 6 windows per track:
+
+| Run | Decode | Features | Inference | Total per track | Peak memory |
+|---|---|---|---|---|---|
+| Docker, no limit, ONNX Runtime default threads | 0.50 s | 0.11 s | 0.55 s | **1.16 s** | 502 MB |
+| Docker, no limit, 2 threads | 0.49 s | 0.13 s | 0.78 s | 1.40 s | 501 MB |
+| microk8s Job with the app's limits (2 CPUs, 1 GiB), default threads | 0.71 s | 0.25 s | 1.33 s | **2.29 s** | 502 MB |
+
+Model load: about 1 s.
+
+- Inside the app's limits a track takes 2.3 s: 569 tracks in about 22
+  minutes, 5,000 tracks in about 3 hours, once. New tracks are a few
+  seconds each.
+- ONNX Runtime starts one thread per host core (6 here), not per CPU the
+  pod may use (2), so the CPU limit throttles it: 2.29 s against 1.40 s for
+  2 threads without a limit. The product should set the thread count from
+  the container's CPU limit (cgroup `cpu.max`).
+- Peak memory is 0.5 GB for the model alone. The app idles at about 55 MB,
+  so it fits in the 1 GiB limit, but not with much to spare: the analysis
+  should run one track at a time and the setup docs should say that it needs
+  the memory.
+
+How it was run: a one-off Job in its own namespace, `python:3.12-slim` with
+ffmpeg, `onnxruntime`, `numpy` and `psutil`, the music folder mounted
+read-only, then the namespace and the files deleted. The command inside was
 
 ```sh
-docker run --rm -v /path/to/music:/music:ro -v "$PWD":/work -w /work python:3.12-slim sh -c '
-  apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg >/dev/null &&
-  pip install -q onnxruntime numpy psutil &&
-  python bench.py /work/bench-general /music --tracks 20 \
-    --model /work/clap-htsat-unfused.onnx'
+python bench.py /work/bench-k8s /music --tracks 20 --model /work/clap-htsat-unfused.onnx
 ```
 
-Download the general model first with
-`curl -L -o clap-htsat-unfused.onnx https://huggingface.co/Xenova/clap-htsat-unfused/resolve/c28f2883575e590e04d3146ff0713c2448d691ba/onnx/audio_model.onnx`.
-Without `--model`, `bench.py` downloads `Xenova/larger_clap_music_and_speech`,
-which has the music model's architecture and size, so its cost stands for
-the music model. Add `--threads 2` to see a busier server. The result is in
-`bench-general/bench.json`; it holds no track names.
+with the model from
+`https://huggingface.co/Xenova/clap-htsat-unfused/resolve/c28f2883575e590e04d3146ff0713c2448d691ba/onnx/audio_model.onnx`.
+`bench.json` holds no track names.
 
 ### How many windows a track needs
 
@@ -181,6 +197,43 @@ Per genre, general model, genres with at least 20 tracks:
   match is evidence that the neighbours are not random. It is not a measure
   of whether they are useful in a mix; only listening tells that.
 
+### Key first: mix-ready neighbours
+
+The maintainer's reading of the first results (2026-11-14): genre matters
+little; what matters is whether two tracks mix, by key above all, and the
+interesting part is finding good mixes **across** genres. `mixable.py`
+measures that on the 538 tracks with a key, a BPM and at least 60 s.
+"Compatible key" is Camelot: the same key, one step on the wheel, or the
+relative major or minor. "Mixable" is a compatible key and a BPM within 6%
+(half and double time count).
+
+| Share of each track's 10 nearest neighbours | general | music | Shuffled keys and BPMs (95% range) |
+|---|---|---|---|
+| Compatible key | 20.2% | **29.3%** | 21.2% (19.9 to 22.5%) |
+| Mixable (key and BPM) | **8.9%** | 7.8% | 4.9% (4.2 to 5.6%) |
+
+Neither model is a key detector. The general model ignores key completely;
+the music model hears some of it, and still about seven in ten of its
+neighbours clash. Asking the embedding for "the next track" therefore
+returns mostly tracks that cannot be mixed in.
+
+The other way round works. Key and BPM are already exact in Rekordbox, so
+the filter comes from there and the embedding only orders what passes it:
+
+| Mix-ready: mixable tracks, ordered by the model | general | music |
+|---|---|---|
+| Mixable candidates per track (median; 10th percentile) | 28; 8 | 28; 8 |
+| Tracks with at least 5 candidates | 519 of 538 | 519 of 538 |
+| Top 5 picks in **another genre** | **79%** | 84% |
+| Similarity: top 5 picks against all candidates | 0.884 against 0.814 | 0.961 against 0.909 |
+
+So for almost every track there are a few dozen harmonically safe choices,
+and the model's favourites among them are mostly from other genres: the
+cross-genre mixes the maintainer is after. Whether its order beats a random
+pick among the safe tracks is for the ears: `mixable.html` (next to the
+other two pages) lists, for the 20 most-played tracks, the mixable tracks in
+the model's order, with the other-genre ones highlighted.
+
 ### Maps
 
 | Layout | general: fit | general: trustworthiness | general: neighbours kept | music: trustworthiness | music: neighbours kept |
@@ -204,7 +257,7 @@ Per genre, general model, genres with at least 20 tracks:
 | Model download | 117.5 MB (general) or 276 MB (music), once. Quantised or fp16 exports would be smaller; not measured. |
 | Runtime | ONNX Runtime (43 MB installed) and numpy (27 MB), plus ffmpeg, which the app already uses. No PyTorch. |
 | Front end | The numpy port in `bench.py`, about 30 lines. Its output must stay identical to the model's training front end. |
-| Time | About 1 s per track on this laptop; a library is a one-off job, new tracks are cheap. Server: not measured. |
+| Time | About 1 s per track on this laptop, 2.3 s on the home server inside the app's 2-CPU limit; a library is a one-off job, new tracks are cheap. Set the thread count from the container's CPU limit. |
 | Memory | 0.5 GB peak with the general model. |
 | Storage | 512 float32 per track: 2 KB. 5,000 tracks are 10 MB, in SQLite next to the track, keyed by the audio hash and the model version. |
 | Search | Brute-force cosine over a few thousand vectors with numpy is far below a millisecond per query. No vector database or ANN index is needed at this size. |
@@ -259,8 +312,11 @@ typing-inspection 0.4.5, tzdata 2026.6, umap-learn 0.6.0
   noise of a small sample and of labels that overlap.
 - Two checkpoints only. The music model was judged on the same checks as
   the general one; a different pooling or centring could narrow the gap.
-- Cost was measured on one laptop with Windows; not on the server, not on
-  macOS.
+- Cost was measured on one Windows laptop and one Linux server (20 tracks
+  there); not on macOS.
+- The key and BPM checks trust Rekordbox's analysis, and mixable is a rule
+  of thumb (Camelot neighbours, 6% tempo); energy and phrasing are not
+  measured.
 - Six windows are a sample. A track whose character changes sharply may
   land in the wrong place.
 - The map page loads Plotly.js from a CDN; offline it shows nothing.
@@ -281,6 +337,10 @@ the audio files:
 - **`neighbours.html`**: the 20 most-played tracks, each with its 10 nearest
   neighbours, BPM, key, genre and similarity, and a play button (it starts
   at 30% of the track). A switch shows either model.
+- **`mixable.html`**: the same 20 tracks, but only tracks with a compatible
+  key and BPM, in the model's order, other genres highlighted. This is the
+  page that answers the maintainer's question: are these good mixes,
+  better than a random safe pick?
 - **`map.html`**: every track as a point; hover for details, click to play,
   colour by genre, BPM or key, and a choice of layout and model.
 
