@@ -1,6 +1,24 @@
 # CHANGELOG
 
 
+## v1.15.1 (2026-11-24)
+
+### Bug Fixes
+
+- **library**: Confirm deletes, no drag-close
+  ([#70](https://github.com/Fre0Grella/getsetmix/pull/70),
+  [`e7b6d91`](https://github.com/Fre0Grella/getsetmix/commit/e7b6d919e364ed09922b70ec5899a8c485c55cfb))
+
+A modal closes on the backdrop only when the press started there too. Delete, restore and Empty
+  trash ask first in the app's own dialog.
+
+Closes #66
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.15.0 (2026-11-24)
 
 ### Features
