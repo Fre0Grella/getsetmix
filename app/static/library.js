@@ -8,13 +8,13 @@ import {
   toastAction,
 } from "./core.js";
 import { openCoverModal } from "./cover.js";
-import { lang, STR, T } from "./i18n.js";
+import { lang, num, plural, serverError, STR, T } from "./i18n.js";
 
 Object.assign(STR.en, {
   viewSwitch: "View", viewDownloads: "Downloads", viewLibrary: "Library",
   libSearchPh: "Search title, artist, album, genre or file",
-  libCount: (n) => (n === 1 ? "1 track" : `${n.toLocaleString("en")} tracks`),
-  libIndexing: (d, t) => `Indexing the library: ${d.toLocaleString("en")} of ${t.toLocaleString("en")} files`,
+  libCount: (n) => plural(n, "1 track", "{n} tracks"),
+  libIndexing: (d, t) => `Indexing the library: ${num(d)} of ${num(t)} files`,
   libUnavailable: "The library folder can't be read right now: a drive may be unplugged or a network share may have dropped. Nothing is marked as removed until it is back.",
   libEmptyTitle: "No tracks in the library yet",
   libEmptyHint: "Audio files in the library folder show up here, and so does every download.",
@@ -23,34 +23,33 @@ Object.assign(STR.en, {
   libDamaged: "Read-only: this file could not be read as audio",
   libDamagedShort: "Damaged", libRo: "Read-only",
   libDup: "Same audio",
-  libDupTitle: (n) => (n === 1 ? "Same audio as 1 other file in the library" : `Same audio as ${n} other files in the library`),
+  libDupTitle: (n) => plural(n, "Same audio as 1 other file in the library", "Same audio as {n} other files in the library"),
   libSameAs: "Same audio as",
   libSort: "Sort", libSortAdded: "Added", libSortArtist: "Artist", libSortTitle: "Title", libSortGenre: "Genre",
   libReverse: "Reverse the order",
   libGenres: "Genres", libFolderLabel: "Folder", libAllFolders: "All folders",
   libCoverAlt: "Cover", libNoCover: "No cover",
-  libChangeCover: "Change cover", libAddCover: "Add a cover",
+  libAddCover: "Add a cover",
   libCoverSaved: "Cover saved to the file",
   libNoPlay: "This browser can't play this file. The track itself is fine.",
-  libTrash: "Trash", libTrashN: (n) => (n ? `Trash · ${n.toLocaleString("en")}` : "Trash"),
+  libTrash: "Trash", libTrashN: (n) => (n ? `Trash · ${num(n)}` : "Trash"),
   libEmptyTrash: "Empty trash",
   libTrashNote: (d) => (d > 0
-    ? `Deleted tracks stay here for ${d} ${d === 1 ? "day" : "days"}, then they are removed for good.`
+    ? `Deleted tracks stay here for ${plural(d, "1 day", "{n} days")}, then they are removed for good.`
     : "Deleted tracks stay here until you empty the trash."),
   libTrashEmptyTitle: "The trash is empty",
   libTrashEmptyHint: "Tracks you delete wait here, so a wrong tap can always be undone.",
-  libDelete: "Delete", libRestore: "Restore", libUndo: "Undo", libCancel: "Cancel",
+  libDelete: "Delete", libRestore: "Restore", libUndo: "Undo", cancel: "Cancel",
   libDeleteAsk: (t) => `Move “${t}” to the trash?`,
   libRestoreAsk: (t) => `Put “${t}” back in the library?`,
   libEmptyYes: "Remove for good",
   libDeleted: (t) => `Deleted “${t}”`,
   libRestored: (t) => `Restored “${t}”`,
   libRestoreTaken: "Another file now has this track's name: move or rename it first.",
-  libEmptyConfirm: (n) => (n === 1
-    ? "Remove 1 track for good? This can't be undone."
-    : `Remove ${n.toLocaleString("en")} tracks for good? This can't be undone.`),
-  libEmptied: (n) => (n === 1 ? "1 track removed for good" : `${n.toLocaleString("en")} tracks removed for good`),
-  libTitle: "Title", libArtist: "Artist", libAlbum: "Album", libGenre: "Genre",
+  libEmptyConfirm: (n) => plural(n, "Remove 1 track for good? This can't be undone.",
+    "Remove {n} tracks for good? This can't be undone."),
+  libEmptied: (n) => plural(n, "1 track removed for good", "{n} tracks removed for good"),
+  libTitle: "Title", libArtist: "Artist", 
   libYear: "Year", libComment: "Comment",
   libReadOnlyFormat: (f) => `Read-only: GetSetMix can't write ${f.toUpperCase()} tags yet. MP3 and FLAC files can be edited.`,
   libMulti: "Holds several values in the file. Saving writes the one value shown here.",
@@ -66,8 +65,8 @@ Object.assign(STR.en, {
 Object.assign(STR.it, {
   viewSwitch: "Vista", viewDownloads: "Download", viewLibrary: "Libreria",
   libSearchPh: "Cerca titolo, artista, album, genere o file",
-  libCount: (n) => (n === 1 ? "1 brano" : `${n.toLocaleString("it")} brani`),
-  libIndexing: (d, t) => `Indicizzazione della libreria: ${d.toLocaleString("it")} file su ${t.toLocaleString("it")}`,
+  libCount: (n) => plural(n, "1 brano", "{n} brani"),
+  libIndexing: (d, t) => `Indicizzazione della libreria: ${num(d)} file su ${num(t)}`,
   libUnavailable: "La cartella della libreria ora non è leggibile: forse un disco è scollegato o una condivisione di rete è caduta. Nulla viene segnato come rimosso finché non torna.",
   libEmptyTitle: "Ancora nessun brano nella libreria",
   libEmptyHint: "Qui compaiono i file audio della cartella della libreria, e ogni download.",
@@ -76,34 +75,33 @@ Object.assign(STR.it, {
   libDamaged: "Sola lettura: questo file non si legge come audio",
   libDamagedShort: "Danneggiato", libRo: "Sola lettura",
   libDup: "Stesso audio",
-  libDupTitle: (n) => (n === 1 ? "Stesso audio di un altro file della libreria" : `Stesso audio di altri ${n} file della libreria`),
+  libDupTitle: (n) => plural(n, "Stesso audio di un altro file della libreria", "Stesso audio di altri {n} file della libreria"),
   libSameAs: "Stesso audio di",
   libSort: "Ordina", libSortAdded: "Aggiunti", libSortArtist: "Artista", libSortTitle: "Titolo", libSortGenre: "Genere",
   libReverse: "Inverti l'ordine",
   libGenres: "Generi", libFolderLabel: "Cartella", libAllFolders: "Tutte le cartelle",
   libCoverAlt: "Copertina", libNoCover: "Nessuna copertina",
-  libChangeCover: "Cambia copertina", libAddCover: "Aggiungi una copertina",
+  libAddCover: "Aggiungi una copertina",
   libCoverSaved: "Copertina salvata nel file",
   libNoPlay: "Questo browser non riesce a riprodurre il file. Il brano in sé è a posto.",
-  libTrash: "Cestino", libTrashN: (n) => (n ? `Cestino · ${n.toLocaleString("it")}` : "Cestino"),
+  libTrash: "Cestino", libTrashN: (n) => (n ? `Cestino · ${num(n)}` : "Cestino"),
   libEmptyTrash: "Svuota il cestino",
   libTrashNote: (d) => (d > 0
-    ? `I brani eliminati restano qui ${d} ${d === 1 ? "giorno" : "giorni"}, poi vengono cancellati per sempre.`
+    ? `I brani eliminati restano qui ${plural(d, "1 giorno", "{n} giorni")}, poi vengono cancellati per sempre.`
     : "I brani eliminati restano qui finché non svuoti il cestino."),
   libTrashEmptyTitle: "Il cestino è vuoto",
   libTrashEmptyHint: "I brani che elimini aspettano qui, così un tocco sbagliato si può sempre annullare.",
-  libDelete: "Elimina", libRestore: "Ripristina", libUndo: "Annulla", libCancel: "Annulla",
+  libDelete: "Elimina", libRestore: "Ripristina", libUndo: "Annulla", cancel: "Annulla",
   libDeleteAsk: (t) => `Spostare “${t}” nel cestino?`,
   libRestoreAsk: (t) => `Rimettere “${t}” nella libreria?`,
   libEmptyYes: "Cancella per sempre",
   libDeleted: (t) => `Eliminato “${t}”`,
   libRestored: (t) => `Ripristinato “${t}”`,
   libRestoreTaken: "Un altro file ora ha il nome di questo brano: spostalo o rinominalo prima.",
-  libEmptyConfirm: (n) => (n === 1
-    ? "Cancellare per sempre 1 brano? Non si può annullare."
-    : `Cancellare per sempre ${n.toLocaleString("it")} brani? Non si può annullare.`),
-  libEmptied: (n) => (n === 1 ? "1 brano cancellato per sempre" : `${n.toLocaleString("it")} brani cancellati per sempre`),
-  libTitle: "Titolo", libArtist: "Artista", libAlbum: "Album", libGenre: "Genere",
+  libEmptyConfirm: (n) => plural(n, "Cancellare per sempre 1 brano? Non si può annullare.",
+    "Cancellare per sempre {n} brani? Non si può annullare."),
+  libEmptied: (n) => plural(n, "1 brano cancellato per sempre", "{n} brani cancellati per sempre"),
+  libTitle: "Titolo", libArtist: "Artista", 
   libYear: "Anno", libComment: "Commento",
   libReadOnlyFormat: (f) => `Sola lettura: GetSetMix non sa ancora scrivere i tag ${f.toUpperCase()}. I file MP3 e FLAC si possono modificare.`,
   libMulti: "Nel file ha più valori. Salvando si scrive solo il valore mostrato qui.",
@@ -400,11 +398,11 @@ function libFacetsRender() {
     genres.unshift({ name: Lib.genre, count: (f.genres.find((g) => g.name === Lib.genre) || {}).count || 0 });
   }
   $("#libGenres").innerHTML = genres.map((g) =>
-    `<button type="button" class="chip lib-gchip" data-genre="${esc(g.name)}" aria-pressed="${g.name === Lib.genre}">${esc(g.name)}<small>${g.count.toLocaleString(lang)}</small></button>`).join("");
+    `<button type="button" class="chip lib-gchip" data-genre="${esc(g.name)}" aria-pressed="${g.name === Lib.genre}">${esc(g.name)}<small>${num(g.count)}</small></button>`).join("");
   const folders = f.folders.slice();
   if (Lib.folder && !folders.some((x) => x.path === Lib.folder)) folders.push({ path: Lib.folder, count: 0 });
   $("#libFolder").innerHTML = `<option value="">${esc(T.libAllFolders)}</option>` + folders.map((x) =>
-    `<option value="${esc(x.path)}">${esc(x.path)} (${x.count.toLocaleString(lang)})</option>`).join("");
+    `<option value="${esc(x.path)}">${esc(x.path)} (${num(x.count)})</option>`).join("");
   $("#libFolder").value = Lib.folder;
   $("#libFilters").classList.toggle("hidden", !genres.length && !folders.length);
   $("#libFolder").parentElement.classList.toggle("hidden", !folders.length);
@@ -639,7 +637,7 @@ async function sheetCover(item) {
   box.innerHTML = NOTE;
   box.classList.toggle("has-image", false);
   box.setAttribute("aria-label", T.libNoCover);
-  $("#libCoverBtn").textContent = item.has_cover ? T.libChangeCover : T.libAddCover;
+  $("#libCoverBtn").textContent = item.has_cover ? T.changeCover : T.libAddCover;
   if (!item.has_cover) return;
   try {
     const res = await request(`/api/library/${item.id}/cover?v=${item.content_rev}`);
@@ -787,7 +785,7 @@ async function saveSheet() {
       return;
     }
     if (res.status === 423) { toast(T.libInUse); audioArm(item); return; }
-    if (!res.ok) { toast(body.detail || res.statusText); audioArm(item); return; }
+    if (!res.ok) { toast(serverError(body.detail) || res.statusText); audioArm(item); return; }
     libSaved(body);
     sheet.classList.add("hidden");
     toast(T.libSaved);
@@ -840,7 +838,7 @@ async function saveCover(body, isUpload) {
     });
     const out = await res.json().catch(() => ({}));
     if (res.status === 423) { toast(T.libInUse); return; }
-    if (!res.ok) { toast(out.detail || res.statusText); return; }
+    if (!res.ok) { toast(serverError(out.detail) || res.statusText); return; }
     $("#coverModal").classList.add("hidden");
     libSaved(out, true);
     if (Sheet.item && Sheet.item.id === out.id) {
@@ -955,7 +953,7 @@ libList.addEventListener("click", (e) => {
   btn.disabled = true; // one tap, one request
   // asked first: both buttons sit on the row, where a scroll can become a tap
   askConfirm(del ? T.libDeleteAsk(label) : T.libRestoreAsk(label),
-    del ? T.libDelete : T.libRestore, T.libCancel, { danger: del })
+    del ? T.libDelete : T.libRestore, T.cancel, { danger: del })
     .then((yes) => (yes ? (del ? libDelete(id) : libRestore(id)) : null))
     .finally(() => { btn.disabled = false; });
 });
@@ -964,7 +962,7 @@ $("#libTrashBtn").addEventListener("click", () => setTrash(true));
 $("#libBack").addEventListener("click", () => setTrash(false));
 $("#libEmptyTrash").addEventListener("click", async () => {
   if (!Lib.trashCount) return;
-  if (!(await askConfirm(T.libEmptyConfirm(Lib.trashCount), T.libEmptyYes, T.libCancel, { danger: true }))) return;
+  if (!(await askConfirm(T.libEmptyConfirm(Lib.trashCount), T.libEmptyYes, T.cancel, { danger: true }))) return;
   try {
     const res = await api("/api/library/trash", { method: "DELETE" });
     toast(T.libEmptied(res.purged));
