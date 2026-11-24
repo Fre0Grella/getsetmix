@@ -1,6 +1,25 @@
 # CHANGELOG
 
 
+## v1.15.0 (2026-11-24)
+
+### Features
+
+- **library**: Small cover thumbnails ([#67](https://github.com/Fre0Grella/getsetmix/pull/67),
+  [`e9d1bee`](https://github.com/Fre0Grella/getsetmix/commit/e9d1bee6856b9a63d47368bf618ecb3fe55b184c))
+
+The list loads a 144 px JPEG of each cover (?size=thumb), made once per content_rev and kept under
+  DATA_DIR/thumbs. On real covers it is about 5 KB against 107 KB, so a full scroll costs about 3 MB
+  instead of 60. Only the JPEG, PNG, WebP and GIF decoders run, with size and pixel caps. Adds
+  Pillow (MIT-CMU).
+
+Closes #65
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.14.0 (2026-11-24)
 
 ### Features
