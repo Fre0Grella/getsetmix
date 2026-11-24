@@ -475,6 +475,32 @@ function toast(msg) {
   toast._t = setTimeout(() => el.classList.add("hidden"), 2600);
 }
 
+// The app's own yes/no question (not the browser's confirm(), which looks
+// foreign and can be turned off). Resolves true only on `yes`; Cancel, the
+// backdrop and Escape all hide the modal, which answers false.
+function askConfirm(text, yes, no, { danger = false } = {}) {
+  const modal = $("#confirmModal");
+  const ok = $("#confirmYes");
+  $("#confirmText").textContent = text;
+  ok.textContent = yes;
+  $("#confirmNo").textContent = no;
+  ok.className = `btn ${danger ? "btn-danger" : "btn-primary"}`;
+  modal.classList.remove("hidden");
+  ok.focus();
+  return new Promise((resolve) => {
+    let answer = false;
+    const onYes = () => { answer = true; modal.classList.add("hidden"); };
+    const watch = new MutationObserver(() => {
+      if (!modal.classList.contains("hidden")) return;
+      watch.disconnect();
+      ok.removeEventListener("click", onYes);
+      resolve(answer);
+    });
+    ok.addEventListener("click", onYes);
+    watch.observe(modal, { attributes: true, attributeFilter: ["class"] });
+  });
+}
+
 async function addUrl(url) {
   if (!/^https?:\/\//i.test(url)) { toast(T.notUrl); return null; }
   try {
@@ -827,13 +853,23 @@ document.querySelectorAll("[data-pick]").forEach((btn) =>
   btn.addEventListener("click", (e) => { e.preventDefault(); openPicker(btn.dataset.pick); }));
 
 // --------------------------------------------------------------- wire up
+// A tap on the backdrop closes a modal, but only when the press started there
+// too: selecting a field's text and letting go outside the card is not a close.
 document.querySelectorAll(".modal").forEach((m) => {
+  let pressedBackdrop = false;
+  m.addEventListener("pointerdown", (e) => { pressedBackdrop = e.target === m; });
   m.addEventListener("click", (e) => {
-    if (e.target === m || e.target.closest("[data-close]")) m.classList.add("hidden");
+    const backdrop = e.target === m && pressedBackdrop;
+    pressedBackdrop = false;
+    if (backdrop || e.target.closest("[data-close]")) m.classList.add("hidden");
   });
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") document.querySelectorAll(".modal").forEach((m) => m.classList.add("hidden"));
+  if (e.key !== "Escape") return;
+  // the question on top goes first; what it was asked over stays open
+  const ask = $("#confirmModal");
+  if (!ask.classList.contains("hidden")) { ask.classList.add("hidden"); return; }
+  document.querySelectorAll(".modal").forEach((m) => m.classList.add("hidden"));
 });
 
 $("#addForm").addEventListener("submit", (e) => { e.preventDefault(); addFromField(); });
