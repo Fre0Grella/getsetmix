@@ -406,6 +406,17 @@
     </div>
   </div>
 
+  <!-- A question before an action that is easy to tap by mistake (askConfirm in app.js). Last, so it sits above any other modal. -->
+  <div id="confirmModal" class="modal modal--confirm hidden" role="alertdialog" aria-modal="true" aria-describedby="confirmText">
+    <div class="modal-card">
+      <div class="modal-body"><p id="confirmText"></p></div>
+      <div class="modal-foot">
+        <button id="confirmNo" type="button" class="btn btn-quiet" data-close></button>
+        <button id="confirmYes" type="button" class="btn btn-primary"></button>
+      </div>
+    </div>
+  </div>
+
   <datalist id="genres"></datalist>
   <div id="toast" class="toast hidden" role="status"></div>
 

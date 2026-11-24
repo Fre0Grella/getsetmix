@@ -35,7 +35,10 @@ Object.assign(STR.en, {
     : "Deleted tracks stay here until you empty the trash."),
   libTrashEmptyTitle: "The trash is empty",
   libTrashEmptyHint: "Tracks you delete wait here, so a wrong tap can always be undone.",
-  libDelete: "Delete", libRestore: "Restore", libUndo: "Undo",
+  libDelete: "Delete", libRestore: "Restore", libUndo: "Undo", libCancel: "Cancel",
+  libDeleteAsk: (t) => `Move “${t}” to the trash?`,
+  libRestoreAsk: (t) => `Put “${t}” back in the library?`,
+  libEmptyYes: "Remove for good",
   libDeleted: (t) => `Deleted “${t}”`,
   libRestored: (t) => `Restored “${t}”`,
   libRestoreTaken: "Another file now has this track's name: move or rename it first.",
@@ -85,7 +88,10 @@ Object.assign(STR.it, {
     : "I brani eliminati restano qui finché non svuoti il cestino."),
   libTrashEmptyTitle: "Il cestino è vuoto",
   libTrashEmptyHint: "I brani che elimini aspettano qui, così un tocco sbagliato si può sempre annullare.",
-  libDelete: "Elimina", libRestore: "Ripristina", libUndo: "Annulla",
+  libDelete: "Elimina", libRestore: "Ripristina", libUndo: "Annulla", libCancel: "Annulla",
+  libDeleteAsk: (t) => `Spostare “${t}” nel cestino?`,
+  libRestoreAsk: (t) => `Rimettere “${t}” nella libreria?`,
+  libEmptyYes: "Cancella per sempre",
   libDeleted: (t) => `Eliminato “${t}”`,
   libRestored: (t) => `Ripristinato “${t}”`,
   libRestoreTaken: "Un altro file ora ha il nome di questo brano: spostalo o rinominalo prima.",
@@ -956,15 +962,21 @@ libList.addEventListener("click", (e) => {
   const row = btn && btn.closest(".lib-row");
   if (!row || !row.dataset.id) return;
   const id = Number(row.dataset.id);
+  const del = btn.dataset.act === "delete";
+  const label = libLabel(Lib.rows.find((t) => t.id === id));
   btn.disabled = true; // one tap, one request
-  if (btn.dataset.act === "delete") libDelete(id).finally(() => { btn.disabled = false; });
-  else if (btn.dataset.act === "restore") libRestore(id).finally(() => { btn.disabled = false; });
+  // asked first: both buttons sit on the row, where a scroll can become a tap
+  askConfirm(del ? T.libDeleteAsk(label) : T.libRestoreAsk(label),
+    del ? T.libDelete : T.libRestore, T.libCancel, { danger: del })
+    .then((yes) => (yes ? (del ? libDelete(id) : libRestore(id)) : null))
+    .finally(() => { btn.disabled = false; });
 });
 
 $("#libTrashBtn").addEventListener("click", () => setTrash(true));
 $("#libBack").addEventListener("click", () => setTrash(false));
 $("#libEmptyTrash").addEventListener("click", async () => {
-  if (!Lib.trashCount || !confirm(T.libEmptyConfirm(Lib.trashCount))) return;
+  if (!Lib.trashCount) return;
+  if (!(await askConfirm(T.libEmptyConfirm(Lib.trashCount), T.libEmptyYes, T.libCancel, { danger: true }))) return;
   try {
     const res = await api("/api/library/trash", { method: "DELETE" });
     toast(T.libEmptied(res.purged));
