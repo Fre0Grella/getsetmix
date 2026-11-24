@@ -42,9 +42,13 @@ def test_downloading_a_duplicate_asks_in_the_app_dialog_and_skip_keeps_it(open_t
 
 def test_a_401_asks_for_the_token_once_however_many_requests_fail(open_tab):
     # Several requests fail together at load; a dismissed question is not asked again.
+    # A fresh page with the 401s routed before it loads: reloading a page that
+    # is already polling raced with its own prompt on the Linux runner.
     tab = open_tab("/")
-    tab.page.route("**/api/**", lambda route: route.fulfill(status=401, body="{}"))
-    # not waiting for "load": the prompt can open while the page is still loading
-    tab.page.reload(wait_until="commit")
-    tab.page.wait_for_timeout(5000)  # past the next poll
-    assert len(tab.dialogs) == 1, tab.dialogs
+    page = tab.page.context.new_page()
+    dialogs = []
+    page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
+    page.route("**/api/**", lambda route: route.fulfill(status=401, body="{}"))
+    page.goto("/", wait_until="commit")
+    page.wait_for_timeout(5000)  # past the next poll
+    assert len(dialogs) == 1, dialogs

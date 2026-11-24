@@ -77,7 +77,7 @@ function applyLang(next) {
 
 // ------------------------------------------------------------------ icons
 const I = {
-  dl: '<svg viewBox="0 0 24 24"><path d="M12 5v10m0 0l-4-4m4 4l4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 19h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  dl: '<svg viewBox="0 0 24 24"><use href="#i-download"/></svg>', // the sprite in index.html
   x: '<svg viewBox="0 0 24 24"><use href="#i-close"/></svg>', // the sprite in index.html
   retry: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M20 11a8 8 0 1 0-2.34 6.06M20 5v6h-6"/></svg>',
   folder: '<svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h3.5l2 2H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
@@ -167,7 +167,7 @@ function rowHtml(t) {
       ${field("title", "f-title", T.titlePh)}
       <div class="who-sub">
         ${field("artist", "f-artist", T.artistPh)}
-        ${dup ? `<button type="button" class="dup" data-act="dup-open" title="${esc(T.dupOf(t.duplicate_reason))}">${T.dupBadge}</button>` : ""}
+        ${dup ? `<button type="button" class="dup badge badge--warn" data-act="dup-open" title="${esc(T.dupOf(t.duplicate_reason))}">${T.dupBadge}</button>` : ""}
       </div>
     </div>
     <div class="c-album" data-label="${T.colAlbum}">${field("album", "f-album", T.albumPh)}</div>
