@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v1.15.2 (2026-11-24)
+
+### Bug Fixes
+
+- **ui**: Keep dialogs inside a phone screen
+  ([#72](https://github.com/Fre0Grella/getsetmix/pull/72),
+  [`d580a65`](https://github.com/Fre0Grella/getsetmix/commit/d580a65b6a99cf592c12cf4e79d0b72d4bd5461e))
+
+min-width: 0 on the dialog card: a long file name no longer pushes the Library sheet past the right
+  edge of a phone.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.15.1 (2026-11-24)
 
 ### Bug Fixes
