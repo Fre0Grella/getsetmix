@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v1.16.4 (2026-11-24)
+
+### Bug Fixes
+
+- **ui**: Take the rules from the server ([#80](https://github.com/Fre0Grella/getsetmix/pull/80),
+  [`cfa0842`](https://github.com/Fre0Grella/getsetmix/commit/cfa08424eb071ce8da0cad7c04c873e1a9332d6a))
+
+The UI reads damaged, source, the year range, the source pattern, the list's order and each track's
+  editable/active from the server instead of keeping its own copies. The "replace the link?"
+  question now fires only for a stamped "Source: <url>".
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.16.3 (2026-11-24)
 
 ### Bug Fixes
