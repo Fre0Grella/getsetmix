@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **approved** by the maintainer on 2026-11-14. The two proposals left open on approval, 17 (fields with several values) and 18 (a full date when the year is edited), were decided on 2026-11-14 as proposed; see [section 6](#6-decisions-and-open-questions). Section [4.6.1](#461-the-companions-view-of-server-changes-consolidation-draft), added on 2026-11-24, is a **draft** waiting for approval |
+| **Status** | **approved** by the maintainer on 2026-11-14. The two proposals left open on approval, 17 (fields with several values) and 18 (a full date when the year is edited), were decided on 2026-11-14 as proposed; see [section 6](#6-decisions-and-open-questions). Section [4.6.1](#461-the-companions-view-of-server-changes-consolidation), added on 2026-11-24, was **approved** on 2026-11-24 with its five open questions decided as recommended |
 | **Issues** | design [#19](https://github.com/Fre0Grella/getsetmix/issues/19), feature [#11](https://github.com/Fre0Grella/getsetmix/issues/11), roadmap [#12](https://github.com/Fre0Grella/getsetmix/issues/12) |
 | **Date** | 2026-11-13 |
 
@@ -1039,7 +1039,7 @@ server:
 path gets the size and time the file has at that moment, and nothing is
 acted on.
 
-#### 4.6.1 The companion's view of server changes (consolidation, draft)
+#### 4.6.1 The companion's view of server changes (consolidation)
 
 **Status: draft**, 2026-11-24, for the maintainer's approval. Nothing here
 is built. It changes how the companion's code is arranged, not what it does.
@@ -1322,22 +1322,25 @@ What is protected, and how:
   go-sqlcipher. It also fails if a package other than `ledger` names
   `fetched.json` or `state.json`.
 
-##### Open questions
+##### Decisions (2026-11-24)
 
-1. **`sync.lock`.** Add it, so only one sync runs at a time? If a sync finds
-   it held, should it wait (proposed: up to 30 seconds, then skip and log),
-   or skip at once? The launcher starts Rekordbox either way.
-2. **Duplicate paths.** When two live rows share a path, should only the
-   oldest be updated and listed, as proposed? Or every live row with that
-   path? Should the lookup also be limited to this computer's `DeviceID`?
-3. **Names.** Are `track` and `ledger` the right package names?
-4. **The two `removed` records.** Keep them as they are, joined inside the
-   ledger, as proposed? Or later move "listed" onto the tombstone in
-   `fetched.json`, by audio id? That is a format change. It needs a
-   `version` in `state.json` and a downgrade path.
-5. **Architecture.** Should the companion's layering go into
-   [architecture 8.8](../architecture.md#88-code-structure-and-its-checks),
-   with the import-rule test in CI and a row in the decision log?
+The five questions of the draft, decided by the maintainer as recommended:
+
+1. **`sync.lock` is added**: one sync at a time. A sync that finds it held
+   waits up to 30 seconds, then skips and logs; the launcher starts
+   Rekordbox either way. A launch right after the scheduled sync still
+   imports its tracks.
+2. **Duplicate paths**: only the oldest live row is updated and listed
+   (built in [#77](https://github.com/Fre0Grella/getsetmix/pull/77)), and
+   the lookup is limited to this computer's `DeviceID`: a duplicate row is
+   usually a leftover, and writing to it could touch a row Rekordbox does
+   not use.
+3. **Names**: `track` and `ledger`.
+4. **The two `removed` records** stay as they are, joined inside the
+   ledger. No format change; revisit only if the join causes trouble.
+5. **Architecture**: the companion's layering goes into
+   [architecture 8.8](../architecture.md#88-code-structure-and-its-checks)
+   with an import-rule test in CI, and decision 10 records it.
 
 ##### Build plan
 
