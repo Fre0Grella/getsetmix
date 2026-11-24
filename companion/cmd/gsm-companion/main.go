@@ -294,6 +294,9 @@ func cmdLaunch(home string, logger *log.Logger) error {
 				logger.Printf("launch: imported %d track(s) into %q", len(rep.Imported), cfg.Playlist)
 			}
 			logRemoved(logger, rep)
+			if len(rep.Updated) > 0 {
+				logger.Printf("launch: updated %d track(s) in Rekordbox", len(rep.Updated))
+			}
 		}
 	}
 	if inst.Exe == "" {
@@ -343,7 +346,8 @@ func cmdFetch(home string, logger *log.Logger, args []string) error {
 	if err != nil {
 		return err
 	}
-	if len(rep.Downloaded) == 0 && len(rep.Removed) == 0 && len(rep.Restored) == 0 {
+	if len(rep.Downloaded) == 0 && len(rep.Updated) == 0 && len(rep.Removed) == 0 &&
+		len(rep.Restored) == 0 {
 		return nil
 	}
 	im, err := newImporter(home, logger)
@@ -364,6 +368,9 @@ func cmdFetch(home string, logger *log.Logger, args []string) error {
 	if err == nil && len(irep.Imported) > 0 {
 		logger.Printf("fetch: imported %d track(s) into %q", len(irep.Imported), cfg.Playlist)
 	}
+	if err == nil && len(irep.Updated) > 0 {
+		logger.Printf("fetch: updated %d track(s) in Rekordbox", len(irep.Updated))
+	}
 	logRemoved(logger, irep)
 	return err
 }
@@ -371,7 +378,7 @@ func cmdFetch(home string, logger *log.Logger, args []string) error {
 // runFetch is one fetch, guarded so the launcher and the scheduled task
 // never download at the same time.
 func runFetch(home string, cfg config.Config, logger *log.Logger, budget time.Duration) (fetch.Report, error) {
-	unlock, err := lock(home, "fetch")
+	unlock, err := fetch.Lock(home)
 	if err != nil {
 		return fetch.Report{}, err
 	}
@@ -394,6 +401,9 @@ func runFetch(home string, cfg config.Config, logger *log.Logger, budget time.Du
 	for _, p := range rep.Downloaded {
 		logger.Printf("fetched %s", p)
 	}
+	for _, p := range rep.Updated {
+		logger.Printf("fetched a newer copy of %s", p)
+	}
 	for _, p := range rep.Removed {
 		logger.Printf("removed on the server: %s", p)
 	}
@@ -410,24 +420,6 @@ func runFetch(home string, cfg config.Config, logger *log.Logger, budget time.Du
 		logger.Printf("fetch: %d track(s) left for next time", rep.Remaining)
 	}
 	return rep, err
-}
-
-// lock takes a lock file, stealing it when its holder is clearly gone.
-func lock(home, name string) (func(), error) {
-	path := filepath.Join(home, name+".lock")
-	for i := 0; i < 2; i++ {
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-		if err == nil {
-			f.Close()
-			return func() { os.Remove(path) }, nil
-		}
-		if info, serr := os.Stat(path); serr == nil && time.Since(info.ModTime()) > 2*time.Hour {
-			os.Remove(path)
-			continue
-		}
-		break
-	}
-	return nil, fmt.Errorf("another %s is running", name)
 }
 
 func cmdWatch(home string, logger *log.Logger) error {
@@ -501,6 +493,13 @@ func printReport(rep importer.Report) {
 	}
 	for _, p := range rep.Imported {
 		fmt.Printf("%s  %s\n", verb, filepath.Base(p))
+	}
+	for _, p := range rep.Updated {
+		if rep.DryRun {
+			fmt.Printf("would update  %s\n", filepath.Base(p))
+		} else {
+			fmt.Printf("updated  %s\n", filepath.Base(p))
+		}
 	}
 	for _, p := range rep.MarkedRemoved {
 		fmt.Printf("removed on server  %s\n", filepath.Base(p))

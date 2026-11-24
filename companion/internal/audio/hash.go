@@ -53,6 +53,12 @@ var payloadRules = map[string]payloadRule{
 // ID returns the audio id of the file at path. A damaged file gets the
 // fallback id; an error means the file could not be read at all.
 func ID(path string) (string, error) {
+	return IDAs(path, path)
+}
+
+// IDAs returns the audio id of the file at path, read as the container its
+// name says: for a download still under a temporary name ("x.mp3.part").
+func IDAs(path, name string) (string, error) {
 	fh, err := os.Open(path)
 	if err != nil {
 		return "", err
@@ -63,7 +69,7 @@ func ID(path string) (string, error) {
 		return "", err
 	}
 	size := info.Size()
-	if rule, ok := payloadRules[strings.ToLower(filepath.Ext(path))]; ok {
+	if rule, ok := payloadRules[strings.ToLower(filepath.Ext(name))]; ok {
 		ranges, err := rule(&hashFile{r: fh, size: size})
 		switch {
 		case err == nil:

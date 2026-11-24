@@ -1,6 +1,7 @@
-/* GetSetMix: the Library view (docs/design/library.md 4.5): the list, and
-   the trash (delete with an Undo toast, Restore, Empty trash).
-   Loaded after app.js and uses its helpers: api(), esc(), fmtDur(), toast(), T, STR. */
+/* GetSetMix: the Library view (docs/design/library.md 4.5): the list, the
+   detail sheet that edits one track, and the trash (delete with an Undo
+   toast, Restore, Empty trash). Loaded after app.js and uses its helpers:
+   api(), esc(), fmtDur(), toast(), authHeaders(), genrePicks, narrow, T, STR. */
 "use strict";
 
 Object.assign(STR.en, {
@@ -29,6 +30,18 @@ Object.assign(STR.en, {
     ? "Remove 1 track for good? This can't be undone."
     : `Remove ${n.toLocaleString("en")} tracks for good? This can't be undone.`),
   libEmptied: (n) => (n === 1 ? "1 track removed for good" : `${n.toLocaleString("en")} tracks removed for good`),
+  libTitle: "Title", libArtist: "Artist", libAlbum: "Album", libGenre: "Genre",
+  libYear: "Year", libComment: "Comment",
+  libReadOnlyFormat: (f) => `Read-only: GetSetMix can't write ${f.toUpperCase()} tags yet. MP3 and FLAC files can be edited.`,
+  libMulti: "Holds several values in the file. Saving writes the one value shown here.",
+  libSource: "Source",
+  libAsk: "This comment holds the link the track was downloaded from, the only record of its source inside the file. Replace it?",
+  libAskKeep: "Keep the link", libAskReplace: "Replace it",
+  libSaved: "Saved to the file",
+  libNoChange: "Nothing changed",
+  libBadYear: "The year needs four digits, from 1000 to 9999",
+  libChanged: "The file changed meanwhile. The sheet now shows what it holds; check and save again.",
+  libInUse: "Another program has this file open, maybe a deck in Rekordbox. Unload it and try again.",
 });
 Object.assign(STR.it, {
   viewSwitch: "Vista", viewDownloads: "Download", viewLibrary: "Libreria",
@@ -56,6 +69,18 @@ Object.assign(STR.it, {
     ? "Cancellare per sempre 1 brano? Non si può annullare."
     : `Cancellare per sempre ${n.toLocaleString("it")} brani? Non si può annullare.`),
   libEmptied: (n) => (n === 1 ? "1 brano cancellato per sempre" : `${n.toLocaleString("it")} brani cancellati per sempre`),
+  libTitle: "Titolo", libArtist: "Artista", libAlbum: "Album", libGenre: "Genere",
+  libYear: "Anno", libComment: "Commento",
+  libReadOnlyFormat: (f) => `Sola lettura: GetSetMix non sa ancora scrivere i tag ${f.toUpperCase()}. I file MP3 e FLAC si possono modificare.`,
+  libMulti: "Nel file ha più valori. Salvando si scrive solo il valore mostrato qui.",
+  libSource: "Fonte",
+  libAsk: "Questo commento contiene il link da cui il brano è stato scaricato, l'unica traccia della sua fonte dentro il file. Sostituirlo?",
+  libAskKeep: "Tieni il link", libAskReplace: "Sostituisci",
+  libSaved: "Salvato nel file",
+  libNoChange: "Nessuna modifica",
+  libBadYear: "L'anno deve avere quattro cifre, da 1000 a 9999",
+  libChanged: "Nel frattempo il file è cambiato. Ora la scheda mostra cosa contiene: controlla e salva di nuovo.",
+  libInUse: "Un altro programma ha aperto questo file, forse un deck di Rekordbox. Scaricalo dal deck e riprova.",
 });
 
 const Lib = {
@@ -95,7 +120,7 @@ function libRowHtml(t) {
     ? `<button type="button" class="btn btn-quiet lib-act lib-restore" data-act="restore">${esc(T.libRestore)}</button>`
     : `<button type="button" class="icon-btn lib-act lib-del" data-act="delete" title="${esc(T.libDelete)}" aria-label="${esc(T.libDelete)}">${TRASH}</button>`;
   const damaged = t.audio_id.startsWith("f1_");
-  return `<article class="lib-row" data-id="${t.id}"${damaged ? ` title="${esc(T.libDamaged)}"` : ""}>
+  return `<article class="lib-row" data-id="${t.id}" tabindex="0"${damaged ? ` title="${esc(T.libDamaged)}"` : ""}>
     <div class="lib-art${t.has_cover ? " has-cover" : ""}">${NOTE}</div>
     <div class="lib-who">
       <span class="lib-title">${title}</span>
@@ -207,6 +232,176 @@ function setView(view) {
     clearTimeout(Lib.statusTimer);
   }
 }
+
+// ------------------------------------------------------ the detail sheet
+// Six fields, the download view's one-tap genre picks, and a question before
+// a comment that holds the source link is replaced (design 4.5). Only the
+// fields that changed are sent, each with the value the sheet showed as
+// `expect`, so an edit made meanwhile elsewhere is never overwritten.
+const TAGS = ["title", "artist", "album", "genre", "year", "comment"];
+const sheet = $("#libSheet");
+const tagInput = (f) => sheet.querySelector(`[data-tag="${f}"]`);
+const Sheet = { item: null, shown: {}, saving: false, askDone: false };
+const SOURCE = /https?:\/\/[^\s|]+/i;
+
+function sheetValue(f) {
+  const v = tagInput(f).value;
+  if (f !== "year") return v;
+  const s = v.trim();
+  return s === "" ? null : (/^\d{4}$/.test(s) && Number(s) >= 1000 ? Number(s) : NaN);
+}
+
+function sheetChanges() {
+  const changes = {}, expect = {};
+  for (const f of TAGS) {
+    // Against what the field showed: a browser folds line breaks in a value,
+    // and that alone must not count as an edit of the file.
+    if (tagInput(f).value === Sheet.shown[f]) continue;
+    changes[f] = sheetValue(f);
+    expect[f] = Sheet.item[f] ?? (f === "year" ? null : "");
+  }
+  return { changes, expect };
+}
+
+function sheetChips() {
+  const genre = tagInput("genre").value;
+  const picks = [...new Set([...(Sheet.item?.genre ? [Sheet.item.genre] : []), ...genrePicks])].slice(0, 9);
+  $("#libSheetChips").innerHTML = picks.map((g) =>
+    `<button type="button" class="chip" data-genre="${esc(g)}" aria-pressed="${g === genre}">${esc(g)}</button>`).join("");
+}
+
+function sheetSource() {
+  const m = (tagInput("comment").value.match(SOURCE) || [])[0];
+  const el = $("#libSheetSource");
+  el.classList.toggle("hidden", !m);
+  el.innerHTML = m ? `${esc(T.libSource)}: <a href="${esc(m)}" target="_blank" rel="noreferrer">${esc(m)}</a>` : "";
+}
+
+function sheetFill(item) {
+  Sheet.item = item;
+  Sheet.askDone = false;
+  $("#libSheetAsk").classList.add("hidden");
+  $("#libSheetTitle").textContent = item.title.trim() || libName(item.path);
+  $("#libSheetFile").textContent = item.path;
+  for (const f of TAGS) {
+    const input = tagInput(f);
+    input.value = item[f] ?? "";
+    Sheet.shown[f] = input.value;
+    input.disabled = !item.editable;
+    const label = input.closest(".lib-field");
+    let note = label.querySelector(".lib-multi");
+    if (item.multi.includes(f) && !note) {
+      note = document.createElement("small");
+      note.className = "lib-multi";
+      label.append(note);
+    }
+    if (note) {
+      note.textContent = T.libMulti;
+      note.hidden = !item.multi.includes(f);
+    }
+  }
+  const ro = $("#libSheetReadOnly");
+  ro.classList.toggle("hidden", item.editable);
+  ro.textContent = item.editable ? "" : (item.audio_id.startsWith("f1_") ? T.libDamaged : T.libReadOnlyFormat(item.format));
+  $("#libSheetSave").classList.toggle("hidden", !item.editable);
+  $("#libSheetChips").classList.toggle("hidden", !item.editable);
+  sheetChips();
+  sheetSource();
+}
+
+async function openSheet(id) {
+  try {
+    const item = await api(`/api/library/${id}`);
+    sheetFill(item);
+    sheet.classList.remove("hidden");
+    if (item.editable && !narrow.matches) tagInput("title").focus();
+  } catch (e) { toast(e.message); }
+}
+
+async function saveSheet() {
+  if (!Sheet.item || Sheet.saving) return;
+  const { changes, expect } = sheetChanges();
+  if (Number.isNaN(changes.year)) { toast(T.libBadYear); tagInput("year").focus(); return; }
+  if (!Object.keys(changes).length) { sheet.classList.add("hidden"); toast(T.libNoChange); return; }
+  // The source link is the only record of a download's origin in the file: ask once.
+  if ("comment" in changes && SOURCE.test(Sheet.item.comment) && !Sheet.askDone) {
+    $("#libSheetAskText").textContent = T.libAsk;
+    $("#libSheetAsk").classList.remove("hidden");
+    $("#libAskReplace").focus();
+    $("#libSheetAsk").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    return;
+  }
+  Sheet.saving = true;
+  $("#libSheetSave").disabled = true;
+  try {
+    const res = await fetch(`/api/library/${Sheet.item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ ...changes, expect }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 412) {
+      toast(T.libChanged);
+      sheetFill(await api(`/api/library/${Sheet.item.id}`));
+      return;
+    }
+    if (res.status === 423) { toast(T.libInUse); return; }
+    if (res.status === 401) { await api(`/api/library/${Sheet.item.id}`); return; } // asks for the token
+    if (!res.ok) { toast(body.detail || res.statusText); return; }
+    const i = Lib.items.findIndex((t) => t.id === body.id);
+    if (i >= 0) {
+      Lib.items[i] = { ...Lib.items[i], ...body };
+      const row = libList.querySelector(`.lib-row[data-id="${body.id}"]`);
+      if (row) row.outerHTML = libRowHtml(Lib.items[i]);
+    }
+    sheet.classList.add("hidden");
+    toast(T.libSaved);
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    Sheet.saving = false;
+    $("#libSheetSave").disabled = false;
+  }
+}
+
+$("#libSheetForm").addEventListener("submit", (e) => { e.preventDefault(); saveSheet(); });
+$("#libAskReplace").addEventListener("click", () => {
+  Sheet.askDone = true;
+  $("#libSheetAsk").classList.add("hidden");
+  saveSheet();
+});
+$("#libAskKeep").addEventListener("click", () => {
+  tagInput("comment").value = Sheet.shown.comment;
+  $("#libSheetAsk").classList.add("hidden");
+  sheetSource();
+  saveSheet();
+});
+$("#libSheetChips").addEventListener("click", (e) => {
+  const chip = e.target.closest("[data-genre]");
+  if (!chip) return;
+  const input = tagInput("genre");
+  input.value = input.value === chip.dataset.genre ? "" : chip.dataset.genre; // tap again to clear
+  sheetChips();
+});
+tagInput("genre").addEventListener("input", sheetChips);
+tagInput("comment").addEventListener("input", () => {
+  sheetSource();
+  $("#libSheetAsk").classList.add("hidden");
+});
+
+// A row opens its sheet, except in the trash and on its delete or restore button.
+function sheetRow(e) {
+  if (Lib.trash || e.target.closest("[data-act]")) return null;
+  return e.target.closest(".lib-row");
+}
+libList.addEventListener("click", (e) => {
+  const row = sheetRow(e);
+  if (row) openSheet(Number(row.dataset.id));
+});
+libList.addEventListener("keydown", (e) => {
+  const row = sheetRow(e);
+  if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openSheet(Number(row.dataset.id)); }
+});
 
 document.querySelectorAll("[data-view]").forEach((b) =>
   b.addEventListener("click", () => setView(b.dataset.view)));

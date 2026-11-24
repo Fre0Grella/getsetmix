@@ -84,6 +84,8 @@ type Report struct {
 	Offered    int               // tracks this computer can import
 	Skipped    map[string]int    // extension -> files Rekordbox cannot import, not downloaded
 	Downloaded []string          // local paths
+	Updated    []string          // local paths replaced by a newer copy (changed on the server)
+	Kept       []string          // server paths changed on the server but deleted here: left alone
 	Failed     map[string]string // server path -> reason; retried next time
 	Remaining  int               // left for next time (deadline reached)
 	// Tombstones (removed.go), by server path: tracks this computer holds
@@ -163,7 +165,9 @@ func Local(folder, serverPath string) (string, error) {
 	return filepath.Join(folder, filepath.FromSlash(clean)), nil
 }
 
-func (c *Client) download(ctx context.Context, f File, dest string) error {
+// download fetches f into dest through dest.part. With checkID, the audio id
+// of the download must be f's before it replaces anything.
+func (c *Client) download(ctx context.Context, f File, dest string, checkID bool) error {
 	resp, err := c.get(ctx, "/api/link/file", url.Values{"path": {f.Path}})
 	if err != nil {
 		return err
@@ -183,6 +187,12 @@ func (c *Client) download(ctx context.Context, f File, dest string) error {
 	}
 	if err == nil && f.Size > 0 && n != f.Size {
 		err = fmt.Errorf("got %d of %d bytes", n, f.Size)
+	}
+	if err == nil && checkID && f.ID != "" {
+		var got string
+		if got, err = audio.IDAs(part, dest); err == nil && got != f.ID {
+			err = fmt.Errorf("the download's audio id is %s, not %s", got, f.ID)
+		}
 	}
 	if err != nil {
 		os.Remove(part)
@@ -215,7 +225,7 @@ func (c *Client) Run(ctx context.Context, state *State, now func() time.Time) (R
 			continue
 		}
 		rep.Offered++
-		if !state.Has(f) {
+		if !state.Has(f) || state.Newer(f) {
 			todo = append(todo, f)
 		}
 	}
@@ -225,34 +235,83 @@ func (c *Client) Run(ctx context.Context, state *State, now func() time.Time) (R
 			rep.Remaining = len(todo) - i
 			break
 		}
+		var err error
 		if state.Has(f) {
-			continue
-		}
-		dest, err := Local(c.Server.Folder, f.Path)
-		if err != nil {
-			rep.Failed[f.Path] = err.Error()
-			continue
-		}
-		// Already here (copied by hand, or a first run over an old library).
-		if sizeIs(dest, f.Size) {
-			state.Record(f, now())
-			continue
-		}
-		if err := c.download(ctx, f, dest); err != nil {
-			if errors.Is(err, ErrUnauthorized) {
-				return rep, err
+			if !state.Newer(f) {
+				continue
 			}
-			if ctx.Err() != nil {
-				rep.Remaining = len(todo) - i
-				break
-			}
-			rep.Failed[f.Path] = err.Error()
+			err = c.refresh(ctx, f, state, now, &rep)
+		} else {
+			err = c.fetchNew(ctx, f, state, now, &rep)
+		}
+		if err == nil {
 			continue
 		}
-		state.Record(f, now())
-		rep.Downloaded = append(rep.Downloaded, dest)
+		if errors.Is(err, ErrUnauthorized) {
+			return rep, err
+		}
+		if ctx.Err() != nil {
+			rep.Remaining = len(todo) - i
+			break
+		}
+		rep.Failed[f.Path] = err.Error()
 	}
 	return rep, nil
+}
+
+// fetchNew downloads a track this computer has not fetched before.
+func (c *Client) fetchNew(ctx context.Context, f File, state *State, now func() time.Time, rep *Report) error {
+	dest, err := Local(c.Server.Folder, f.Path)
+	if err != nil {
+		return err
+	}
+	// Already here (copied by hand, or a first run over an old library).
+	if !sizeIs(dest, f.Size) {
+		if err := c.download(ctx, f, dest, false); err != nil {
+			return err
+		}
+		rep.Downloaded = append(rep.Downloaded, dest)
+	}
+	state.Record(f, now())
+	if tags, err := audio.ReadTags(dest); err == nil && f.ID != "" {
+		state.Remember(f.ID, tags)
+	}
+	return nil
+}
+
+// refresh replaces the local copy of a track that changed on the server
+// (docs/design/library.md, 4.6). A track deleted here is not fetched again:
+// its new rev is recorded and nothing else happens. Otherwise the newer copy
+// is downloaded, checked against the audio id, and renamed over the local
+// file; the tags this computer saw before stay in the state, so the importer
+// can tell which fields changed on the server.
+func (c *Client) refresh(ctx context.Context, f File, state *State, now func() time.Time, rep *Report) error {
+	held := state.Tracks[f.ID]
+	dest, err := Local(c.Server.Folder, held.Path)
+	if err != nil {
+		return err
+	}
+	if info, err := os.Stat(dest); err != nil || !info.Mode().IsRegular() {
+		held.Rev = f.Rev
+		state.Tracks[f.ID] = held
+		rep.Kept = append(rep.Kept, f.Path)
+		return nil
+	}
+	if held.Tags == nil && !held.Pending {
+		// Fetched before tags were remembered: the copy here is what was
+		// imported, so its tags are the ones to compare with. Not when a newer
+		// copy is already waiting: Rekordbox has not seen that one.
+		if tags, err := audio.ReadTags(dest); err == nil {
+			held.Tags = &tags
+		}
+	}
+	if err := c.download(ctx, f, dest, true); err != nil {
+		return err
+	}
+	held.Rev, held.At, held.Pending = f.Rev, now(), true
+	state.Tracks[f.ID] = held
+	rep.Updated = append(rep.Updated, dest)
+	return nil
 }
 
 func sizeIs(file string, size int64) bool {

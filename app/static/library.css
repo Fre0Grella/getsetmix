@@ -1,8 +1,8 @@
 /* GetSetMix: the Library view and the switch that opens it.
    Same tokens, rows and deck as the download list (styles.css): cover,
    title over artist, a genre chip, the duration, a delete button (Restore
-   in the trash). Search sits in the deck at the bottom, under the thumb.
-   From 721px rows become columns.                                         */
+   in the trash); a row opens the detail sheet. Search sits in the deck at
+   the bottom, under the thumb. From 721px rows become columns.            */
 
 /* ----------------------------------------------------- the view switch */
 .view-switch {
@@ -126,6 +126,61 @@ body.view-library .engine-banner { display: none !important; }
   color: var(--text-3); font-size: .8rem; font-variant-numeric: tabular-nums;
 }
 
+.lib-row { cursor: pointer; }
+.lib-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ------------------------------------------------ the detail sheet */
+.lib-sheet-who { min-width: 0; }
+.lib-sheet-who h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-sheet-file {
+  margin: 2px 0 0; color: var(--text-3); font-size: .8rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lib-fields {
+  display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem; gap: 12px 10px;
+}
+.lib-field, .lib-field--wide { grid-column: 1 / -1; }
+.lib-field:not(.lib-field--wide):not(.lib-field--year) { grid-column: 1; }
+.lib-field--year { grid-column: 2; }
+.lib-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.lib-field > span {
+  margin-left: 2px; font-size: .72rem; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-3);
+}
+.lib-field input:disabled, .lib-field textarea:disabled { color: var(--text-2); cursor: default; }
+.lib-field--year input { font-variant-numeric: tabular-nums; }
+.lib-sheet textarea {
+  width: 100%; min-height: 64px; padding: 10px 12px; resize: vertical;
+  background: var(--field); border: 1px solid transparent; border-radius: var(--radius);
+  font: inherit; font-size: 1rem; line-height: 1.4; color: inherit;
+}
+.lib-sheet textarea:focus { outline: 0; border-color: var(--accent); background: var(--surface); }
+.lib-multi { color: var(--warn); font-size: .8rem; line-height: 1.4; margin-left: 2px; }
+.lib-chips {
+  display: flex; gap: 6px; overflow-x: auto; margin: -4px calc(var(--gutter) * -1) 0;
+  padding: 0 var(--gutter) 2px; scrollbar-width: none;
+}
+.lib-chips::-webkit-scrollbar { display: none; }
+.lib-chips.hidden { display: none; }
+.lib-source {
+  margin: -6px 0 0 2px; font-size: .82rem; color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lib-source a { color: var(--accent); }
+.lib-note {
+  margin: 0; padding: 10px 12px; border-radius: var(--radius);
+  background: var(--field); color: var(--text-2); font-size: .88rem; line-height: 1.45;
+}
+.lib-ask {
+  padding: 12px 14px; border-radius: var(--radius);
+  border: 1px solid color-mix(in oklch, var(--warn) 50%, transparent);
+  background: color-mix(in oklch, var(--warn) 11%, transparent);
+  font-size: .9rem; line-height: 1.5;
+}
+.lib-ask p { margin: 0 0 10px; }
+.lib-ask-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.lib-sheet .modal-foot .btn.hidden { display: none; }
+
 /* The search field in the deck: the link field's shape, without a button. */
 .lib-dock .add { padding-right: 14px; }
 .lib-dock input[type="search"] { -webkit-appearance: none; appearance: none; }
@@ -173,6 +228,9 @@ body.view-library .engine-banner { display: none !important; }
   .lib-dur { font-size: .86rem; text-align: right; }
   .lib-banner, .lib-progress { margin-left: 16px; margin-right: 16px; }
   .lib-dock .add { margin-left: auto; margin-right: auto; }
+  .lib-fields { grid-template-columns: minmax(0, 1fr) 7rem; }
+  .lib-chips { flex-wrap: wrap; overflow: visible; margin: -4px 0 0; padding: 0; }
+  .lib-chips .chip { height: 30px; padding: 0 12px; font-size: .82rem; }
 }
 /* With a mouse, a row's delete button shows on hover or focus, as in the download list. */
 @media (min-width: 721px) and (hover: hover) and (pointer: fine) {

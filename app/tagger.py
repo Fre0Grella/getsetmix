@@ -1,15 +1,31 @@
 """Metadata tagger (mutagen): MP3 ID3v2.4 and FLAC Vorbis comments.
 
-Tags written: title, artist, album (if provided), genre (if provided),
-cover image, and the source URL in a comment field.
+Two paths:
+
+- The download path (`tag_file`) tags a fresh download: title, artist,
+  album (if provided), genre (if provided), cover image, and the source URL
+  in a comment field.
+- The edit path (`edit_file`) changes a file already in the library
+  (docs/design/library.md, 4.3): only the fields it is given are written, on a
+  hidden copy that replaces the original in one rename.
 """
 from __future__ import annotations
 
+import os
+import shutil
 import urllib.request
+from pathlib import Path
 
 from mutagen.flac import FLAC, Picture
-from mutagen.id3 import APIC, COMM, ID3, TALB, TCON, TIT2, TPE1
+from mutagen.id3 import APIC, COMM, ID3, TALB, TCON, TDRC, TIT2, TPE1
 from mutagen.mp3 import MP3
+
+# The six fields an edit can change, and where each one lives per format
+# (docs/design/library.md, 3.4).
+EDIT_FIELDS = ("title", "artist", "album", "genre", "year", "comment")
+ID3_FRAMES = {"title": TIT2, "artist": TPE1, "album": TALB, "genre": TCON, "year": TDRC}
+VORBIS_KEYS = {"title": "title", "artist": "artist", "album": "album", "genre": "genre",
+               "year": "date", "comment": "comment"}
 
 USER_AGENT = "Mozilla/5.0 (GetSetMix/1.0)"
 
@@ -109,3 +125,97 @@ def _tag_flac(path: str, meta: dict) -> None:
         audio.clear_pictures()
         audio.add_picture(pic)
     audio.save()
+
+
+# ------------------------------------------------------------- the edit path
+def _edit_mp3(path: str, changes: dict) -> None:
+    audio = MP3(path)
+    if audio.tags is None:
+        audio.add_tags()
+    tags: ID3 = audio.tags  # type: ignore[assignment]
+    for field, value in changes.items():
+        if field == "comment":
+            # The comment is the COMM frame with an empty description, in
+            # English; comments with a description (iTunes' own, a DJ app's)
+            # are left alone. Clearing also drops empty-description comments in
+            # other languages, which would otherwise show through.
+            for frame in list(tags.getall("COMM")):
+                if frame.desc == "" and (frame.lang == "eng" or value == ""):
+                    del tags[frame.HashKey]
+            if value != "":
+                tags.add(COMM(encoding=3, lang="eng", desc="", text=value))
+            continue
+        frame = ID3_FRAMES[field]
+        tags.delall(frame.__name__)
+        if field == "year":
+            if value is not None:
+                tags.add(TDRC(encoding=3, text=str(value)))
+        elif value != "":
+            tags.add(frame(encoding=3, text=value))
+    audio.save(v2_version=4)
+
+
+def _edit_flac(path: str, changes: dict) -> None:
+    audio = FLAC(path)
+    if audio.tags is None:
+        audio.add_tags()
+    for field, value in changes.items():
+        key = VORBIS_KEYS[field]
+        if value is None or value == "":
+            if key in audio:
+                del audio[key]
+        else:
+            audio[key] = str(value)  # one value, replacing every old one
+    audio.save()
+
+
+EDITORS = {".mp3": _edit_mp3, ".flac": _edit_flac}
+
+
+def _keep_owner(source: Path, copy: Path) -> None:
+    """Give the copy the original's owner, which `copy2` does not.
+
+    On a server the library is often shared with another program (a Nextcloud
+    volume, say) that must keep access to the file after the rename. Best
+    effort: without the right to change it, the file keeps the app's owner.
+    """
+    if not hasattr(os, "chown"):
+        return
+    st = source.stat()
+    try:
+        os.chown(copy, st.st_uid, st.st_gid)
+    except OSError:
+        pass
+
+
+def edit_file(path: str | Path, changes: dict) -> None:
+    """Write `changes` (any of EDIT_FIELDS) into the file at path, atomically.
+
+    The file is copied under a hidden name (".<name>.part", which the link,
+    the reconcile walk and the companion's scanner all skip), the copy is
+    tagged, and it replaces the original in one rename: a crash leaves the old
+    file intact, and a reader never sees half a file. Fields not in `changes`
+    are not touched. Text is written as one value, never split; "" (or None
+    for the year) clears the tag. Raises OSError when the file cannot be
+    copied or replaced (PermissionError on Windows while another program
+    holds it open).
+    """
+    path = Path(path)
+    editor = EDITORS.get(path.suffix.lower())
+    if editor is None:
+        raise ValueError(f"{path.suffix or 'this format'} is read-only")
+    unknown = set(changes) - set(EDIT_FIELDS)
+    if unknown:
+        raise ValueError(f"not an editable field: {', '.join(sorted(unknown))}")
+    part = path.with_name(f".{path.name}.part")
+    try:
+        shutil.copy2(path, part)
+        _keep_owner(path, part)
+        editor(str(part), changes)
+        os.replace(part, path)
+    except BaseException:
+        try:
+            part.unlink()
+        except OSError:
+            pass
+        raise

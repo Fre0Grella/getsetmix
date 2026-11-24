@@ -142,6 +142,16 @@ names each track by its audio, so a track renamed on the server is not fetched t
 the first fetch against it rewrites `fetched.json` and keeps the old file as
 `fetched.v1.json`.
 
+When a track is edited in GetSetMix's Library view, the server's listing
+says so, and `fetch` downloads the newer copy over the one here (after
+checking that its audio is the same track). The next import then updates
+that track's row in Rekordbox instead of adding a new one: only the fields
+that changed on the server (title, artist, album, genre, year, comment), plus
+the file's size and identity. Cues, the beat grid, ratings, play counts and
+playlists stay as they are, and a field you changed in Rekordbox that the
+server did not touch keeps your value. A track you deleted here is still not
+fetched again, and a track you removed from Rekordbox is not imported again.
+
 Files Rekordbox cannot import (Ogg, Opus) are not downloaded. The server
 keeps them, and `gsm-companion status` says how many were skipped and why.
 

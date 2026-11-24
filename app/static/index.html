@@ -72,7 +72,7 @@
     </section>
   </main>
 
-  <!-- The Library: every audio file under the library root, read-only in this version. -->
+  <!-- The Library: every audio file under the library root; a row opens its detail sheet. -->
   <main id="libraryView" class="list-wrap lib-wrap">
     <div id="libUnavailable" class="lib-banner hidden" role="status" data-i18n="libUnavailable"></div>
     <div id="libProgress" class="lib-progress hidden" role="status">
@@ -280,6 +280,51 @@
         <button id="btnSaveSettings" class="btn btn-primary" data-i18n="save">Save</button>
       </div>
     </div>
+  </div>
+
+  <!-- One library track: its six tags. A bottom sheet on phones, a dialog on wide screens. -->
+  <div id="libSheet" class="modal lib-sheet hidden" role="dialog" aria-modal="true" aria-labelledby="libSheetTitle">
+    <form id="libSheetForm" class="modal-card" novalidate autocomplete="off">
+      <div class="modal-head">
+        <div class="lib-sheet-who">
+          <h2 id="libSheetTitle"></h2>
+          <p id="libSheetFile" class="lib-sheet-file"></p>
+        </div>
+        <button type="button" class="icon-btn modal-close" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="libSheetReadOnly" class="lib-note hidden"></p>
+        <div class="lib-fields">
+          <label class="lib-field lib-field--wide"><span data-i18n="libTitle">Title</span>
+            <input id="libFTitle" type="text" data-tag="title" spellcheck="false" /></label>
+          <label class="lib-field lib-field--wide"><span data-i18n="libArtist">Artist</span>
+            <input id="libFArtist" type="text" data-tag="artist" spellcheck="false" /></label>
+          <label class="lib-field"><span data-i18n="libAlbum">Album</span>
+            <input id="libFAlbum" type="text" data-tag="album" spellcheck="false" /></label>
+          <label class="lib-field lib-field--year"><span data-i18n="libYear">Year</span>
+            <input id="libFYear" type="text" data-tag="year" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" /></label>
+          <label class="lib-field lib-field--wide"><span data-i18n="libGenre">Genre</span>
+            <input id="libFGenre" type="text" data-tag="genre" list="genres" spellcheck="false" /></label>
+          <div id="libSheetChips" class="lib-chips lib-field--wide"></div>
+          <label class="lib-field lib-field--wide"><span data-i18n="libComment">Comment</span>
+            <textarea id="libFComment" data-tag="comment" rows="2" spellcheck="false"></textarea></label>
+          <p id="libSheetSource" class="lib-source lib-field--wide hidden"></p>
+        </div>
+        <div id="libSheetAsk" class="lib-ask hidden" role="alertdialog" aria-labelledby="libSheetAskText">
+          <p id="libSheetAskText"></p>
+          <div class="lib-ask-acts">
+            <button type="button" id="libAskKeep" class="btn btn-quiet" data-i18n="libAskKeep">Keep the link</button>
+            <button type="button" id="libAskReplace" class="btn btn-primary" data-i18n="libAskReplace">Replace it</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-quiet" data-close data-i18n="close">Close</button>
+        <button id="libSheetSave" type="submit" class="btn btn-primary" data-i18n="save">Save</button>
+      </div>
+    </form>
   </div>
 
   <!-- Cover art -->
