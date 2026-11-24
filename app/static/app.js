@@ -119,6 +119,9 @@ let pollTimer = null;
 let highlightId = null; // newly added (e.g. shared) track to scroll to + flash
 let openId = null; // the row expanded for editing on a phone
 let genreBasePicks = []; // the server's one-tap picks
+// Rules the Library sheet applies as you type, from /api/library/rules; the
+// server checks them again on save, so before they arrive nothing is refused.
+const libRules = { year: null, source: null };
 let genrePicks = genreBasePicks;
 const dirtyFields = new Set(); // "id:field" being edited right now
 const rowCache = new Map(); // id -> last-rendered row HTML, to skip untouched DOM
@@ -245,7 +248,6 @@ function esc(s) {
   ));
 }
 
-const EDITABLE = new Set(["staged", "fetch_error", "error"]);
 
 // yt-dlp prefixes everything with "ERROR:"; the cell is narrow, the tooltip has it all.
 const shortError = (e) => String(e || "").replace(/^ERROR:\s*/i, "");
@@ -296,7 +298,7 @@ function rowHtml(t) {
       <span class="fetch-label">${T.fetching(esc(t.title || t.url))}</span>
     </article>`;
   }
-  const editable = EDITABLE.has(t.status);
+  const editable = t.editable; // the server says which statuses allow edits
   const dis = editable ? "" : "disabled";
   const open = t.id === openId;
   const sel = [
@@ -423,7 +425,7 @@ function render() {
   $("#topStatus").textContent = busy ? T.downloading : "";
 
   // batch bar
-  const active = tracks.filter((t) => ["queued", "downloading", "tagging"].includes(t.status));
+  const active = tracks.filter((t) => t.active);
   if (busy || active.length) {
     if (!batchTotal) batchTotal = active.length;
     batchTotal = Math.max(batchTotal, active.length);
@@ -903,6 +905,8 @@ async function loadGenres() {
   try {
     const r = await api("/api/library/rules");
     genreBasePicks = r.genre_picks || [];
+    libRules.year = r.year_range || null;
+    libRules.source = r.source_pattern ? new RegExp(r.source_pattern, "i") : null;
     $("#genres").innerHTML = (r.genres || []).map((g) => `<option value="${g}">`).join("");
   } catch { /* the picker is optional: no list, free typing */ }
 }

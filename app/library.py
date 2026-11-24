@@ -1123,7 +1123,7 @@ class Library:
             raw = json.dumps({"k": [last[SORT_COLUMNS[sort]], last["id"]], "s": f"{sort}:{order}"},
                              separators=(",", ":"), ensure_ascii=False)
             nxt = base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
-        return {"rev": rev, "total": total, "next": nxt,
+        return {"rev": rev, "total": total, "next": nxt, "order": order,
                 "items": [self._item(r, same) for r in rows]}
 
     @staticmethod
@@ -1148,6 +1148,9 @@ class Library:
             "size": row["size"], "added_at": row["added_at"],
             "content_rev": row["content_rev"],
             "editable": self._editable(row["format"], row["audio_id"]),
+            # the reasons, so the UI never re-derives them from the id or the text
+            "damaged": audiohash.is_fallback(row["audio_id"]),
+            "source": matching.comment_source(row["comment"]),
             "multi": [f for f in row["multi"].split(",") if f],
             "same_audio": [i for i in same.get(row["audio_id"], []) if i != row["id"]],
         }

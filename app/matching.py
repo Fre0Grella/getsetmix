@@ -28,6 +28,9 @@ _NOISE = re.compile(
 # What the tagger writes into the comment: "Source: <url> | via GetSetMix".
 # A URL has no spaces, so it ends at the first one.
 _SOURCE = re.compile(r"\bsource:\s*(\S+)", re.I)
+# The same rule for the UI, which shows the source link live as the comment
+# is typed (sent by /api/library/rules; JavaScript reads this syntax as is).
+SOURCE_PATTERN = _SOURCE.pattern
 
 
 # Two ways to compare text, for two jobs:

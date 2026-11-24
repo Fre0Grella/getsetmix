@@ -234,3 +234,16 @@ def test_the_folder_picker_lists_visible_folders_of_a_pasted_file_path(api, tmp_
     assert body["path"] == str(base.resolve())
     assert [d["name"] for d in body["dirs"]] == ["House"]
     assert body["parent"] == str(base.resolve().parent)
+
+
+# ------------------------------------------- rules the UI no longer copies
+def test_each_track_says_whether_it_can_be_edited_and_whether_it_is_busy(api):
+    from app.db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
+
+    for status in ("staged", "queued", "downloading", "ingested", "error"):
+        db.create_track(f"https://example.test/{status}", status=status, title=status)
+    got = {t["title"]: (t["editable"], t["active"]) for t in api.get("/api/tracks").json()["tracks"]}
+    for status, (editable, active) in got.items():
+        assert editable == (status in EDITABLE_STATUSES), status
+        assert active == (status in ACTIVE_STATUSES), status
+    assert got["staged"] == (True, False) and got["downloading"] == (False, True)
