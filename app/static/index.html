@@ -251,33 +251,13 @@
         </section>
 
         <section class="set-group" data-server>
-          <h3 data-i18n="secLibrary">Library and Rekordbox</h3>
+          <h3 data-i18n="secLibrary">Library</h3>
           <div class="set-row set-row--stack">
             <label for="setLibrary" data-i18n="libraryRoot">Library folder</label>
             <div class="path-row">
               <input id="setLibrary" type="text" spellcheck="false" autocapitalize="off" />
               <button type="button" class="btn btn-quiet" data-pick="library" data-i18n="browse">Browse</button>
             </div>
-          </div>
-          <div class="set-row set-row--stack">
-            <label for="setXml" data-i18n="xmlPath">Inbox XML</label>
-            <div class="path-row">
-              <input id="setXml" type="text" spellcheck="false" autocapitalize="off" />
-              <button type="button" class="btn btn-quiet" data-pick="xml" data-i18n="browse">Browse</button>
-            </div>
-            <small data-i18n="rekordboxHint">In Rekordbox, point Preferences › Advanced › rekordbox xml here, then refresh the xml tree after each batch.</small>
-          </div>
-          <div class="set-row">
-            <label for="setPlaylist" data-i18n="playlist">Playlist</label>
-            <input id="setPlaylist" type="text" />
-          </div>
-          <div class="set-row set-row--stack">
-            <label for="setCollection" data-i18n="collectionXml">Collection export (optional)</label>
-            <div class="path-row">
-              <input id="setCollection" type="text" spellcheck="false" autocapitalize="off" />
-              <button type="button" class="btn btn-quiet" data-pick="collection" data-i18n="browse">Browse</button>
-            </div>
-            <small data-i18n="collectionHint">With your exported collection set, tracks you already own are flagged as duplicates and dropped from the inbox.</small>
           </div>
           <div class="set-row">
             <label for="setTrashDays" data-i18n="trashDays">Keep deleted tracks (days)</label>
@@ -289,7 +269,6 @@
         <section class="set-group" data-server>
           <h3 data-i18n="secMaintenance">Housekeeping</h3>
           <div class="maint">
-            <button id="btnCleanInbox" class="btn btn-quiet" data-i18n="cleanInbox">Clean inbox now</button>
             <button id="btnPurgeCompleted" class="btn btn-quiet" data-i18n="purgeCompleted">Clear finished rows</button>
             <button id="btnPurgeHistory" class="btn btn-quiet" data-i18n="purgeHistory">Forget link history</button>
           </div>
@@ -394,10 +373,6 @@
       <div class="modal-body">
         <div id="pickerPath" class="picker-path"></div>
         <div id="pickerList" class="picker-list"></div>
-        <div id="pickerNameRow" class="set-row set-row--stack hidden">
-          <label for="pickerName" data-i18n="fileName">File name</label>
-          <input id="pickerName" type="text" spellcheck="false" autocapitalize="off" />
-        </div>
       </div>
       <div class="modal-foot">
         <button class="btn btn-quiet" data-close data-i18n="close">Close</button>

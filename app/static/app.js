@@ -6,22 +6,15 @@ const STR = {
     paste: "Aggiungi", download: "Scarica", cancel: "Ferma",
     urlPh: "Incolla il link di una traccia o playlist",
     settings: "Impostazioni", save: "Salva", close: "Chiudi", search: "Cerca",
-    secDownloads: "Download", secLibrary: "Libreria e Rekordbox",
+    secDownloads: "Download", secLibrary: "Libreria",
     secInterface: "Interfaccia", secMaintenance: "Manutenzione",
     outputFormat: "Formato", concurrency: "Download paralleli",
     template: "Nome file", libraryRoot: "Cartella libreria",
-    xmlPath: "XML inbox", playlist: "Playlist",
-    collectionXml: "Export della collezione (opzionale)",
-    collectionHint: "Con l'export della collezione impostato, i brani che hai già vengono segnati come duplicati e tolti dall'inbox.",
     trashDays: "Tieni i brani eliminati (giorni)",
     trashDaysHint: "Poi il cestino li cancella per sempre. 0 li tiene finché non svuoti il cestino.",
-    rekordboxHint: "In Rekordbox imposta Preferenze › Avanzate › rekordbox xml su questo file, poi aggiorna l'albero xml dopo ogni batch.",
-    browse: "Sfoglia", select: "Seleziona", fileName: "Nome file",
+    browse: "Sfoglia", select: "Seleziona",
     pickerTitle: "Scegli un percorso",
     language: "Lingua", coverTitle: "Copertina", uploadCover: "Carica un'immagine",
-    cleanInbox: "Pulisci inbox ora",
-    cleanedInbox: n => `Rimossi ${n} brani già in collezione`,
-    needCollectionXml: "Imposta prima l'export della collezione",
     purgeCompleted: "Togli le righe finite", purgeHistory: "Dimentica i link",
     colTrack: "Traccia", colAlbum: "Album", colGenre: "Genere", colTime: "Durata", colStatus: "Stato",
     emptyTitle: "La cassa è ancora vuota",
@@ -38,6 +31,7 @@ const STR = {
     fetching: u => `Lettura di ${u}`,
     ready: "Pronto", queued: "In coda", processing: p => `${p}%`,
     tagging: "Scrittura tag", done: "Nella libreria", retry: "Riprova", remove: "Rimuovi",
+    inTrash: "Nel cestino", gone: "Non è più nella libreria",
     downloadOne: "Scarica questa", showPath: "Copia il percorso", changeCover: "Cambia copertina",
     downloading: "Download in corso", titlePh: "Titolo (obbligatorio)",
     artistPh: "Artista (obbligatorio)", albumPh: "Aggiungi album", genrePh: "Aggiungi genere",
@@ -45,6 +39,7 @@ const STR = {
     notUrl: "Questo non sembra un link",
     duplicate: "Questo link è già stato scaricato",
     dupBadge: "Già presente?",
+    dupOf: (t) => `Già nella libreria: “${t}”. Tocca per aprirlo.`,
     dupConfirm: n => `${n} brano/i sembra già nella tua libreria. Scaricarli comunque?\n\n(OK = scarica comunque · Annulla = salta i duplicati)`,
     batchOf: (d, t) => `${d} di ${t}`,
     needMeta: "Servono titolo e artista",
@@ -56,22 +51,15 @@ const STR = {
     paste: "Add", download: "Download", cancel: "Stop",
     urlPh: "Paste a track or playlist link",
     settings: "Settings", save: "Save", close: "Close", search: "Search",
-    secDownloads: "Downloads", secLibrary: "Library and Rekordbox",
+    secDownloads: "Downloads", secLibrary: "Library",
     secInterface: "Interface", secMaintenance: "Housekeeping",
     outputFormat: "Format", concurrency: "Parallel downloads",
     template: "File name", libraryRoot: "Library folder",
-    xmlPath: "Inbox XML", playlist: "Playlist",
-    collectionXml: "Collection export (optional)",
-    collectionHint: "With your exported collection set, tracks you already own are flagged as duplicates and dropped from the inbox.",
     trashDays: "Keep deleted tracks (days)",
     trashDaysHint: "Then the trash removes them for good. 0 keeps them until you empty the trash.",
-    rekordboxHint: "In Rekordbox, point Preferences › Advanced › rekordbox xml at this file, then refresh the xml tree after each batch.",
-    browse: "Browse", select: "Select", fileName: "File name",
+    browse: "Browse", select: "Select",
     pickerTitle: "Choose a path",
     language: "Language", coverTitle: "Cover art", uploadCover: "Upload an image",
-    cleanInbox: "Clean inbox now",
-    cleanedInbox: n => `Removed ${n} tracks already in your collection`,
-    needCollectionXml: "Set the collection export first",
     purgeCompleted: "Clear finished rows", purgeHistory: "Forget link history",
     colTrack: "Track", colAlbum: "Album", colGenre: "Genre", colTime: "Time", colStatus: "Status",
     emptyTitle: "Nothing in the crate yet",
@@ -88,6 +76,7 @@ const STR = {
     fetching: u => `Reading ${u}`,
     ready: "Ready", queued: "Queued", processing: p => `${p}%`,
     tagging: "Writing tags", done: "In your library", retry: "Retry", remove: "Remove",
+    inTrash: "In the trash", gone: "Not in your library anymore",
     downloadOne: "Download this one", showPath: "Copy file path", changeCover: "Change cover",
     downloading: "Downloading", titlePh: "Title (required)",
     artistPh: "Artist (required)", albumPh: "Add album", genrePh: "Add genre",
@@ -95,6 +84,7 @@ const STR = {
     notUrl: "That doesn't look like a link",
     duplicate: "This link was downloaded before",
     dupBadge: "Already owned?",
+    dupOf: (t) => `Already in your library: “${t}”. Tap to open it.`,
     dupConfirm: n => `${n} track(s) look like they're already in your library. Download them anyway?\n\n(OK = download anyway · Cancel = skip the duplicates)`,
     batchOf: (d, t) => `${d} of ${t}`,
     needMeta: "Title and artist are required",
@@ -213,7 +203,6 @@ const I = {
   retry: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M20 11a8 8 0 1 0-2.34 6.06M20 5v6h-6"/></svg>',
   folder: '<svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h3.5l2 2H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
   up: '<svg viewBox="0 0 24 24"><path d="M12 19V5m0 0l-6 6m6-6l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  file: '<svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
   cam: '<svg viewBox="0 0 24 24"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
@@ -255,7 +244,7 @@ function stateHtml(t) {
     case "tagging":
       return cell("st-active", T.tagging);
     case "ingested":
-      return cell("st-done", T.done, act("path", I.folder, T.showPath), t.file_path);
+      return ingestedHtml(t, act, cell);
     case "error":
       return cell("st-error", esc(shortError(t.error)), act("retry", I.retry, T.retry, "go") + act("remove", I.x, T.remove), t.error);
     case "fetch_error":
@@ -264,6 +253,16 @@ function stateHtml(t) {
     default: // staged
       return cell("st-ready", T.ready, act("download-one", I.dl, T.downloadOne, "go") + act("remove", I.x, T.remove));
   }
+}
+
+// Where a finished download is now, as the Library index says (issue #71).
+// library_state is null until the first index is done: the plain label then.
+function ingestedHtml(t, act, cell) {
+  if (t.library_state === "trashed") {
+    return cell("st-trash", T.inTrash, act("restore", I.retry, T.libRestore, "go"), t.file_path);
+  }
+  if (t.library_state === "absent") return cell("st-gone", T.gone, "", t.file_path);
+  return cell("st-done", T.done, act("path", I.folder, T.showPath), t.file_path);
 }
 
 function rowHtml(t) {
@@ -301,7 +300,7 @@ function rowHtml(t) {
       ${field("title", "f-title", T.titlePh)}
       <div class="who-sub">
         ${field("artist", "f-artist", T.artistPh)}
-        ${dup ? `<span class="dup" title="${esc(t.duplicate_reason)}">${T.dupBadge}</span>` : ""}
+        ${dup ? `<button type="button" class="dup" data-act="dup-open" title="${esc(T.dupOf(t.duplicate_reason))}">${T.dupBadge}</button>` : ""}
       </div>
     </div>
     <div class="c-album" data-label="${T.colAlbum}">${field("album", "f-album", T.albumPh)}</div>
@@ -641,9 +640,28 @@ list.addEventListener("click", async (e) => {
       }
     } else if (act === "cover") {
       openCoverModal(id);
+    } else if (act === "restore") {
+      await restoreDownload(tracks.find((x) => x.id === id));
+    } else if (act === "dup-open") {
+      const t = tracks.find((x) => x.id === id);
+      if (t?.duplicate_of) openSheet(t.duplicate_of); // library.js: the track's sheet
     }
   } catch (err) { toast(err.message); }
 });
+
+// A finished download whose file is in the Library trash: put it back, asked
+// first like the Library's own Restore. The texts are library.js's (lib*).
+async function restoreDownload(t) {
+  if (!t?.library_id) return;
+  if (!(await askConfirm(T.libRestoreAsk(t.title), T.libRestore, T.libCancel))) return;
+  try {
+    await api(`/api/library/${t.library_id}/restore`, { method: "POST" });
+    toast(T.libRestored(t.title));
+  } catch (e) {
+    toast(e.status === 409 ? T.libRestoreTaken : e.message);
+  }
+  schedulePoll(150);
+}
 
 // ------------------------------------------------------------- cover modal
 function openCoverModal(id) {
@@ -723,9 +741,6 @@ async function openSettings() {
   $("#setConcurrency").value = settingsCache.concurrency;
   $("#setTemplate").value = settingsCache.filename_template;
   $("#setLibrary").value = settingsCache.library_root;
-  $("#setXml").value = settingsCache.xml_path;
-  $("#setCollection").value = settingsCache.collection_xml_path || "";
-  $("#setPlaylist").value = settingsCache.playlist_name;
   $("#setLanguage").value = settingsCache.language;
   $("#setTrashDays").value = settingsCache.trash_days ?? 30;
   save.disabled = false;
@@ -741,9 +756,6 @@ $("#btnSaveSettings").addEventListener("click", async () => {
         concurrency: Number($("#setConcurrency").value) || 2,
         filename_template: $("#setTemplate").value,
         library_root: $("#setLibrary").value,
-        xml_path: $("#setXml").value,
-        collection_xml_path: $("#setCollection").value.trim(),
-        playlist_name: $("#setPlaylist").value,
         language: $("#setLanguage").value,
         // An empty field keeps the current value (JSON drops undefined).
         trash_days: $("#setTrashDays").value.trim() === ""
@@ -756,14 +768,6 @@ $("#btnSaveSettings").addEventListener("click", async () => {
   } catch (e) { toast(e.message); }
 });
 
-$("#btnCleanInbox").addEventListener("click", async () => {
-  const coll = $("#setCollection")?.value.trim();
-  if (!coll) { toast(T.needCollectionXml); return; }
-  try {
-    const res = await api("/api/purge", { method: "POST", body: JSON.stringify({ scope: "inbox" }) });
-    toast(T.cleanedInbox(res.purged));
-  } catch (e) { toast(e.message); }
-});
 $("#btnPurgeCompleted").addEventListener("click", async () => {
   const res = await api("/api/purge", { method: "POST", body: JSON.stringify({ scope: "completed" }) });
   toast(T.purged(res.purged));
@@ -774,41 +778,23 @@ $("#btnPurgeHistory").addEventListener("click", async () => {
   toast(T.purged(res.purged));
 });
 
-// ------------------------------------------------------------ path picker
+// ---------------------------------------------------------- folder picker
 const PICK = {
-  library:    { input: "#setLibrary",    mode: "dir",  ext: "" },
-  xml:        { input: "#setXml",        mode: "file", ext: ".xml" },
-  collection: { input: "#setCollection", mode: "file", ext: ".xml" },
+  library: { input: "#setLibrary" },
 };
 let picker = null; // { conf, cur }
-
-function dirOf(p) {
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i > 0 ? p.slice(0, i) : "";
-}
-function baseOf(p) {
-  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
-  return i >= 0 ? p.slice(i + 1) : p;
-}
-function joinPath(dir, name) {
-  const sep = dir.includes("\\") ? "\\" : "/";
-  return dir.endsWith(sep) ? dir + name : dir + sep + name;
-}
 
 async function openPicker(kind) {
   const conf = PICK[kind];
   picker = { conf, cur: "" };
-  const val = $(conf.input).value.trim();
-  $("#pickerNameRow").classList.toggle("hidden", conf.mode !== "file");
-  $("#pickerName").value = conf.mode === "file" ? baseOf(val) : "";
   $("#pickerModal").classList.remove("hidden");
-  await loadPicker(conf.mode === "file" ? dirOf(val) : val);
+  await loadPicker($(conf.input).value.trim());
 }
 
 async function loadPicker(path) {
   let res;
   try {
-    res = await api(`/api/fs/list?path=${encodeURIComponent(path)}&ext=${encodeURIComponent(picker.conf.ext)}`);
+    res = await api(`/api/fs/list?path=${encodeURIComponent(path)}`);
   } catch (e) {
     if (path) { loadPicker(""); return; } // unreachable path -> fall back to roots
     toast(e.message);
@@ -822,30 +808,17 @@ async function loadPicker(path) {
   }
   rows.push(...res.dirs.map((d) =>
     `<button type="button" class="picker-row dir" data-nav="${esc(d.path)}">${I.folder} ${esc(d.name)}</button>`));
-  if (picker.conf.mode === "file") {
-    rows.push(...res.files.map((f) =>
-      `<button type="button" class="picker-row file" data-file="${esc(f.name)}">${I.file} ${esc(f.name)}</button>`));
-  }
   $("#pickerList").innerHTML = rows.join("") || "<small>—</small>";
 }
 
 $("#pickerList").addEventListener("click", (e) => {
   const nav = e.target.closest("[data-nav]");
-  if (nav) { loadPicker(nav.dataset.nav); return; }
-  const file = e.target.closest("[data-file]");
-  if (file) $("#pickerName").value = file.dataset.file;
+  if (nav) loadPicker(nav.dataset.nav);
 });
 
 $("#btnPickerSelect").addEventListener("click", () => {
-  if (!picker) return;
-  let value = picker.cur;
-  if (picker.conf.mode === "file") {
-    const name = $("#pickerName").value.trim();
-    if (!name || !value) return;
-    value = joinPath(value, name);
-  }
-  if (!value) return; // drive list has no selectable path
-  $(picker.conf.input).value = value;
+  if (!picker || !picker.cur) return; // drive list has no selectable path
+  $(picker.conf.input).value = picker.cur;
   $("#pickerModal").classList.add("hidden");
 });
 

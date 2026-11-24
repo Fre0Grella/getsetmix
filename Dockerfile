@@ -26,8 +26,7 @@ COPY LICENSE THIRD-PARTY-NOTICES.md /usr/share/doc/getsetmix/
 COPY app ./app
 
 ENV GSM_DATA_DIR=/data \
-    GSM_LIBRARY_ROOT=/music \
-    GSM_XML_PATH=/data/rekordbox/getsetmix.xml
+    GSM_LIBRARY_ROOT=/music
 
 VOLUME ["/data", "/music"]
 EXPOSE 8765

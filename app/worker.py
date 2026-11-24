@@ -2,9 +2,10 @@
 
 Runs batch downloads with bounded parallelism (global default 2, optional
 per-batch override). Each track: download (yt-dlp + ffmpeg) -> tag (mutagen)
--> move into the library root -> add its library index row -> append to the
-Rekordbox XML. Failed tracks
-don't halt the batch; they are marked `error` and can be retried per-track.
+-> move into the library root -> add its library index row, and keep the
+file's audio id on the track so the Downloads view can find it in the Library
+later (issue #71). Failed tracks don't halt the batch; they are marked
+`error` and can be retried per-track.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import library, rekordbox, tagger, ytdl
+from . import audiohash, library, tagger, ytdl
 from .config import DATA_DIR, settings
 from .db import db, now_iso
 from .naming import render_filename, unique_path
@@ -49,7 +50,6 @@ class Worker:
     async def start_batch(self, ids: list[str], concurrency: int | None = None) -> list[str]:
         """Queue staged tracks; spin up runners. Returns the queued ids."""
         self._cancel.clear()
-        await asyncio.to_thread(self._purge_inbox)
         queued: list[str] = []
         for tid in ids:
             track = db.get_track(tid)
@@ -83,19 +83,6 @@ class Worker:
             self._queue.task_done()
             drained += 1
         return drained
-
-    def _purge_inbox(self) -> None:
-        """With a collection XML configured, drop inbox tracks the user has
-        already imported into Rekordbox, instead of appending forever."""
-        collection = str(settings.get("collection_xml_path") or "").strip()
-        if not collection:
-            return
-        try:
-            removed = rekordbox.purge_imported(settings["xml_path"], collection)
-            if removed:
-                log.info("purged %d already-imported tracks from the inbox XML", removed)
-        except Exception:
-            log.exception("inbox purge against collection XML failed")
 
     # -------------------------------------------------------------- runner
     async def _runner(self) -> None:
@@ -136,15 +123,12 @@ class Worker:
             # paired computers can fetch it, so it must be complete by then.
             tagger.tag_file(str(audio), {**track, "file_path": str(audio)})
             final = self._place_in_library(track, audio)
-            self._index(track, final)
-            rekordbox.add_track(
-                settings["xml_path"], track, str(final), settings["playlist_name"]
-            )
+            aid = self._index(track, final)
 
             elapsed = time.monotonic() - started
             db.update_track(
                 tid, status="ingested", progress=100, file_path=str(final),
-                downloaded_at=now_iso(), download_seconds=elapsed,
+                audio_id=aid, downloaded_at=now_iso(), download_seconds=elapsed,
             )
             db.bump("total_ingested")
             db.bump("download_seconds_sum", elapsed)
@@ -221,13 +205,22 @@ class Worker:
         os.replace(partial, final)
         return final
 
-    def _index(self, track: dict, final: Path) -> None:
+    def _index(self, track: dict, final: Path) -> str:
+        """Add the file's index row; returns its audio id ("" if unreadable)."""
         # The row is there the moment the file is; the next reconcile would
         # find the file anyway, so a failure here never fails the download.
+        lib = library.current()
         try:
-            library.current().add_file(final, source_url=track.get("url") or "")
+            row = lib.file(lib.add_file(final, source_url=track.get("url") or ""))
+            return row["audio_id"] if row else ""
         except Exception:
             log.exception("could not add %s to the library index", final.name)
+        # Without a row the id is still worth keeping: the reconcile will add
+        # one with the same id, computed by the same function.
+        try:
+            return audiohash.audio_id(final)
+        except OSError:
+            return ""
 
 
 worker = Worker()

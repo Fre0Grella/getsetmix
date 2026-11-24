@@ -19,7 +19,6 @@ def env(tmp_path, monkeypatch):
     for mod in (app.config, app.db, app.worker):
         importlib.reload(mod)
     monkeypatch.setitem(app.config.settings.data, "output_format", "mp3")
-    monkeypatch.setitem(app.config.settings.data, "xml_path", str(tmp_path / "inbox.xml"))
     monkeypatch.setattr(
         app.worker.Worker, "_download",
         lambda self, track, tmpdir: _fake_download(tmpdir),
@@ -73,23 +72,41 @@ def test_a_placed_file_has_its_index_row_at_once(env, monkeypatch):
     app, tid, music = env
     from app import library
     lib = library.current()
-    rows_when_xml_written = []
-    real_add = app.worker.rekordbox.add_track
-
-    def spy_add(*args, **kwargs):
-        # The next step after placing: the row must already be there.
-        rows_when_xml_written.append(lib.list()["items"])
-        return real_add(*args, **kwargs)
-
-    monkeypatch.setattr(app.worker.rekordbox, "add_track", spy_add)
     monkeypatch.setattr(library.Library, "reconcile",
                         lambda self: pytest.fail("a download must not need a walk"))
     app.worker.worker._process(tid)
 
-    [items] = rows_when_xml_written
+    items = lib.list()["items"]
     assert [i["path"] for i in items] == ["Some Artist - Night Drive.mp3"]
     assert items[0]["title"] == "Night Drive" and items[0]["artist"] == "Some Artist"
     assert lib.file(items[0]["id"])["source_url"] == "https://example.test/x"
+
+
+def test_the_track_keeps_its_files_audio_id(env):
+    # Issue #71: the Downloads view finds the file in the index by this id.
+    app, tid, music = env
+    from app import audiohash, library
+    app.worker.worker._process(tid)
+
+    track = app.db.db.get_track(tid)
+    assert track["audio_id"] == audiohash.audio_id(track["file_path"])
+    [item] = library.current().list()["items"]
+    assert item["audio_id"] == track["audio_id"]
+
+
+def test_the_audio_id_survives_an_index_failure(env, monkeypatch):
+    app, tid, music = env
+    from app import audiohash, library
+
+    def broken(self, path, source_url=""):
+        raise RuntimeError("index broke")
+
+    monkeypatch.setattr(library.Library, "add_file", broken)
+    app.worker.worker._process(tid)
+
+    track = app.db.db.get_track(tid)
+    assert track["status"] == "ingested"
+    assert track["audio_id"] == audiohash.audio_id(track["file_path"])
 
 
 def test_tagging_failure_leaves_nothing_in_the_library(env, monkeypatch):
