@@ -34,9 +34,15 @@
   --tap: 44px;
   --gutter: 16px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1); /* ease-out-quint */
+  --topbar-h: 57px;                                   /* sticky headers sit under it */
+  --shadow-press: 0 1px 2px oklch(0.2 0.02 262 / 0.18); /* the pressed segment */
+  --shadow-dock: 0 -10px 30px -18px oklch(0.2 0.02 262 / 0.35);
+  --on-image: oklch(0.97 0.005 262);                  /* text and icons over a picture */
+  --image-scrim: oklch(0.15 0.02 262 / 0.66);        /* the dark wash behind them */
   font-size: 16px; /* never under 16px on phones: iOS zooms into smaller inputs */
 }
 
+/* The dark palette: data-theme is always the theme shown (app.js applyTheme). */
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg:        oklch(0.17 0.008 262);
@@ -57,30 +63,6 @@
   --danger:    oklch(0.70 0.16 25);
   --scrim:     oklch(0.08 0.01 262 / 0.6);
   --shadow:    0 1px 2px oklch(0 0 0 / 0.3), 0 16px 40px -12px oklch(0 0 0 / 0.55);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg:        oklch(0.17 0.008 262);
-    --surface:   oklch(0.20 0.010 262);
-    --hover:     oklch(0.235 0.012 262);
-    --field:     oklch(0.255 0.014 262);
-    --line:      oklch(0.31 0.012 262);
-    --line-soft: oklch(0.245 0.010 262);
-    --text:      oklch(0.94 0.006 262);
-    --text-2:    oklch(0.75 0.012 262);
-    --text-3:    oklch(0.60 0.014 262);
-    --accent:    oklch(0.68 0.16 259);
-    --accent-hi: oklch(0.74 0.15 259);
-    --on-accent: oklch(0.18 0.03 262);
-    --accent-wash: oklch(0.68 0.16 259 / 0.13);
-    --ok:        oklch(0.76 0.13 165);
-    --warn:      oklch(0.80 0.13 75);
-    --danger:    oklch(0.70 0.16 25);
-    --scrim:     oklch(0.08 0.01 262 / 0.6);
-    --shadow:    0 1px 2px oklch(0 0 0 / 0.3), 0 16px 40px -12px oklch(0 0 0 / 0.55);
-  }
 }
 
 /* --------------------------------------------------------------- base */
@@ -117,6 +99,18 @@ button { touch-action: manipulation; }
 .btn-primary:not(:disabled):hover { background: var(--accent-hi); }
 .btn-quiet { background: transparent; border-color: var(--line); color: var(--text); }
 .btn-quiet:hover { background: var(--hover); }
+/* The pill: a small quiet button for toolbars (the Library's sort, folder, trash). */
+.btn-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 0 12px 0 10px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--text-2);
+  font: inherit; font-size: .84rem; font-weight: 500; cursor: pointer;
+  transition: background-color .15s var(--ease), color .15s var(--ease);
+}
+.btn-pill svg { width: 16px; height: 16px; flex: none; }
+.btn-pill:hover { background: var(--hover); color: var(--text); }
+.btn-pill:disabled { opacity: .45; cursor: default; background: transparent; }
 .btn-danger { background: transparent; border-color: color-mix(in oklch, var(--danger) 55%, transparent); color: var(--danger); }
 .btn-danger:hover { background: color-mix(in oklch, var(--danger) 12%, transparent); }
 .ic { width: 18px; height: 18px; flex: none; }
@@ -148,12 +142,15 @@ button { touch-action: manipulation; }
 .wordmark { font-weight: 800; font-style: italic; font-size: 1.16rem; letter-spacing: -.025em; }
 .wordmark em { color: var(--accent); }
 
-.engine-banner {
-  margin: 12px var(--gutter) 0; padding: 12px 14px;
-  border: 1px solid color-mix(in oklch, var(--danger) 45%, transparent);
-  background: color-mix(in oklch, var(--danger) 9%, transparent);
-  border-radius: var(--radius); font-size: .9rem; line-height: 1.5;
+/* A notice: one box in a colour (warn by default, danger for errors). */
+.notice {
+  --notice: var(--warn); --notice-line: 50%; --notice-fill: 11%;
+  padding: 12px 14px; border-radius: var(--radius); font-size: .9rem; line-height: 1.5;
+  border: 1px solid color-mix(in oklch, var(--notice) var(--notice-line), transparent);
+  background: color-mix(in oklch, var(--notice) var(--notice-fill), transparent);
 }
+.notice--danger { --notice: var(--danger); --notice-line: 45%; --notice-fill: 9%; }
+.engine-banner { margin: 12px var(--gutter) 0; }
 
 /* --------------------------------------------------------------- list */
 .list-wrap {
@@ -199,11 +196,11 @@ button { touch-action: manipulation; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cover-btn {
   position: absolute; inset: 0; display: none; place-items: end; padding: 4px;
-  border: 0; cursor: pointer; background: transparent; color: oklch(0.97 0.005 262);
+  border: 0; cursor: pointer; background: transparent; color: var(--on-image);
 }
 .cover-btn svg {
   width: 28px; height: 28px; padding: 5px; border-radius: 8px;
-  background: oklch(0.15 0.02 262 / 0.66);
+  background: var(--image-scrim);
 }
 
 .who { display: contents; }
@@ -233,11 +230,16 @@ button { touch-action: manipulation; }
 .f-genre::-webkit-calendar-picker-indicator { display: none !important; }
 .f-genre::placeholder { color: color-mix(in oklch, var(--accent) 75%, transparent); font-weight: 500; }
 
-.dup {
-  flex: none; font-size: .72rem; font-weight: 700; letter-spacing: .02em;
-  padding: 2px 8px; border-radius: 999px; cursor: help;
-  color: var(--warn); background: color-mix(in oklch, var(--warn) 14%, transparent);
+/* A badge: a small pill in a colour (accent by default). */
+.badge {
+  --badge: var(--accent);
+  display: inline-block; flex: none; max-width: 100%; padding: 2px 8px; border-radius: 999px;
+  font-size: .74rem; font-weight: 700; letter-spacing: .02em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--badge); background: color-mix(in oklch, var(--badge) 14%, transparent);
 }
+.badge--warn { --badge: var(--warn); }
+.dup { cursor: help; }
 button.dup { border: 0; font-family: inherit; line-height: inherit; cursor: pointer; }
 
 /* State: a dot and a word, then the action that moves the track on. */
@@ -358,7 +360,7 @@ kbd {
   padding: 10px max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   background: var(--surface);
   border-top: 1px solid var(--line-soft);
-  box-shadow: 0 -10px 30px -18px oklch(0.2 0.02 262 / 0.35);
+  box-shadow: var(--shadow-dock);
 }
 /* While a row field has the keyboard, the deck steps aside. */
 body:has(.track .f:focus) .dock { display: none; }
@@ -391,11 +393,17 @@ body:has(.track .f:focus) .dock { display: none; }
 #btnDownload .btn-label { display: none; }
 .dl-group .btn { border-radius: 12px; }
 .dl-conc { display: none; }
+/* A count: a number in a bubble. On a primary button it is a wash of the
+   button's text; .count--dot is the small one that sits on an icon. */
 .count {
   min-width: 24px; height: 22px; padding: 0 7px; border-radius: 999px;
   display: inline-grid; place-items: center;
   background: color-mix(in oklch, var(--on-accent) 22%, transparent);
   font-size: .8rem; font-variant-numeric: tabular-nums;
+}
+.count--dot {
+  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px;
+  background: var(--accent); color: var(--on-accent); font-size: .68rem; font-weight: 700;
 }
 
 .batch { display: flex; align-items: center; gap: 12px; margin: 0 2px 10px; font-size: .82rem; }
@@ -443,7 +451,7 @@ body:has(.track .f:focus) .dock { display: none; }
 /* A yes/no question: short, above any other modal, buttons thumb-wide on phones. */
 .modal--confirm { z-index: 60; }
 .modal--confirm .modal-body { padding-top: 18px; }
-.modal--confirm .modal-body p { margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
+.modal--confirm .modal-body p { margin: 0; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-line; }
 .modal--confirm .modal-foot .btn { flex: 1; }
 
 .set-group { display: flex; flex-direction: column; gap: 2px; padding-bottom: 6px; }
@@ -467,10 +475,10 @@ body:has(.track .f:focus) .dock { display: none; }
 .maint { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
 
 /* Segmented control for the theme: real radios, styled as one pill. */
-.seg {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px;
-  background: var(--field); border-radius: 12px;
-}
+/* Segments: the theme picker (.seg) and the view switch (library.css) share
+   the track and the pressed segment. */
+.seg, .view-switch { padding: 3px; background: var(--field); border-radius: 12px; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
 .seg label { position: relative; display: block; cursor: pointer; }
 .seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 .seg span {
@@ -478,7 +486,9 @@ body:has(.track .f:focus) .dock { display: none; }
   font-size: .9rem; font-weight: 500; color: var(--text-2);
   transition: background-color .15s var(--ease), color .15s var(--ease);
 }
-.seg input:checked + span { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px oklch(0.2 0.02 262 / 0.18); }
+.seg input:checked + span, .view-switch button[aria-pressed="true"] {
+  background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--shadow-press);
+}
 .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .picker-path {
@@ -578,7 +588,7 @@ body:has(.track .f:focus) .dock { display: none; }
   }
   .list-head {
     display: grid;
-    position: sticky; top: 57px; z-index: 2;
+    position: sticky; top: var(--topbar-h); z-index: 2;
     height: 34px; padding: 0 10px;
     background: var(--bg);
     border-bottom: 1px solid var(--line);
@@ -600,7 +610,7 @@ body:has(.track .f:focus) .dock { display: none; }
   .thumb, .track.is-open .thumb { grid-area: auto; width: 64px; height: 36px; border-radius: 5px; }
   .cover-btn, .track.is-open .cover-btn {
     display: grid; place-items: center; padding: 0;
-    background: oklch(0.15 0.02 262 / 0.62);
+    background: var(--image-scrim);
     opacity: 0; transition: opacity .15s var(--ease);
   }
   .cover-btn svg { width: 16px; height: 16px; padding: 0; background: none; }

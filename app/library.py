@@ -30,11 +30,11 @@ import shutil
 import sqlite3
 import threading
 import time
-import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import mutagen
 from mutagen.id3 import ID3
@@ -55,8 +55,7 @@ BATCH = 50                  # files hashed per committed batch
 INTERVAL_SECONDS = 5 * 60   # the periodic pass
 LINK_MAX_AGE = 60           # /api/link/files reconciles when the last pass is older
 LINK_WAIT = 10              # ...and waits this long for it, once the library is indexed
-EDITABLE_FORMATS = ("mp3", "flac")
-LIVE = ("present", "missing")
+LIVE =("present", "missing")
 SORTS = {"added": "added_at", "artist": "artist COLLATE NOCASE",
          "title": "title COLLATE NOCASE", "genre": "genre COLLATE NOCASE"}
 SORT_COLUMNS = {"added": "added_at", "artist": "artist", "title": "title", "genre": "genre"}
@@ -104,7 +103,7 @@ class WriteResult:
 class CoverResult:
     """What write_cover did: the updated item, and the image it replaced as
     (bytes, mime type), or None if the file had no cover."""
-    item: dict
+    item: dict | None
     previous: tuple[bytes, str] | None
 
 
@@ -144,16 +143,6 @@ def check_fields(values: dict, what: str = "changes") -> dict:
     return out
 
 
-def fold(text: str) -> str:
-    """Lowercase, accents removed: what `search` holds and what a query is matched as."""
-    decomposed = unicodedata.normalize("NFKD", text)
-    return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
-
-
-def _iso(ts: float) -> str:
-    return datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds")
-
-
 def _ts(iso: str) -> float:
     return datetime.fromisoformat(iso).timestamp()
 
@@ -175,52 +164,19 @@ def read_tags(path: Path) -> dict:
     Several values in one field are joined with "; " in file order and the
     field is named in `multi` (design 3.2, proposal 17).
     """
-    out = {f: "" for f in TAG_FIELDS}
+    out: dict[str, Any] = {f: "" for f in TAG_FIELDS}
     out.update(year=None, has_cover=0, multi="", duration=None, bitrate=None, sample_rate=None)
     try:
-        audio = mutagen.File(path)
+        audio = mutagen.File(path)  # pyright: ignore[reportPrivateImportUsage]
     except Exception:
         return out
     if audio is None:
         return out
-    info = getattr(audio, "info", None)
-    if info is not None:
-        length = getattr(info, "length", None)
-        out["duration"] = round(float(length), 3) if length else None
-        bitrate = getattr(info, "bitrate", None)
-        out["bitrate"] = int(bitrate) // 1000 if bitrate else None
-        out["sample_rate"] = getattr(info, "sample_rate", None) or None
-    tags = audio.tags
+    out.update(_stream_info(audio))
     values: dict[str, list] = {}
     year_text = ""
     try:
-        if isinstance(tags, ID3):
-            for field, frame in (("title", "TIT2"), ("artist", "TPE1"),
-                                 ("album", "TALB"), ("genre", "TCON")):
-                if frame in tags:
-                    values[field] = list(tags[frame].text)
-            comments = [c for c in tags.getall("COMM") if c.desc == ""]
-            comments.sort(key=lambda c: c.lang != "eng")
-            if comments:
-                values["comment"] = list(comments[0].text)
-            if "TDRC" in tags and tags["TDRC"].text:
-                year_text = str(tags["TDRC"].text[0])
-            out["has_cover"] = int(bool(tags.getall("APIC")))
-        elif isinstance(tags, MP4Tags):
-            for field, atom in (("title", "\xa9nam"), ("artist", "\xa9ART"), ("album", "\xa9alb"),
-                                ("genre", "\xa9gen"), ("comment", "\xa9cmt")):
-                if atom in tags:
-                    values[field] = list(tags[atom])
-            year_text = str((tags.get("\xa9day") or [""])[0])
-            out["has_cover"] = int(bool(tags.get("covr")))
-        elif tags is not None and hasattr(tags, "get"):  # Vorbis comments
-            for field in TAG_FIELDS:
-                found = tags.get(field)
-                if found:
-                    values[field] = list(found)
-            year_text = str((tags.get("date") or [""])[0])
-            pictures = getattr(audio, "pictures", None)
-            out["has_cover"] = int(bool(pictures) or bool(tags.get("metadata_block_picture")))
+        year_text, out["has_cover"] = _tag_values(audio, values)
     except Exception:
         log.warning("could not read the tags of %s", path, exc_info=True)
     multi = []
@@ -228,14 +184,72 @@ def read_tags(path: Path) -> dict:
         out[field], several = _joined(found)
         if several:
             multi.append(field)
-    out["multi"] = ",".join(f for f in ("title", "artist", "album", "genre", "comment") if f in multi)
+    out["multi"] = ",".join(f for f in TAG_FIELDS if f in multi)
     out["year"] = _year(year_text)
     return out
 
 
+def _stream_info(audio) -> dict[str, Any]:
+    """Duration (s), bitrate (kbps) and sample rate, each None when unknown."""
+    info = getattr(audio, "info", None)
+    if info is None:
+        return {}
+    length = getattr(info, "length", None)
+    bitrate = getattr(info, "bitrate", None)
+    return {"duration": round(float(length), 3) if length else None,
+            "bitrate": int(bitrate) // 1000 if bitrate else None,
+            "sample_rate": getattr(info, "sample_rate", None) or None}
+
+
+def _tag_values(audio, values: dict[str, list]) -> tuple[str, int]:
+    """Fill `values` with each tag field's values, in file order; returns the
+    year as written and whether a cover is embedded (1 or 0)."""
+    tags = audio.tags
+    if isinstance(tags, ID3):
+        return _id3_values(tags, values)
+    if isinstance(tags, MP4Tags):
+        return _mp4_values(tags, values)
+    if tags is not None and hasattr(tags, "get"):  # Vorbis comments
+        return _vorbis_values(audio, tags, values)
+    return "", 0
+
+
+def _id3_values(tags: ID3, values: dict[str, list]) -> tuple[str, int]:
+    for field, frame in (("title", "TIT2"), ("artist", "TPE1"),
+                         ("album", "TALB"), ("genre", "TCON")):
+        if frame in tags:
+            values[field] = list(tags[frame].text)
+    # the comment the tagger writes: no description, English first
+    comments = [c for c in tags.getall("COMM") if c.desc == ""]
+    comments.sort(key=lambda c: c.lang != "eng")
+    if comments:
+        values["comment"] = list(comments[0].text)
+    year_text = str(tags["TDRC"].text[0]) if "TDRC" in tags and tags["TDRC"].text else ""
+    return year_text, int(bool(tags.getall("APIC")))
+
+
+def _mp4_values(tags: MP4Tags, values: dict[str, list]) -> tuple[str, int]:
+    for field, atom in (("title", "\xa9nam"), ("artist", "\xa9ART"), ("album", "\xa9alb"),
+                        ("genre", "\xa9gen"), ("comment", "\xa9cmt")):
+        if atom in tags:
+            values[field] = list(tags[atom])
+    return str((tags.get("\xa9day") or [""])[0]), int(bool(tags.get("covr")))
+
+
+def _vorbis_values(audio, tags, values: dict[str, list]) -> tuple[str, int]:
+    for field in TAG_FIELDS:
+        found = tags.get(field)
+        if found:
+            values[field] = list(found)
+    pictures = getattr(audio, "pictures", None)
+    return (str((tags.get("date") or [""])[0]),
+            int(bool(pictures) or bool(tags.get("metadata_block_picture"))))
+
+
 def _search(rel: str, tags: dict) -> str:
     name = rel.rsplit("/", 1)[-1]
-    return fold(" ".join([tags["title"], tags["artist"], tags["album"], tags["genre"], name]))
+    return matching.fold(" ".join([tags["title"], tags["artist"], tags["album"], tags["genre"],
+                                   name]))
 
 
 # ------------------------------------------------------------------ walk
@@ -266,6 +280,20 @@ def _walk(root: Path) -> list[tuple[str, int, int]]:
     return found
 
 
+def _settled(root: Path, now: float) -> tuple[dict[str, tuple[int, int]], set[str]]:
+    """The walk split in two: {path: (size, mtime_ns)} of the files that have
+    settled, and the paths changed in the last SETTLE_SECONDS, left alone."""
+    settle_ns = int((now - SETTLE_SECONDS) * 1e9)
+    on_disk: dict[str, tuple[int, int]] = {}
+    settling: set[str] = set()
+    for rel, size, mtime_ns in _walk(root):
+        if mtime_ns > settle_ns:
+            settling.add(rel)
+        else:
+            on_disk[rel] = (size, mtime_ns)
+    return on_disk, settling
+
+
 # --------------------------------------------------------------- the index
 class Library:
     def __init__(self, database, root: Callable[[], Path] | None = None,
@@ -274,7 +302,7 @@ class Library:
         self.db = database
         self.root = root or (lambda: Path(config.settings["library_root"]))
         self.clock = clock
-        self.trash_days = trash_days or (lambda: int(config.settings.get("trash_days", 30)))
+        self.trash_days = trash_days or (lambda: int(config.settings["trash_days"]))
         self._pass = threading.Lock()
         self._idle = threading.Event()
         self._idle.set()
@@ -330,14 +358,7 @@ class Library:
     def _reconcile(self) -> dict:
         root = self.root()
         now = self.clock()
-        settle_ns = int((now - SETTLE_SECONDS) * 1e9)
-        on_disk: dict[str, tuple[int, int]] = {}
-        settling: set[str] = set()
-        for rel, size, mtime_ns in _walk(root):
-            if mtime_ns > settle_ns:
-                settling.add(rel)
-            else:
-                on_disk[rel] = (size, mtime_ns)
+        on_disk, settling = _settled(root, now)
 
         with self.db.transaction() as conn:
             rows = {r["path"]: dict(r) for r in conn.execute(
@@ -367,6 +388,35 @@ class Library:
         summary = {"new": 0, "changed": 0, "replaced": 0, "moved": 0, "back": 0, "missing": 0,
                    "gone": 0}
 
+        self._read_and_apply(root, now, work, rows, candidates, moved, first, summary)
+
+        with self.db.transaction() as conn:
+            for row in back:
+                conn.execute(
+                    "UPDATE library_files SET state = 'present', state_changed_at = ?, rev = ? "
+                    "WHERE id = ? AND state = 'missing'",
+                    (dbmod.iso(now), self._next_rev(conn), row["id"]))
+                summary["back"] += 1
+            vanished = [r for r in away if r["state"] == "present" and r["id"] not in moved
+                        and not (root / r["path"]).exists()]
+            too_many = (len(vanished) > GUARD_SHARE * library_size and len(vanished) > GUARD_MIN)
+            if too_many:
+                log.warning("library: %d of %d files vanished at once; marking none missing "
+                            "until the library is available again", len(vanished), library_size)
+            else:
+                self._mark_absent(conn, now, vanished, moved, summary)
+            self._set_meta(conn, "unavailable", "1" if too_many else "0")
+            self._set_meta(conn, "last_reconcile", dbmod.iso(now))
+            self._set_meta(conn, "indexed", "1")
+        if any(summary.values()):
+            log.info("library reconcile: %s", summary)
+        return summary
+
+    def _read_and_apply(self, root: Path, now: float, work: list[tuple[str, int, int]],
+                        rows: dict[str, dict], candidates: dict[str, list[dict]],
+                        moved: set[int], first: bool, summary: dict[str, int]) -> None:
+        """Hash and read the new and changed files, BATCH at a time outside any
+        lock, and commit each batch's rows as one transaction."""
         self.progress = {"running": True, "done": 0, "total": len(work)}
         try:
             for start in range(0, len(work), BATCH):
@@ -390,42 +440,24 @@ class Library:
         finally:
             self.progress = {"running": False, "done": 0, "total": 0}
 
-        with self.db.transaction() as conn:
-            for row in back:
-                conn.execute(
-                    "UPDATE library_files SET state = 'present', state_changed_at = ?, rev = ? "
-                    "WHERE id = ? AND state = 'missing'",
-                    (_iso(now), self._next_rev(conn), row["id"]))
-                summary["back"] += 1
-
-            vanished = [r for r in away if r["state"] == "present" and r["id"] not in moved
-                        and not (root / r["path"]).exists()]
-            too_many = (len(vanished) > GUARD_SHARE * library_size and len(vanished) > GUARD_MIN)
-            if too_many:
-                log.warning("library: %d of %d files vanished at once; marking none missing "
-                            "until the library is available again", len(vanished), library_size)
-            else:
-                for row in vanished:
-                    conn.execute(
-                        "UPDATE library_files SET state = 'missing', state_changed_at = ?, rev = ? "
-                        "WHERE id = ? AND state = 'present'",
-                        (_iso(now), self._next_rev(conn), row["id"]))
-                    summary["missing"] += 1
-                for row in conn.execute(
-                        "SELECT id, state_changed_at FROM library_files WHERE state = 'missing'"
-                ).fetchall():
-                    if row[0] in moved or not row[1] or now - _ts(row[1]) < GRACE_SECONDS:
-                        continue
-                    conn.execute(
-                        "UPDATE library_files SET state = 'gone', state_changed_at = ?, rev = ? "
-                        "WHERE id = ?", (_iso(now), self._next_rev(conn), row[0]))
-                    summary["gone"] += 1
-            self._set_meta(conn, "unavailable", "1" if too_many else "0")
-            self._set_meta(conn, "last_reconcile", _iso(now))
-            self._set_meta(conn, "indexed", "1")
-        if any(summary.values()):
-            log.info("library reconcile: %s", summary)
-        return summary
+    def _mark_absent(self, conn: sqlite3.Connection, now: float, vanished: list[dict],
+                     moved: set[int], summary: dict[str, int]) -> None:
+        """Vanished files become `missing`; files missing for GRACE_SECONDS, `gone`."""
+        for row in vanished:
+            conn.execute(
+                "UPDATE library_files SET state = 'missing', state_changed_at = ?, rev = ? "
+                "WHERE id = ? AND state = 'present'",
+                (dbmod.iso(now), self._next_rev(conn), row["id"]))
+            summary["missing"] += 1
+        for row in conn.execute(
+                "SELECT id, state_changed_at FROM library_files WHERE state = 'missing'"
+        ).fetchall():
+            if row[0] in moved or not row[1] or now - _ts(row[1]) < GRACE_SECONDS:
+                continue
+            conn.execute(
+                "UPDATE library_files SET state = 'gone', state_changed_at = ?, rev = ? "
+                "WHERE id = ?", (dbmod.iso(now), self._next_rev(conn), row[0]))
+            summary["gone"] += 1
 
     def _read(self, root: Path, rel: str) -> tuple[str, dict] | None:
         """The audio id and tags of a file, outside any lock; None if it vanished."""
@@ -450,8 +482,8 @@ class Library:
                 return "changed"
             # Same path, other audio: the old track is gone and this is a new one.
             conn.execute("UPDATE library_files SET state = 'gone', state_changed_at = ?, rev = ? "
-                         "WHERE id = ?", (_iso(now), self._next_rev(conn), current["id"]))
-            self._insert(conn, rel, size, mtime_ns, aid, tags, _iso(added), "")
+                         "WHERE id = ?", (dbmod.iso(now), self._next_rev(conn), current["id"]))
+            self._insert(conn, rel, size, mtime_ns, aid, tags, dbmod.iso(added), "")
             return "replaced"
         # A row whose file is not where it was, with this audio: moved outside GetSetMix.
         for row in candidates.get(aid, []):
@@ -463,7 +495,7 @@ class Library:
                 moved.add(row["id"])
                 self._update(conn, row["id"], rel, size, mtime_ns, aid, tags, now, back=True)
                 return "moved"
-        self._insert(conn, rel, size, mtime_ns, aid, tags, _iso(added), "")
+        self._insert(conn, rel, size, mtime_ns, aid, tags, dbmod.iso(added), "")
         return "new"
 
     def _update(self, conn: sqlite3.Connection, fid: int, rel: str, size: int, mtime_ns: int,
@@ -479,7 +511,7 @@ class Library:
         if was is None or (was["size"], was["mtime_ns"]) != (size, mtime_ns):
             fields["content_rev"] = rev
         if back:
-            fields["state_changed_at"] = _iso(now)
+            fields["state_changed_at"] = dbmod.iso(now)
         sets = ", ".join(f"{k} = ?" for k in fields)
         conn.execute(f"UPDATE library_files SET {sets} WHERE id = ?", (*fields.values(), fid))
 
@@ -493,7 +525,9 @@ class Library:
         marks = ", ".join("?" for _ in fields)
         cur = conn.execute(f"INSERT INTO library_files ({cols}) VALUES ({marks})",
                            tuple(fields.values()))
-        return int(cur.lastrowid)
+        if cur.lastrowid is None:  # never after an INSERT on a rowid table
+            raise sqlite3.DatabaseError("the new library row has no id")
+        return cur.lastrowid
 
     @staticmethod
     def _columns(rel: str, size: int, mtime_ns: int, aid: str, tags: dict) -> dict:
@@ -527,8 +561,8 @@ class Library:
             if current is not None:
                 conn.execute("UPDATE library_files SET state = 'gone', state_changed_at = ?, "
                              "rev = ? WHERE id = ?",
-                             (_iso(now), self._next_rev(conn), current["id"]))
-            return self._insert(conn, rel, st.st_size, st.st_mtime_ns, aid, tags, _iso(now),
+                             (dbmod.iso(now), self._next_rev(conn), current["id"]))
+            return self._insert(conn, rel, st.st_size, st.st_mtime_ns, aid, tags, dbmod.iso(now),
                                 source_url)
 
     # ------------------------------------------------------------ the trash
@@ -559,7 +593,7 @@ class Library:
             rev = self._next_rev(conn)
             conn.execute(
                 "UPDATE library_files SET state = 'trashed', state_changed_at = ?, "
-                "trash_path = ?, rev = ? WHERE id = ?", (_iso(now), trash_rel, rev, fid))
+                "trash_path = ?, rev = ? WHERE id = ?", (dbmod.iso(now), trash_rel, rev, fid))
             # Moved inside the transaction: if the move fails, the row rolls back.
             dest = root / trash_rel
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -580,7 +614,7 @@ class Library:
     def _restore(self, fid: int) -> dict:
         root = Path(self.root())
         now = self.clock()
-        vanished = False
+        rev: int | None = None  # stays None when the trashed file has vanished
         with self.db.transaction() as conn:
             row = conn.execute("SELECT * FROM library_files WHERE id = ?", (fid,)).fetchone()
             if row is None:
@@ -593,8 +627,7 @@ class Library:
             dest = root / row["path"]
             if not src.is_file():
                 conn.execute("UPDATE library_files SET state = 'gone', state_changed_at = ?, "
-                             "rev = ? WHERE id = ?", (_iso(now), self._next_rev(conn), fid))
-                vanished = True
+                             "rev = ? WHERE id = ?", (dbmod.iso(now), self._next_rev(conn), fid))
             else:
                 taken = conn.execute(
                     "SELECT 1 FROM library_files WHERE path = ? AND state IN ('present', 'missing')",
@@ -604,10 +637,10 @@ class Library:
                                             + row["path"])
                 rev = self._next_rev(conn)
                 conn.execute("UPDATE library_files SET state = 'present', state_changed_at = ?, "
-                             "trash_path = NULL, rev = ? WHERE id = ?", (_iso(now), rev, fid))
+                             "trash_path = NULL, rev = ? WHERE id = ?", (dbmod.iso(now), rev, fid))
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(src), str(dest))
-        if vanished:
+        if rev is None:
             raise LibraryError(410, "the file is no longer in the trash")
         self._tidy_trash(root, row["trash_path"])
         log.info("library: restored %s", row["path"])
@@ -645,7 +678,7 @@ class Library:
             with self.db.transaction() as conn:
                 conn.execute("UPDATE library_files SET state = 'gone', state_changed_at = ?, "
                              "rev = ? WHERE id = ? AND state = 'trashed'",
-                             (_iso(now), self._next_rev(conn), row["id"]))
+                             (dbmod.iso(now), self._next_rev(conn), row["id"]))
             thumbs.drop(row["id"])  # its cover can no longer be asked for
             purged += 1
         if purged:
@@ -661,7 +694,7 @@ class Library:
             return 0
         purged = self.purge()
         with self.db.transaction() as conn:
-            self._set_meta(conn, "last_purge", _iso(now))
+            self._set_meta(conn, "last_purge", dbmod.iso(now))
         return purged
 
     @staticmethod
@@ -1018,7 +1051,7 @@ class Library:
         if state not in STATES:
             raise ValueError(f"state must be one of {', '.join(STATES)}")
         where, params = ["state = ?"], [state]
-        for word in fold(q or "").split():
+        for word in matching.fold(q or "").split():
             escaped = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             where.append("search LIKE ? ESCAPE '\\'")
             params.append(f"%{escaped}%")
@@ -1033,8 +1066,9 @@ class Library:
 
     @staticmethod
     def _editable(fmt: str, aid: str) -> bool:
-        return fmt in EDITABLE_FORMATS and not audiohash.is_fallback(aid)
+        return fmt in tagger.EDITABLE_FORMATS and not audiohash.is_fallback(aid)
 
+    # Not called yet: the selection behind bulk actions (#39).
     def select(self, q: str | None = None, genre: str | None = None, folder: str | None = None,
                state: str = "present") -> list[dict]:
         """Every id matching a filter, with its editable flag, without paging."""
@@ -1089,7 +1123,7 @@ class Library:
             raw = json.dumps({"k": [last[SORT_COLUMNS[sort]], last["id"]], "s": f"{sort}:{order}"},
                              separators=(",", ":"), ensure_ascii=False)
             nxt = base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
-        return {"rev": rev, "total": total, "next": nxt,
+        return {"rev": rev, "total": total, "next": nxt, "order": order,
                 "items": [self._item(r, same) for r in rows]}
 
     @staticmethod
@@ -1114,6 +1148,9 @@ class Library:
             "size": row["size"], "added_at": row["added_at"],
             "content_rev": row["content_rev"],
             "editable": self._editable(row["format"], row["audio_id"]),
+            # the reasons, so the UI never re-derives them from the id or the text
+            "damaged": audiohash.is_fallback(row["audio_id"]),
+            "source": matching.comment_source(row["comment"]),
             "multi": [f for f in row["multi"].split(",") if f],
             "same_audio": [i for i in same.get(row["audio_id"], []) if i != row["id"]],
         }

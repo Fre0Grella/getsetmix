@@ -1,6 +1,98 @@
 # CHANGELOG
 
 
+## v1.16.4 (2026-11-24)
+
+### Bug Fixes
+
+- **ui**: Take the rules from the server ([#80](https://github.com/Fre0Grella/getsetmix/pull/80),
+  [`cfa0842`](https://github.com/Fre0Grella/getsetmix/commit/cfa08424eb071ce8da0cad7c04c873e1a9332d6a))
+
+The UI reads damaged, source, the year range, the source pattern, the list's order and each track's
+  editable/active from the server instead of keeping its own copies. The "replace the link?"
+  question now fires only for a stamped "Source: <url>".
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
+## v1.16.3 (2026-11-24)
+
+### Bug Fixes
+
+- **ui**: Health dot, duplicate dialog, token
+  ([#79](https://github.com/Fre0Grella/getsetmix/pull/79),
+  [`10ce8b1`](https://github.com/Fre0Grella/getsetmix/commit/10ce8b162d7cdca94e6b6b26b5dd90828d8d6f2f))
+
+The health dot keeps engine problems red; the duplicate question uses the app dialog; every request
+  goes through request(), which asks for the token once on a 401 and not again after a dismissal.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
+## v1.16.2 (2026-11-24)
+
+### Bug Fixes
+
+- **companion**: Keep the sync list on rerun
+  ([#77](https://github.com/Fre0Grella/getsetmix/pull/77),
+  [`db64144`](https://github.com/Fre0Grella/getsetmix/commit/db6414401986368198e9636c8a5394dea2bde502))
+
+Setup run again no longer replaces fetched.json (it seeds only an empty state, under the lock).
+  fetch.RunLocked is the one way to fetch; one path -> row lookup with the oldest row winning;
+  importer.Split shared by sync and status, which now counts tracks changed on the server.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
+## v1.16.1 (2026-11-24)
+
+### Bug Fixes
+
+- One definition per thing, typed ([#76](https://github.com/Fre0Grella/getsetmix/pull/76),
+  [`5cfe94f`](https://github.com/Fre0Grella/getsetmix/commit/5cfe94fb903370c51bb565a4ea4dcc667e71026d))
+
+The fixes from the 2026-11-24 health check, with the ceilings lowered: ruff 45 -> 39, pyright 30 ->
+  0, Python duplication 0.13 -> 0, staticcheck 5 -> 0, coverage floor 86 -> 93. Background tasks
+  kept until done; staged covers checked like Library covers; one helper each for atomic writes
+  (Python and Go), timestamps, outbound requests and bearer parsing; settings values only in config.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+### Continuous Integration
+
+- Ratchet lint, types and coverage ([#74](https://github.com/Fre0Grella/getsetmix/pull/74),
+  [`9c9eef1`](https://github.com/Fre0Grella/getsetmix/commit/9c9eef1f0eb9539f9bb0acb6f40f585af96e2cfe))
+
+Ceilings in ratchets.json at today's values, checked by scripts/ratchet.py: ruff 45, pyright 30,
+  import contracts 0 broken, duplication py 0.13 / js 0 / go 0.27, coverage floor 86, staticcheck 5
+  (Linux). Browser smoke tests in tests/ui run in a new ui job.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+### Documentation
+
+- Write down the code rules and checks ([#75](https://github.com/Fre0Grella/getsetmix/pull/75),
+  [`ea160f0`](https://github.com/Fre0Grella/getsetmix/commit/ea160f04c899e0e386e00d917793e8e337dff7bb))
+
+docs/architecture.md 8.8: the layering, pure modules, settings only in config.py, one definition per
+  thing, and the rule -> check table; decision 9 (CI ratchets). Module tables, track identity and
+  risks brought up to date. CLAUDE.md points future sessions at 8.8.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.16.0 (2026-11-24)
 
 ### Features

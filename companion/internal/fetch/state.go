@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/atomicfile"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 )
 
@@ -58,6 +59,12 @@ type Track struct {
 // Stale names the local files whose newer copy Rekordbox does not have yet:
 // library.PathKey -> audio id. A track with a tombstone is left out, since the
 // server no longer has it. When a server path was replaced by other audio,
+// Empty reports whether the state knows no track at all: nothing fetched,
+// nothing removed. Setup seeds only an empty state, never one in use.
+func (s *State) Empty() bool {
+	return len(s.Tracks) == 0 && len(s.Legacy) == 0 && len(s.Removed) == 0
+}
+
 // two ids share the path and only the newest one speaks for the file.
 func (s *State) Stale(folder string) map[string]string {
 	newest := map[string]string{}
@@ -288,11 +295,7 @@ func (s *State) Save(dir string) error {
 			return err
 		}
 	}
-	tmp := filepath.Join(dir, stateFile+".tmp")
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, filepath.Join(dir, stateFile))
+	return atomicfile.WriteFile(filepath.Join(dir, stateFile), append(data, '\n'), 0o644)
 }
 
 func keepV1(dir string) error {

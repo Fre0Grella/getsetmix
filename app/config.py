@@ -31,7 +31,36 @@ ENV_MAP = {
     "GSM_TRASH_DAYS": "trash_days",
 }
 INT_KEYS = ("concurrency", "trash_days")
+
+# The values a setting may take. A stored or env value outside them is coerced
+# on load (`Settings._normalize`); one sent to PUT /api/settings is refused
+# (`patch_problem`).
+OUTPUT_FORMATS = ("mp3", "flac")
+LANGUAGES = ("it", "en")
+CONCURRENCY_MIN, CONCURRENCY_MAX = 1, 8
 TRASH_DAYS_MAX = 3650
+
+
+def clamp_concurrency(n: int) -> int:
+    """`n` parallel downloads, brought within CONCURRENCY_MIN..CONCURRENCY_MAX."""
+    return max(CONCURRENCY_MIN, min(CONCURRENCY_MAX, n))
+
+
+def patch_problem(patch: dict) -> str | None:
+    """Why a settings patch is refused (the first value not allowed), or None."""
+    if "output_format" in patch and patch["output_format"] not in OUTPUT_FORMATS:
+        return "output_format must be 'mp3' or 'flac'"
+    if "language" in patch and patch["language"] not in LANGUAGES:
+        return "language must be 'it' or 'en'"
+    if "concurrency" in patch and not (
+            CONCURRENCY_MIN <= int(patch["concurrency"]) <= CONCURRENCY_MAX):
+        return f"concurrency must be between {CONCURRENCY_MIN} and {CONCURRENCY_MAX}"
+    if "trash_days" in patch and not 0 <= int(patch["trash_days"]) <= TRASH_DAYS_MAX:
+        return f"trash_days must be between 0 and {TRASH_DAYS_MAX}"
+    if "filename_template" in patch and not str(patch["filename_template"]).strip():
+        return "filename_template cannot be empty"
+    return None
+
 
 _lock = threading.Lock()
 
@@ -55,13 +84,14 @@ class Settings:
                     pass  # corrupt config -> fall back to defaults
             for env, key in ENV_MAP.items():
                 if env in os.environ and os.environ[env] != "":
-                    val: object = os.environ[env]
+                    raw = os.environ[env]
                     if key in INT_KEYS:
                         try:
-                            val = int(val)  # type: ignore[arg-type]
+                            self.data[key] = int(raw)
                         except ValueError:
-                            continue
-                    self.data[key] = val
+                            pass
+                    else:
+                        self.data[key] = raw
             self._normalize()
 
     def save(self) -> None:
@@ -78,20 +108,20 @@ class Settings:
         return self.data
 
     def _normalize(self) -> None:
-        self.data["output_format"] = str(self.data.get("output_format", "mp3")).lower()
-        if self.data["output_format"] not in ("mp3", "flac"):
-            self.data["output_format"] = "mp3"
+        fmt = str(self.data.get("output_format", DEFAULTS["output_format"])).lower()
+        self.data["output_format"] = fmt if fmt in OUTPUT_FORMATS else DEFAULTS["output_format"]
         try:
-            self.data["concurrency"] = max(1, min(8, int(self.data.get("concurrency", 2))))
+            self.data["concurrency"] = clamp_concurrency(
+                int(self.data.get("concurrency", DEFAULTS["concurrency"])))
         except (TypeError, ValueError):
-            self.data["concurrency"] = 2
+            self.data["concurrency"] = DEFAULTS["concurrency"]
         try:
             days = int(self.data.get("trash_days", DEFAULTS["trash_days"]))
             self.data["trash_days"] = max(0, min(TRASH_DAYS_MAX, days))
         except (TypeError, ValueError):
             self.data["trash_days"] = DEFAULTS["trash_days"]
-        if self.data.get("language") not in ("it", "en"):
-            self.data["language"] = "en"
+        if self.data.get("language") not in LANGUAGES:
+            self.data["language"] = DEFAULTS["language"]
         if not str(self.data.get("filename_template") or "").strip():
             self.data["filename_template"] = DEFAULTS["filename_template"]
 
@@ -108,6 +138,9 @@ class Settings:
 AUTH_TOKEN = os.environ.get("GSM_AUTH_TOKEN", "").strip()
 BASIC_USER = os.environ.get("GSM_BASIC_USER", "").strip()
 BASIC_PASS = os.environ.get("GSM_BASIC_PASS", "").strip()
+# One more token a paired computer may use on /api/link, besides the ones in
+# DATA_DIR/link-tokens (app/link.py).
+LINK_TOKEN = os.environ.get("GSM_LINK_TOKEN", "").strip()
 
 settings = Settings()
 

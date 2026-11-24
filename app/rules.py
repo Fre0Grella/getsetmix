@@ -24,7 +24,6 @@ from .genres import GENRES
 
 CATALOGUE_VERSION = 1
 
-TEXT_FIELDS = ("title", "artist", "album", "genre", "comment")
 Fields = dict[str, Any]
 Warning_ = dict[str, Any]
 
@@ -77,7 +76,12 @@ _SEPARATORS = (" - ", " – ", " — ", " | ", " － ")  # as app/metadata.py
 _DASHES = r"[-–—]"
 
 
-def _norm(text: str) -> str:
+def _phrase_key(text: str) -> str:
+    """How a rule compares a phrase in a tag with one in its list: case and runs
+    of spaces ignored, nothing else. Not `matching.fold` (accents folded, for
+    search) nor `matching.tokens` (punctuation dropped, for identity): a rule
+    removes or moves only what matches its list as written, so "(Versión)"
+    is not "(Version)"."""
     return " ".join(text.split()).casefold()
 
 
@@ -86,7 +90,7 @@ def _group_content(m: re.Match) -> str:
 
 
 def _drop_groups(text: str, wanted: set[str]) -> str:
-    return _GROUP.sub(lambda m: "" if _norm(_group_content(m)) in wanted else m.group(0), text)
+    return _GROUP.sub(lambda m: "" if _phrase_key(_group_content(m)) in wanted else m.group(0), text)
 
 
 def _last_word(text: str) -> str:
@@ -124,7 +128,7 @@ def _trim(fields, scope, p):
 
 
 def _promo_remove(fields, scope, p):
-    wanted = {_norm(x) for x in p["phrases"]}
+    wanted = {_phrase_key(x) for x in p["phrases"]}
     return _per_field(fields, scope, lambda v: _drop_groups(v, wanted)), []
 
 
@@ -143,30 +147,48 @@ def _url_remove(fields, scope, p):
     return _per_field(fields, scope, fix), []
 
 
-def _split_artist_title(fields, scope, p):
+def _title_and_artist(fields: Fields, scope: tuple[str, ...]) -> tuple[str, str] | None:
+    """The title and artist of a cross-field rule, or None when the step is not
+    aimed at both or either one is not text."""
     if not {"title", "artist"} <= set(scope):
-        return {}, []
+        return None
     title, artist = fields["title"], fields["artist"]
     if not isinstance(title, str) or not isinstance(artist, str):
+        return None
+    return title, artist
+
+
+def _split_on_separator(title: str) -> Fields:
+    """Split "Artist - Title" in the title into the two fields, at the first
+    separator in ingest's order (as metadata.py)."""
+    for sep in _SEPARATORS:
+        if sep in title:
+            left, right = (s.strip() for s in title.split(sep, 1))
+            return {"title": right, "artist": left} if left and right else {}
+    return {}
+
+
+def _drop_artist_prefix(title: str, artist: str) -> Fields:
+    """The title without "<artist> - " at its start."""
+    for sep in _SEPARATORS:
+        prefix = artist + sep
+        if title.casefold().startswith(prefix.casefold()):
+            rest = title[len(prefix):].strip()
+            if rest:
+                return {"title": rest}
+    return {}
+
+
+def _split_artist_title(fields, scope, p):
+    pair = _title_and_artist(fields, scope)
+    if pair is None:
         return {}, []
+    title, artist = (s.strip() for s in pair)
     when = p["when"]
-    title, artist = title.strip(), artist.strip()
-    if not artist and when in ("artist_empty_or_same", "artist_empty", "always") \
-            or when == "always":
-        for sep in _SEPARATORS:  # first separator in ingest's order, as metadata.py
-            if sep in title:
-                left, right = (s.strip() for s in title.split(sep, 1))
-                if left and right:
-                    return {"title": right, "artist": left}, []
-                return {}, []
-        return {}, []
-    if when == "artist_empty_or_same" and artist:
-        for sep in _SEPARATORS:
-            prefix = artist + sep
-            if title.casefold().startswith(prefix.casefold()):
-                rest = title[len(prefix):].strip()
-                if rest:
-                    return {"title": rest}, []
+    if when == "always" or not artist:
+        return _split_on_separator(title), []
+    if when == "artist_empty_or_same":
+        return _drop_artist_prefix(title, artist), []
     return {}, []
 
 
@@ -204,48 +226,54 @@ def _mix_position(title: str, mix_words: set[str]) -> int | None:
     return min(found) if found else None
 
 
-def _feat_move(fields, scope, p):
-    if not {"title", "artist"} <= set(scope):
-        return {}, []
-    title, artist = fields["title"], fields["artist"]
-    if not isinstance(title, str) or not isinstance(artist, str):
-        return {}, []
-    if p["to"] == "title":
-        m = _ARTIST_FEAT_BRACKETED.match(artist) or _ARTIST_FEAT_PLAIN.match(artist)
-        if not m or not m.group("base").strip():
-            return {}, []
-        names = m.group("names").strip()
-        already = any(_norm(t.group("names")) == _norm(names) for t in _TITLE_FEAT.finditer(title))
-        new_artist = m.group("base").strip()
-        if already:
-            return {"artist": new_artist}, []
-        group = f"({m.group('word')} {names})"
-        pos = _mix_position(title, _mix_words_default())
-        if pos is None:
-            new_title = f"{title} {group}"
-        elif title[pos:].lstrip().startswith(("(", "[")):
-            new_title = f"{title[:pos].rstrip()} {group} {title[pos:]}"
-        else:
-            new_title = f"{title[:pos]} {group}{title[pos:]}"
-        return {"artist": new_artist, "title": new_title}, []
-    # to == "artist"
+def _feat_into_title(title: str, artist: str) -> Fields:
+    """Artist "Nova feat. Kito", title "Night Drive" -> "Nova", "Night Drive
+    (feat. Kito)"; the group goes before the mix name, if any."""
+    m = _ARTIST_FEAT_BRACKETED.match(artist) or _ARTIST_FEAT_PLAIN.match(artist)
+    if not m or not m.group("base").strip():
+        return {}
+    names = m.group("names").strip()
+    new_artist = m.group("base").strip()
+    if any(_phrase_key(t.group("names")) == _phrase_key(names) for t in _TITLE_FEAT.finditer(title)):
+        return {"artist": new_artist}  # the title already names them
+    group = f"({m.group('word')} {names})"
+    pos = _mix_position(title, _mix_words_default())
+    if pos is None:
+        new_title = f"{title} {group}"
+    elif title[pos:].lstrip().startswith(("(", "[")):
+        new_title = f"{title[:pos].rstrip()} {group} {title[pos:]}"
+    else:
+        new_title = f"{title[:pos]} {group}{title[pos:]}"
+    return {"artist": new_artist, "title": new_title}
+
+
+def _feat_into_artist(title: str, artist: str) -> Fields:
+    """Artist "Nova", title "Night Drive (feat. Kito)" -> "Nova feat. Kito", "Night Drive"."""
     t = _TITLE_FEAT.search(title)
     if not t or not artist.strip():
-        return {}, []
+        return {}
     new_title = tidy(title[:t.start()] + " " + title[t.end():])
     if not new_title:
-        return {}, []
+        return {}
     names = t.group("names").strip()
     existing = _ARTIST_FEAT_BRACKETED.match(artist) or _ARTIST_FEAT_PLAIN.match(artist)
     if existing:
-        if _norm(existing.group("names")) != _norm(names):
-            return {}, []
-        return {"title": new_title}, []
-    return {"title": new_title, "artist": f"{artist} {t.group('word')} {names}"}, []
+        if _phrase_key(existing.group("names")) != _phrase_key(names):
+            return {}
+        return {"title": new_title}
+    return {"title": new_title, "artist": f"{artist} {t.group('word')} {names}"}
+
+
+def _feat_move(fields, scope, p):
+    pair = _title_and_artist(fields, scope)
+    if pair is None:
+        return {}, []
+    move = _feat_into_title if p["to"] == "title" else _feat_into_artist
+    return move(*pair), []
 
 
 def _mix_remove_default(fields, scope, p):
-    wanted = {_norm(x) for x in p["labels"]}
+    wanted = {_phrase_key(x) for x in p["labels"]}
     return _per_field(fields, scope, lambda v: _drop_groups(v, wanted)), []
 
 
@@ -319,7 +347,8 @@ def _title_case(value: str, small: set[str], keep: dict[str, str]) -> str:
     for i, m in enumerate(tokens):
         out.append(value[last_end:m.start()])
         last_end = m.end()
-        lead, core, trail = _SPLIT_TOKEN.match(m.group(0)).groups()
+        parts = _SPLIT_TOKEN.match(m.group(0))  # matches any text; None only to the checker
+        lead, core, trail = parts.groups() if parts else ("", m.group(0), "")
         key = core.casefold()
         if not core:
             word = core
@@ -660,6 +689,7 @@ BUILTIN_RULESETS: list[dict] = [
 ]
 
 
+# default_fields and allowed_fields: not called by the app yet, for batch editing (#47).
 def default_fields(rule_id: str) -> tuple[str, ...]:
     return _rule(rule_id).fields
 
@@ -727,6 +757,7 @@ def run_rule(rule_id: str, fields: Fields, scope: list[str] | tuple[str, ...] | 
     return RuleResult(out, changed, [{**w, "rule": rule_id} for w in warnings])
 
 
+# Not called by the app yet: the preview and apply of batch editing (#47).
 def run_steps(fields: Fields, steps: list[dict]) -> StepsResult:
     """Run an ordered list of rule steps. Each sees the result of the one before.
 

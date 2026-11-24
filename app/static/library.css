@@ -5,20 +5,12 @@
    the bottom, under the thumb. From 721px rows become columns.            */
 
 /* ----------------------------------------------------- the view switch */
-.view-switch {
-  display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 3px;
-  margin-left: auto;
-  background: var(--field); border-radius: 12px;
-}
+.view-switch { display: inline-grid; grid-auto-flow: column; gap: 2px; margin-left: auto; } /* track: styles.css */
 .view-switch button {
   height: 34px; padding: 0 12px; border: 0; border-radius: 9px;
   background: transparent; color: var(--text-2);
   font-size: .88rem; font-weight: 500; cursor: pointer;
   transition: background-color .15s var(--ease), color .15s var(--ease);
-}
-.view-switch button[aria-pressed="true"] {
-  background: var(--surface); color: var(--text); font-weight: 600;
-  box-shadow: 0 1px 2px oklch(0.2 0.02 262 / 0.18);
 }
 .view-switch button:not([aria-pressed="true"]):hover { color: var(--text); }
 /* A narrow phone keeps the mark and drops the word, to make room. */
@@ -34,12 +26,7 @@ body.view-library .dock:not(.lib-dock),
 body.view-library .engine-banner { display: none !important; }
 
 /* ------------------------------------------------------------- notices */
-.lib-banner {
-  margin: 12px var(--gutter) 0; padding: 12px 14px;
-  border: 1px solid color-mix(in oklch, var(--warn) 50%, transparent);
-  background: color-mix(in oklch, var(--warn) 11%, transparent);
-  border-radius: var(--radius); font-size: .9rem; line-height: 1.5;
-}
+.lib-banner { margin: 12px var(--gutter) 0; } /* a .notice */
 .lib-progress {
   display: flex; align-items: center; gap: 12px;
   margin: 14px var(--gutter) 0; font-size: .82rem;
@@ -50,21 +37,9 @@ body.view-library .engine-banner { display: none !important; }
 /* -------------------------------------------- the count, and the trash */
 .lib-bar { align-items: center; flex-wrap: wrap; row-gap: 6px; }
 .lib-bar .stats-text { margin-right: auto; }
-.lib-tool {
-  display: inline-flex; align-items: center; gap: 6px;
-  min-height: 36px; padding: 0 12px 0 10px;
-  border: 1px solid var(--line); border-radius: 999px;
-  background: transparent; color: var(--text-2);
-  font: inherit; font-size: .84rem; font-weight: 500; cursor: pointer;
-  transition: background-color .15s var(--ease), color .15s var(--ease);
-}
-.lib-tool svg { width: 16px; height: 16px; flex: none; }
-.lib-tool:hover { background: var(--hover); color: var(--text); }
 .lib-back { border-color: transparent; padding-left: 4px; margin-left: -6px; color: var(--text); font-weight: 600; }
 .lib-empty-trash { padding: 0 14px; color: var(--danger); border-color: color-mix(in oklch, var(--danger) 45%, transparent); }
 .lib-empty-trash:hover { color: var(--danger); background: color-mix(in oklch, var(--danger) 10%, transparent); }
-.lib-tool:disabled { opacity: .45; cursor: default; background: transparent; }
-.lib-note { margin: 0; padding: 0 var(--gutter) 8px; font-size: .82rem; color: var(--text-3); line-height: 1.45; }
 
 /* A toast with an action (Undo): the message, then the button. */
 .toast.toast--action {
@@ -82,21 +57,15 @@ body.view-library .engine-banner { display: none !important; }
 /* ----------------------------------------- sort, genre chips and folders */
 .lib-sort { display: inline-flex; gap: 6px; }
 body.lib-in-trash .lib-sort { display: none; }  /* the trash lists newest deleted first, and that is enough */
-.lib-select {
-  position: relative; display: inline-flex; align-items: center; gap: 6px;
-  min-height: 36px; padding: 0 28px 0 10px;
-  border: 1px solid var(--line); border-radius: 999px;
-  color: var(--text-2); font-size: .84rem; font-weight: 500; cursor: pointer;
-  transition: background-color .15s var(--ease), color .15s var(--ease);
-}
-.lib-select:hover { background: var(--hover); color: var(--text); }
+/* A .btn-pill holding a select, with room for its arrow. */
+.lib-select { position: relative; padding-right: 28px; }
 .lib-select:focus-within { border-color: var(--accent); }
 .lib-select::after {
   content: ""; position: absolute; right: 12px; top: 50%;
   width: 6px; height: 6px; margin-top: -5px; pointer-events: none;
   border: solid currentColor; border-width: 0 1.8px 1.8px 0; transform: rotate(45deg); opacity: .7;
 }
-.lib-select svg { width: 16px; height: 16px; flex: none; pointer-events: none; }
+.lib-select svg { pointer-events: none; }
 .lib-select select {
   appearance: none; -webkit-appearance: none; max-width: 15rem; height: 34px;
   margin: 0 -28px 0 0; padding: 0 28px 0 0; border: 0; border-radius: 0;
@@ -110,12 +79,6 @@ body.lib-in-trash .lib-sort { display: none; }  /* the trash lists newest delete
 .lib-trash-btn { position: relative; width: 36px; padding: 0; justify-content: center; }
 .lib-trash-label {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
-}
-.lib-badge {
-  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px;
-  display: grid; place-items: center; border-radius: 999px;
-  background: var(--accent); color: var(--on-accent);
-  font-size: .68rem; font-weight: 700; font-variant-numeric: tabular-nums;
 }
 .lib-order svg { transition: transform .2s var(--ease); }
 .lib-order[data-dir="asc"] svg { transform: rotate(180deg); }
@@ -194,12 +157,7 @@ body.lib-in-trash .lib-sort { display: none; }  /* the trash lists newest delete
 .lib-file { font-weight: 500; color: var(--text-2); }
 .lib-artist { color: var(--text-2); font-size: .875rem; min-height: 1.2em; }
 .lib-genre { grid-area: genre; justify-self: end; min-width: 0; max-width: 9.5rem; }
-.lib-chip {
-  display: inline-block; max-width: 100%; padding: 2px 9px; border-radius: 999px;
-  background: var(--accent-wash); color: var(--accent);
-  font-size: .76rem; font-weight: 600;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;
-}
+.lib-chip { vertical-align: middle; } /* a .badge */
 .lib-dur {
   grid-area: dur; justify-self: end;
   color: var(--text-3); font-size: .8rem; font-variant-numeric: tabular-nums;
@@ -251,12 +209,6 @@ body.lib-in-trash .lib-sort { display: none; }  /* the trash lists newest delete
   margin: 0; padding: 10px 12px; border-radius: var(--radius);
   background: var(--field); color: var(--text-2); font-size: .88rem; line-height: 1.45;
 }
-.lib-ask {
-  padding: 12px 14px; border-radius: var(--radius);
-  border: 1px solid color-mix(in oklch, var(--warn) 50%, transparent);
-  background: color-mix(in oklch, var(--warn) 11%, transparent);
-  font-size: .9rem; line-height: 1.5;
-}
 .lib-ask p { margin: 0 0 10px; }
 .lib-ask-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .lib-sheet .modal-foot .btn.hidden { display: none; }
@@ -287,7 +239,7 @@ body.lib-in-trash .lib-sort { display: none; }  /* the trash lists newest delete
 
   .lib-trash-btn { width: auto; padding: 0 12px 0 10px; }
   .lib-trash-label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
-  .lib-badge { display: none; }
+  #libTrashBadge { display: none; }
   .lib-folder { display: inline-flex; }
   .lib-genres { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
   .lib-gchip { height: 30px; font-size: .82rem; }
@@ -305,10 +257,9 @@ body.lib-in-trash .lib-sort { display: none; }  /* the trash lists newest delete
   .lib-del { margin-right: 0; }
   .lib-restore { height: 30px; font-size: .84rem; }
   .lib-bar { padding-top: 14px; padding-bottom: 8px; }
-  .lib-note { padding: 0 16px 10px; }
   .lib-head {
     display: grid; align-items: center;
-    position: sticky; top: 57px; z-index: 2;
+    position: sticky; top: var(--topbar-h); z-index: 2;
     height: 34px; padding: 0 10px;
     background: var(--bg); border-bottom: 1px solid var(--line);
     color: var(--text-3); font-size: .74rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;

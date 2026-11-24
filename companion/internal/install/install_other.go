@@ -4,7 +4,7 @@ package install
 
 import "errors"
 
-var errUnsupported = errors.New("Rekordbox runs on Windows and macOS only")
+var errUnsupported = errors.New("only Windows and macOS run Rekordbox")
 
 // Install is not available on this OS.
 func Install(Options) (Result, error) { return Result{}, errUnsupported }

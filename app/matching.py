@@ -16,6 +16,7 @@ A record is a dict {name, artist, url}; any field may be "".
 from __future__ import annotations
 
 import re
+import unicodedata
 
 # Platform cruft stripped before tokenizing. We deliberately keep remix/mix/edit
 # words so different versions of a track stay distinct.
@@ -27,9 +28,29 @@ _NOISE = re.compile(
 # What the tagger writes into the comment: "Source: <url> | via GetSetMix".
 # A URL has no spaces, so it ends at the first one.
 _SOURCE = re.compile(r"\bsource:\s*(\S+)", re.I)
+# The same rule for the UI, which shows the source link live as the comment
+# is typed (sent by /api/library/rules; JavaScript reads this syntax as is).
+SOURCE_PATTERN = _SOURCE.pattern
 
 
-def _norm(value: str) -> str:
+# Two ways to compare text, for two jobs:
+# - `fold` is for *search*: it keeps every character but folds case and
+#   accents, so "beyonce" finds "Beyoncé". The Library's `search` column holds
+#   it, and a query is folded the same way.
+# - `tokens` is for *identity*: the bare ASCII words of a title or artist,
+#   punctuation and platform cruft ("Official Video") gone, so two spellings of
+#   one song give the same set.
+# Every token is a substring of `fold` of the same text, which is what lets
+# the Library prefilter its candidates in SQL.
+
+
+def fold(text: str) -> str:
+    """Lowercase, accents removed: what `search` holds and what a query is matched as."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
+
+
+def _token_text(value: str) -> str:
     s = (value or "").lower()
     s = _NOISE.sub(" ", s)
     s = re.sub(r"[^a-z0-9]+", " ", s)
@@ -37,10 +58,8 @@ def _norm(value: str) -> str:
 
 
 def tokens(value: str) -> frozenset[str]:
-    """The words of a title or artist, lowercase ASCII, platform cruft removed.
-    Every token is a substring of the text as `library.fold` writes it, which
-    is what lets the Library prefilter in SQL."""
-    return frozenset(_norm(value).split())
+    """The words of a title or artist, lowercase ASCII, platform cruft removed."""
+    return frozenset(_token_text(value).split())
 
 
 def norm_url(value: str) -> str:

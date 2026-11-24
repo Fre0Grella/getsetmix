@@ -103,23 +103,10 @@ func (d *DB) Update(changes []Change, now time.Time) (UpdateResult, error) {
 		return res, fmt.Errorf("reading localUpdateCount: %w", err)
 	}
 
-	ids := map[string]string{}
-	rows, err := tx.Query(`SELECT ID, FolderPath FROM djmdContent
-		WHERE rb_local_deleted = 0 AND FolderPath IS NOT NULL ORDER BY created_at`)
+	ids, err := contentIDs(tx)
 	if err != nil {
 		return res, err
 	}
-	for rows.Next() {
-		var id, p string
-		if err := rows.Scan(&id, &p); err != nil {
-			rows.Close()
-			return res, err
-		}
-		if _, dup := ids[PathKey(p)]; !dup {
-			ids[PathKey(p)] = id
-		}
-	}
-	rows.Close()
 
 	for _, c := range changes {
 		id, ok := ids[PathKey(c.Path)]

@@ -416,3 +416,14 @@ def test_a_database_from_the_first_slice_is_migrated(tmp_path, monkeypatch, musi
     body = lib.link_listing()
     assert body["files"] == [{"path": "a.mp3", "size": 10, "mtime": 0,
                               "id": "a1_00000000000000000000000000000001", "rev": 7}]
+
+
+def test_the_env_link_token_pairs_a_computer_without_the_tokens_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("GSM_LINK_TOKEN", "env-token")
+    fresh_modules(tmp_path, monkeypatch, "app.link", "app.worker", "app.main")
+    import app.main
+    with TestClient(app.main.app) as c:
+        ok = c.get("/api/link/files", headers={"Authorization": "Bearer env-token"})
+        assert ok.status_code == 200
+        wrong = c.get("/api/link/files", headers={"Authorization": "Bearer other"})
+        assert wrong.status_code == 401

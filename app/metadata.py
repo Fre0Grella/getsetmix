@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
+from typing import Any
 
 import yt_dlp
 
@@ -34,7 +36,7 @@ def split_artist_title(raw_title: str, uploader: str) -> tuple[str, str]:
     return clean_uploader(uploader), title
 
 
-def best_thumbnail(info: dict) -> str:
+def best_thumbnail(info: Mapping[str, Any]) -> str:
     if info.get("thumbnail"):
         return info["thumbnail"]
     thumbs = info.get("thumbnails") or []
@@ -80,12 +82,13 @@ def probe(url: str) -> dict:
 def fetch_single(url: str) -> dict:
     with _ydl({"noplaylist": True}) as ydl:
         info = ydl.extract_info(url, download=False)
-    if info.get("entries"):
-        info = next((e for e in info["entries"] if e), info)
+    entries = info.get("entries")
+    if entries:  # a URL that is a playlist after all: its first entry
+        info = next((e for e in entries if e), info)
     return full_meta_from_info(info)
 
 
-def full_meta_from_info(info: dict) -> dict:
+def full_meta_from_info(info: Mapping[str, Any]) -> dict:
     raw_title = info.get("track") or info.get("title") or ""
     uploader = info.get("artist") or info.get("uploader") or info.get("channel") or ""
     if info.get("track") and info.get("artist"):
