@@ -23,3 +23,80 @@ build_command = ""
 
 [tool.semantic_release.branches.main]
 match = "main"
+
+# --------------------------------------------------------------------------
+# Guard rails ("anti-mud" ratchet). Ceilings live in ratchets.json and are run
+# by scripts/ratchet.py in CI; see the comment in .github/workflows/ci.yml.
+# --------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = ["spikes"]  # one-off experiments, not part of the app
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # import order
+    "B",        # bugbear
+    "UP",       # pyupgrade
+    "SIM",      # simplify
+    "ASYNC",    # blocking calls in async code
+    "RUF",      # ruff's own, incl. RUF006 (dangling asyncio task)
+    "C90",      # complexity
+    "PLE",      # pylint errors
+]
+# The en/em dashes and typographic quotes in strings are deliberate: the
+# cleanup rules in app/rules.py match them, and the UI text uses them.
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.pyright]
+include = ["app"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+
+[tool.importlinter]
+root_package = "app"
+
+# Who may import whom inside app/. Run: lint-imports
+[[tool.importlinter.contracts]]
+name = "Routes sit on top: nothing but app.main imports the route modules"
+type = "layers"
+layers = [
+    "app.main",
+    "app.library_api",
+    "app.worker : app.library : app.link : app.metadata : app.metrics : app.thumbs : app.tagger : app.ytdl",
+]
+
+[[tool.importlinter.contracts]]
+name = "config imports no other app module"
+type = "forbidden"
+source_modules = ["app.config"]
+forbidden_modules = [
+    "app.db", "app.audiohash", "app.genres", "app.library", "app.library_api", "app.link",
+    "app.main", "app.matching", "app.metadata", "app.metrics", "app.naming", "app.rules",
+    "app.tagger", "app.thumbs", "app.worker", "app.ytdl",
+]
+
+[[tool.importlinter.contracts]]
+name = "db imports no app module but config"
+type = "forbidden"
+source_modules = ["app.db"]
+forbidden_modules = [
+    "app.audiohash", "app.genres", "app.library", "app.library_api", "app.link", "app.main",
+    "app.matching", "app.metadata", "app.metrics", "app.naming", "app.rules", "app.tagger",
+    "app.thumbs", "app.worker", "app.ytdl",
+]
+
+[[tool.importlinter.contracts]]
+name = "Pure modules know nothing of the db, config, library, worker or routes"
+type = "forbidden"
+source_modules = ["app.audiohash", "app.matching", "app.naming", "app.genres", "app.rules"]
+forbidden_modules = ["app.db", "app.config", "app.library", "app.worker", "app.main", "app.library_api"]
+
+[tool.pytest.ini_options]
+markers = ["ui: browser smoke tests (need playwright and Chromium; see tests/ui/conftest.py)"]

@@ -1,0 +1,12 @@
+# Dev and CI tools. The code-health tools are pinned: a new release can find
+# more (or different) things, which would change the counts in ratchets.json
+# with no code change. Bump one on purpose, in its own PR, and re-measure.
+-r requirements.txt
+pytest>=8
+httpx
+pytest-cov==7.1.0
+ruff==0.17.6
+pyright==1.1.414
+import-linter==2.17
+# Browser smoke tests (tests/ui); also `playwright install chromium`.
+playwright==1.65.2
