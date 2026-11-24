@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **approved** by the maintainer on 2026-11-14. Two proposals stay open and are decided before the slice that needs them: 17 (fields with several values) and 18 (a full date when the year is edited); see [section 6](#6-decisions-and-open-questions) |
+| **Status** | **approved** by the maintainer on 2026-11-14. The two proposals left open on approval, 17 (fields with several values) and 18 (a full date when the year is edited), were decided on 2026-11-14 as proposed; see [section 6](#6-decisions-and-open-questions) |
 | **Issues** | design [#19](https://github.com/Fre0Grella/getsetmix/issues/19), feature [#11](https://github.com/Fre0Grella/getsetmix/issues/11), roadmap [#12](https://github.com/Fre0Grella/getsetmix/issues/12) |
 | **Date** | 2026-11-13 |
 
@@ -16,7 +16,7 @@ read and written with mutagen, hashes come from the standard libraries.
 
 The choices this draft proposed were reviewed with the maintainer and are
 recorded under [Decisions and open questions](#6-decisions-and-open-questions).
-What is still marked **Proposal** has not been decided.
+Every proposal of the draft has been decided.
 
 The batch editing module ([`batch-editing.md`](batch-editing.md),
 [#20](https://github.com/Fre0Grella/getsetmix/issues/20)) builds on this
@@ -159,12 +159,12 @@ CREATE TABLE library_meta (
   field, as the batch editing preview does, shows what the file holds.
 - `year` is the year of the file's date tag (`TDRC` in ID3, `date` in
   Vorbis comments), or empty.
-- **Several values in one field** (**Proposal**, 17). A file can hold
-  several values for a field: a multi-value `TPE1`, or several `ARTIST`
-  comments in a FLAC. The index stores them joined with `"; "` in file
-  order, and names the field in `multi`. Reading never changes the file. An
-  edit of such a field writes the one value it was given; a field that is
-  not edited keeps its several values.
+- **Several values in one field** (decision 17). A file can hold several
+  values for a field: a multi-value `TPE1`, or several `ARTIST` comments in
+  a FLAC. The index stores them joined with `"; "` in file order, and names
+  the field in `multi`. Reading never changes the file. An edit of such a
+  field writes the one value it was given, as one value: the text is not
+  split on `"; "`. A field that is not edited keeps its several values.
 
 ### 3.3 Library API
 
@@ -320,7 +320,7 @@ What an edit writes, per field:
 - **Year.** The download path never writes a year, so today no downloaded
   file has one. When a file holds a full date (`2019-06-14`) and the year is
   not edited, the date is not touched. When the year is edited, the tag is
-  written as the year alone (**Proposal**, 18).
+  written as the year alone (decision 18).
 - **Comment.** For a downloaded track the comment is
   `Source: <url> | via GetSetMix`, the only record of the track's origin
   inside the file. It is editable, but the detail sheet asks before it
@@ -409,7 +409,7 @@ the index.
 
 | Key | Meaning |
 |---|---|
-| `tracks` | what this computer has fetched: the server path, the `rev` it holds, and the six tag fields it last saw (title, artist, album, genre, year, comment) |
+| `tracks` | what this computer has fetched: the server path, the `rev` it holds, the six tag fields it last saw (title, artist, album, genre, year, comment), and `pending` while a newer copy is in place that the Rekordbox row does not have yet ([#37](https://github.com/Fre0Grella/getsetmix/issues/37)) |
 | `legacy` | paths from the old file that the server no longer lists; kept so they are never fetched again if they come back |
 | `removed` | tombstones already handled, for tracks this computer holds: the server path, when, the reason, and `recycle` / `recycled` for the opt-in local delete. The first draft held the time alone; that form still reads. Built in [#38](https://github.com/Fre0Grella/getsetmix/issues/38): the path is kept because a track known from `legacy` has no `tracks` entry to take it from |
 | `skipped` | listed files of the last fetch that Rekordbox cannot import, counted by extension, for `status` |
@@ -419,8 +419,9 @@ companion can still read it.
 
 `state.json` (which local files the importer has handled) stays keyed by
 local path, since nothing is renamed. Its values grow from a time to
-`{at, size, mtime}`, so the importer can tell that a handled file has
-changed ([4.6](#46-what-a-computer-does)). It gains `removed`: the local
+`{at, size, mtime}`, for telling that a handled file has changed where no
+fetch says so: synced folders, slice 7. A fetched track is followed by its
+`pending` mark ([4.6](#46-what-a-computer-does)). It gains `removed`: the local
 paths the importer has listed in the *removed on server* playlist, so none
 is listed twice and a restore can take it out again.
 
@@ -680,6 +681,29 @@ what the DJ saw.
 The audio id is unchanged by construction. When the tests run, they also
 check it by rehashing.
 
+**Details the edit slice settled**
+([#37](https://github.com/Fre0Grella/getsetmix/issues/37)):
+
+- `year` must be a JSON integer; `"2019"`, `2019.0` and `true` are refused
+  with `400`, as are an unknown field and `null` for a text field. The range
+  applies to what is written: `expect` may name any year a file holds.
+- A row that is `missing` (not on disk at the last reconcile), or whose file
+  is not on disk at the time of the write, answers `410`, like a trashed one.
+- A tag write, a delete and a restore run one at a time, so a delete cannot
+  move a file while a write holds a copy of it. A reconcile pass that read a
+  file before a write does not put the old size and time back.
+- A `PermissionError` while copying or renaming is `423`; the hidden copy is
+  removed and the original is left as it was.
+- MP3 comment: the edit replaces the `COMM` frame with an empty description
+  in English. Frames with a description (iTunes' own, a DJ app's) are never
+  touched. Clearing the comment removes every empty-description `COMM`, in
+  any language, so no other one shows through.
+- The routes with a file id are typed `{fid:int}`, so `/api/library/rules`,
+  `/status`, `/rescan` and `/trash` are never taken for an id.
+- The detail sheet sends, for each field it changed, the value it showed as
+  `expect`. A `412` reloads the sheet with what the file holds. It opens from
+  the library list, not from the trash.
+
 **The cover** goes the same way, through
 `library.write_cover(file_id, image_or_none)`, with the existing cover
 search and upload in front of it. The function returns the image it
@@ -859,8 +883,8 @@ imports do.
   computer holds (in `tracks`, or by path in `legacy`), drops it when the id
   is listed again, and does the opt-in local delete. It never opens
   `master.db`.
-- *The importer* reads `fetched.json` without writing it and compares its
-  tombstones with the paths it has listed (`state.json`, `removed`). The
+- *The importer* compares the tombstones in `fetched.json` with the paths it
+  has listed (`state.json`, `removed`), without writing them. The
   difference is written in the same sync as the imports, under the same
   backup, after the imports, so a track fetched and removed while Rekordbox
   was open has its row by then. Nothing to list means `master.db` is not
@@ -885,6 +909,41 @@ imports do.
   to the bin, it is downloaded again.
 - The "handled file is gone" rule for local mode and synced folders is slice
   7; without a paired server nothing is listed.
+
+**Details the edit slice settled**
+([#37](https://github.com/Fre0Grella/getsetmix/issues/37)):
+
+- *Where the old tags come from.* `fetch` reads the six fields from a file
+  when it first downloads it and keeps them in `fetched.json`. A track
+  fetched before this version has none; its local copy, read just before the
+  newer copy replaces it, gives them. A file with no tags at all has none,
+  and then all six fields are written.
+- *Who writes `fetched.json`.* `fetch`, and the importer for one thing: once
+  a row is updated it stores the file's tags and clears `pending`. Both take
+  the same lock file (`fetch.lock`). While a fetch runs, changed tracks wait
+  for the next sync; new tracks are still imported.
+- *Which files.* Step 3 above is narrowed: the importer acts on a track that
+  `fetch` marked `pending` when it put a newer copy in place, not on any
+  change of size or time. So a tag edit made on this computer with another
+  program is not taken for a server change, and a newer copy that arrives
+  before `state.json` is widened is not lost. A change in a folder a sync
+  client fills is left alone until slice 7; decision 11 applies there.
+- *Tombstones win.* A track with a tombstone is not fetched and its row is
+  not updated, even if a newer copy was already waiting. When a server path
+  is listed again under another id (a replaced file, not a removal), the
+  newest id speaks for that local file. The replaced audio does not update
+  the old row: its cues would belong to other audio.
+- *Where the newer copy lands.* At the path this computer fetched the track
+  under, even if the server has moved it since.
+- *The audio check* runs on a newer copy only. A copy whose audio id differs
+  replaces nothing, and its `rev` is not recorded, so it is tried again.
+- *The comment* is read as the server reads it: the ID3 frame with no
+  description, in English if there are several. Frames written in another
+  order, or a frame like `iTunNORM`, no longer look like a changed comment.
+  This also applies to what a new import writes to `Commnt`.
+- An emptied title is written as the file name, as an import does. A cleared
+  year or comment empties `ReleaseYear` or `Commnt`. `rb_file_id` is written
+  only when the file's id could be read.
 
 **Folders filled by a sync client.** When Setup was told *My server's music
 folder is already synced here*, there is no fetch. Nextcloud or Syncthing
@@ -951,19 +1010,53 @@ not something this module solves.
 | **UI** | The virtualised list with a few thousand rows on a phone-sized viewport; selection and bulk bar; both languages. |
 
 **Manual checklist against a real Rekordbox**, on a copy of a library,
-before the companion slices ship:
+before the companion slices ship. Only the maintainer can run it; the
+automated tests stop at the `librarytest` fixture.
 
-- [ ] Edit title, artist, album, genre, year and comment on the server;
-      after fetch and launch the row shows them.
-- [ ] That track keeps its hot cues, memory cues, beat grid, rating and its
-      place in every playlist.
+*Set up, so the real library is never at risk.*
+
+1. Do it in a second Windows user account (or on another computer) whose
+   Rekordbox has its own small library: a few tracks, not the DJ library.
+   Only if that is not possible: quit Rekordbox, copy the whole
+   `%APPDATA%\Pioneer\rekordbox` folder somewhere safe first, and put it
+   back when done. Never use this fallback in the weeks before a gig.
+2. Pair that account's companion with a GetSetMix server whose library
+   holds a few test tracks (not the real music), and let it fetch and
+   import them. In Rekordbox, analyse one of them, set two hot cues and a
+   memory cue, adjust the grid, give it a rating, and put it in a second
+   playlist besides *GetSetMix*. Quit Rekordbox.
+
+*Edit one track (slice 3,
+[#37](https://github.com/Fre0Grella/getsetmix/issues/37)).*
+
+3. In the Library view, open that track and change title, artist, album,
+   genre (with a chip), year and comment (answer *Replace it*). Save.
+4. On the computer run `gsm-companion fetch` (or wait for the scheduled
+   task), then open Rekordbox with the GetSetMix launcher.
+
+- [ ] The row shows the six new values.
+- [ ] The track keeps its hot cues, memory cue, beat grid, rating and its
+      place in both playlists.
 - [ ] Rekordbox does not flag the file as missing and does not ask to
-      analyse it again, with the file replaced and `rb_file_id` updated.
+      analyse it again, with the file replaced and `rb_file_id` and
+      `FileSize` updated. *(Open question below.)*
+- [ ] What Rekordbox shows for the cover, before and after *Reload Tag*.
+      *(Open question below.)*
+- [ ] Change only the genre in Rekordbox, quit, then change only the year on
+      the server and fetch again: Rekordbox keeps its genre and shows the
+      new year.
+- [ ] Remove a test track from the Rekordbox collection, edit it on the
+      server, fetch: it is not imported again.
+- [ ] Delete a fetched test track's file on the computer, edit it on the
+      server, fetch: it is not downloaded again.
+- [ ] A USB export of the edited track works and carries the new tags.
+- [ ] Note the answers to the two open questions in
+      [section 6](#6-decisions-and-open-questions).
+
+*Later slices.*
+
 - [ ] What Rekordbox shows for the cover after a cover edit, with and
-      without *Reload Tag*.
-- [ ] The *removed on server* playlist appears, with the right tracks, and
-      survives a Rekordbox restart.
-- [ ] A USB export of an edited track works and carries the new tags.
+      without *Reload Tag* (slice 6).
 - [ ] The same with Cloud Library Sync on, if available.
 
 **Delete and restore** ([#38](https://github.com/Fre0Grella/getsetmix/issues/38)),
@@ -1021,24 +1114,28 @@ Added on approval, from what the batch editing module needs
 | The cover write returns the image it replaced | [4.3](#43-editing-tags) |
 | A filter resolves to ids with their `editable` flag | [3.3](#33-library-api) |
 | Tag values are indexed exactly as the file holds them | [3.2](#32-the-index) |
-| A rule for fields with several values | [3.2](#32-the-index), proposal 17 |
+| A rule for fields with several values | [3.2](#32-the-index), decision 17 |
 | Bulk *set genre* goes through batch editing once it exists | [3.3](#33-library-api) |
 
-Still a proposal:
+Decided on 2026-11-14, before the slice that edits tags
+([#37](https://github.com/Fre0Grella/getsetmix/issues/37)), as proposed:
 
-| # | Question | Proposed here |
+| # | Question | Decision |
 |---|---|---|
-| 17 | A field that holds several values in the file | the index shows them joined with `"; "` and names the field in `multi`; an edit of that field writes one value; a field that is not edited keeps its values ([3.2](#32-the-index)). Needed by slice 1 for reading and slice 3 for writing. |
-| 18 | A full date in the file when the year is edited | the date is left alone unless the year is edited; then the tag is written as the year alone ([3.4](#34-tag-fields-per-format)). Needed by slice 3. |
+| 17 | A field that holds several values in the file | the index shows them joined with `"; "` and names the field in `multi`; an edit of that field writes the one value given, not split on `"; "`; a field that is not edited keeps its values ([3.2](#32-the-index)). The maintainer's reason: Rekordbox shows several artists badly, so his library keeps one main artist per track (on a remix, the known remixer), with Rekordbox's *Remixer* and *Original Artist* fields for the rest; that cleanup belongs to batch editing, not to this module. |
+| 18 | A full date in the file when the year is edited | the date is left alone unless the year is edited; then the tag is written as the year alone ([3.4](#34-tag-fields-per-format)) |
 
 Still open, with no proposal:
 
 - **Does Rekordbox accept a changed `rb_file_id` and `FileSize` silently?**
-  The manual checklist answers it. If not, the alternative is to write the
-  download into the existing file instead of replacing it, which keeps the
-  filesystem id and gives up the atomic rename.
+  The manual checklist ([5](#5-testing)) answers it; still open after the
+  edit slice was built, waiting for the maintainer's run. If not, the
+  alternative is to write the download into the existing file instead of
+  replacing it, which keeps the filesystem id and gives up the atomic
+  rename.
 - **What does Rekordbox do with the cover** of a track whose file changed?
   Its artwork is cached in its own files. This version does not touch them.
+  Still open, answered by the same run.
 - **Changing the library root in Settings.** Every row vanishes at once, so
   the guard trips and stays tripped, while the files under the new root are
   indexed as new rows. It needs a rule: most likely, a changed root starts a

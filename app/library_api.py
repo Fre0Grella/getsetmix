@@ -1,7 +1,8 @@
 """The Library API (docs/design/library.md, 3.3), behind the same auth as /api.
 
-This module serves the list, the status, the rescan, and the trash: delete,
-restore and purge. The index itself is in app/library.py.
+This module serves the list, the status, the rescan, one file and its tag
+edit, and the trash: delete, restore and purge. The index and the writes are
+in app/library.py; the routes here are thin callers.
 
 Routes that take an id use the `int` path convertor, so fixed paths such as
 `/api/library/trash` or `/api/library/rules` are never read as an id.
@@ -10,7 +11,8 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
+from fastapi.responses import JSONResponse
 
 from . import library
 
@@ -52,6 +54,27 @@ async def _call(fn, *args):
         return await asyncio.to_thread(fn, *args)
     except library.LibraryError as exc:
         raise HTTPException(exc.status, exc.detail) from None
+
+
+@router.get("/{fid:int}")
+async def library_file(fid: int):
+    item = await asyncio.to_thread(library.current().item, fid)
+    if item is None:
+        raise HTTPException(404, "no such track")
+    return item
+
+
+@router.patch("/{fid:int}")
+async def edit_library_file(fid: int, body: dict = Body(...)):
+    """Edit tags: any of title, artist, album, genre, year and comment, plus an
+    optional `expect` with the values the caller believes the file holds."""
+    changes = dict(body)
+    expect = changes.pop("expect", None)
+    result = await _call(library.current().write_tags, fid, changes, expect)
+    if not result.written:
+        return JSONResponse({"detail": "the file changed", "differs": result.differs},
+                            status_code=412)
+    return result.item
 
 
 @router.delete("/{fid:int}")

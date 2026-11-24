@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/dhowden/tag"
@@ -65,12 +66,9 @@ func Probe(path string) (library.Track, error) {
 	t.FileID, _ = fileID(f)
 
 	if m, err := tag.ReadFrom(f); err == nil {
-		t.Title = clean(m.Title())
-		t.Artist = clean(m.Artist())
-		t.Album = clean(m.Album())
-		t.Genre = clean(m.Genre())
-		t.Comment = clean(m.Comment())
-		t.Year = m.Year()
+		tags := tagsOf(m)
+		t.Title, t.Artist, t.Album, t.Genre, t.Comment, t.Year =
+			tags.Title, tags.Artist, tags.Album, tags.Genre, tags.Comment, tags.Year
 		t.TrackNo, _ = m.Track()
 	}
 
@@ -105,6 +103,76 @@ func Probe(path string) (library.Track, error) {
 	t.BitDepth = s.bitDepth
 	t.SampleRate = s.sampleRate
 	return t, nil
+}
+
+// ReadTags reads the six tag fields GetSetMix edits, read the way Probe reads
+// them for an import. A file with no tags at all is an error.
+func ReadTags(path string) (library.Tags, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return library.Tags{}, err
+	}
+	defer f.Close()
+	m, err := tag.ReadFrom(f)
+	if err != nil {
+		return library.Tags{}, err
+	}
+	return tagsOf(m), nil
+}
+
+// TagsOf is the six tag fields of a probed track.
+func TagsOf(t library.Track) library.Tags {
+	return library.Tags{Title: t.Title, Artist: t.Artist, Album: t.Album, Genre: t.Genre,
+		Year: t.Year, Comment: t.Comment}
+}
+
+func tagsOf(m tag.Metadata) library.Tags {
+	return library.Tags{
+		Title:   clean(m.Title()),
+		Artist:  clean(m.Artist()),
+		Album:   clean(m.Album()),
+		Genre:   clean(m.Genre()),
+		Year:    m.Year(),
+		Comment: clean(commentOf(m)),
+	}
+}
+
+// commentOf is the file's comment, by the server's rule: in ID3 the COMM frame
+// with no description, in English if there are several. The library alone
+// takes whichever frame comes first and may answer with its description
+// ("iTunNORM"), and a tag rewrite can reorder the frames, which would look
+// like a changed comment.
+func commentOf(m tag.Metadata) string {
+	switch m.Format() {
+	case tag.ID3v2_2, tag.ID3v2_3, tag.ID3v2_4:
+	default:
+		return m.Comment()
+	}
+	raw := m.Raw()
+	names := make([]string, 0, len(raw))
+	for name := range raw {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	found, foundEnglish := "", false
+	for _, name := range names {
+		c, ok := raw[name].(*tag.Comm)
+		if !ok {
+			continue
+		}
+		// A frame without the separator parses with its text as the description.
+		text := c.Text
+		if c.Description != "" {
+			if c.Text != "" {
+				continue
+			}
+			text = c.Description
+		}
+		if english := c.Language == "eng"; found == "" || (english && !foundEnglish) {
+			found, foundEnglish = text, english
+		}
+	}
+	return strings.TrimSpace(strings.Trim(found, "\x00"))
 }
 
 // clean drops NUL padding but otherwise keeps tag text verbatim: Rekordbox

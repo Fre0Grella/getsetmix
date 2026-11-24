@@ -240,9 +240,10 @@ func TestMigrationToVersion2(t *testing.T) {
 		"same.mp3": "same", "edited.mp3": "edited on the server", "deleted here.mp3": "x",
 		"new.mp3": "new", "x.ogg": "ogg",
 	}}
+	editedID := idOf(t, "edited.mp3", "edited on the server")
 	s.listing = Listing{Protocol: 2, Rev: 50, Files: []File{
 		file("same.mp3", "same", "a1_same", 10),
-		file("edited.mp3", "edited on the server", "a1_edited", 40),
+		file("edited.mp3", "edited on the server", editedID, 40),
 		file("deleted here.mp3", "x", "a1_deleted", 11),
 		file("new.mp3", "new", "a1_new", 45),
 		file("x.ogg", "ogg", "f1_ogg", 46),
@@ -272,15 +273,20 @@ func TestMigrationToVersion2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Behaviour does not change in this slice: only the new track is fetched.
-	if strings.Join(s.served, ",") != "new.mp3" || len(rep.Downloaded) != 1 {
+	// The new track is fetched, and so is the one whose local size differs
+	// (rev 0: it counts as changed); the one deleted here is not.
+	if strings.Join(s.served, ",") != "edited.mp3,new.mp3" || len(rep.Downloaded) != 1 ||
+		len(rep.Updated) != 1 || strings.Join(rep.Kept, ",") != "deleted here.mp3" {
 		t.Fatalf("served %v, report %+v", s.served, rep)
+	}
+	if got, _ := os.ReadFile(filepath.Join(c.Server.Folder, "edited.mp3")); string(got) != "edited on the server" {
+		t.Fatalf("edited.mp3 holds %q", got)
 	}
 	at := func(day int) time.Time { return time.Date(2026, 10, day, 18, 0, 0, 0, time.UTC) }
 	want := map[string]Track{
 		"a1_same":    {Path: "same.mp3", Rev: 10, At: at(1)},
-		"a1_edited":  {Path: "edited.mp3", Rev: 0, At: at(2)},
-		"a1_deleted": {Path: "deleted here.mp3", Rev: 0, At: at(3)},
+		editedID:     {Path: "edited.mp3", Rev: 40, At: time.Unix(1_800_000_000, 0)},
+		"a1_deleted": {Path: "deleted here.mp3", Rev: 11, At: at(3)},
 		"a1_new":     {Path: "new.mp3", Rev: 45, At: time.Unix(1_800_000_000, 0)},
 	}
 	state, _ = LoadState(home)

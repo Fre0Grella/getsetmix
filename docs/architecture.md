@@ -253,10 +253,11 @@ kinds of write (updating tags, cue points) use the same rules.
 ### 8.2 One-way delivery
 
 The server's library is the full copy. `/api/link` only lists and serves
-files; a track fetched once is never fetched again, so deleting it on a
-computer sticks and never reaches the server. The Library module extends the
-listing with changed and deleted tracks without giving computers a way to
-write.
+files; a track fetched once is never fetched again unless the server
+changed it, so deleting it on a computer sticks and never reaches the
+server. The Library module extends the listing with changed and deleted
+tracks without giving computers a way to write: a changed track is fetched
+again over the local copy, and its existing Rekordbox row is updated.
 
 ### 8.3 Track identity
 

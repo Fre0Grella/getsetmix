@@ -32,6 +32,7 @@ import threading
 import time
 import unicodedata
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -39,7 +40,7 @@ import mutagen
 from mutagen.id3 import ID3
 from mutagen.mp4 import MP4Tags
 
-from . import audiohash, config
+from . import audiohash, config, tagger
 from . import db as dbmod
 from .link import AUDIO_EXTS, served
 from .link import _skip as skipped  # the link's skip rules, shared on purpose
@@ -80,6 +81,45 @@ def _trash_folder(root: Path, trash_rel: str | None) -> Path | None:
     if len(parts) < 3 or parts[0] != TRASH_DIR or parts[1] in ("", ".", ".."):
         return None
     return root / TRASH_DIR / parts[1]
+
+
+YEAR_RANGE = (1000, 9999)
+
+
+@dataclass
+class WriteResult:
+    """What write_tags did: the updated item, or the fields whose values differ."""
+    item: dict | None = None
+    differs: dict | None = None
+
+    @property
+    def written(self) -> bool:
+        return self.differs is None
+
+
+def check_fields(values: dict, what: str = "changes") -> dict:
+    """The six editable fields with valid values; a 400 names what is wrong.
+
+    The year's range applies to what is written. `expect` holds what a file
+    may already contain, so there any integer year is a value to compare.
+    """
+    if not isinstance(values, dict):
+        raise LibraryError(400, f"{what} must be an object")
+    out = {}
+    for field, value in values.items():
+        if field not in tagger.EDIT_FIELDS:
+            raise LibraryError(400, f"{field} is not an editable field")
+        if field == "year":
+            valid = value is None or (isinstance(value, int) and not isinstance(value, bool)
+                                      and (what == "expect"
+                                           or YEAR_RANGE[0] <= value <= YEAR_RANGE[1]))
+            if not valid:
+                raise LibraryError(400, f"year must be an integer from {YEAR_RANGE[0]} to "
+                                        f"{YEAR_RANGE[1]}, or null")
+        elif not isinstance(value, str):
+            raise LibraryError(400, f"{field} must be text")
+        out[field] = value
+    return out
 
 
 def fold(text: str) -> str:
@@ -216,6 +256,7 @@ class Library:
         self._pass = threading.Lock()
         self._idle = threading.Event()
         self._idle.set()
+        self._writing = threading.Lock()  # one tag write, delete or restore at a time
         self.progress = {"running": False, "done": 0, "total": 0}
 
     # -------------------------------------------------------------- meta
@@ -315,6 +356,11 @@ class Library:
                         batch.append((rel, size, mtime_ns, *read))
                 with self.db.transaction() as conn:
                     for rel, size, mtime_ns, aid, tags in batch:
+                        was = rows.get(rel)
+                        if was is not None and tuple(conn.execute(
+                                "SELECT size, mtime_ns FROM library_files WHERE id = ?",
+                                (was["id"],)).fetchone()) != (was["size"], was["mtime_ns"]):
+                            continue  # a tag write got here during this pass
                         kind = self._apply(conn, rel, size, mtime_ns, aid, tags, now,
                                            candidates, moved,
                                            added=min(mtime_ns / 1e9, now) if first else now)
@@ -471,6 +517,10 @@ class Library:
         LibraryError: 404 unknown id, 410 already in the trash or gone, 409 the
         file is not on disk (missing).
         """
+        with self._writing:  # never while a tag write holds a copy of the file
+            return self._trash(fid)
+
+    def _trash(self, fid: int) -> dict:
         root = Path(self.root())
         now = self.clock()
         with self.db.transaction() as conn:
@@ -502,6 +552,10 @@ class Library:
         taken (nothing is renamed to make room), 410 purged, or the trashed file
         itself has vanished (the row is then `gone`).
         """
+        with self._writing:
+            return self._restore(fid)
+
+    def _restore(self, fid: int) -> dict:
         root = Path(self.root())
         now = self.clock()
         vanished = False
@@ -672,6 +726,72 @@ class Library:
         with self.db.transaction() as conn:
             row = conn.execute("SELECT * FROM library_files WHERE id = ?", (fid,)).fetchone()
         return dict(row) if row else None
+
+    def item(self, fid: int) -> dict | None:
+        """One file as `GET /api/library/{id}` shows it: the list item plus
+        comment, bitrate, sample rate and source URL."""
+        with self.db.transaction() as conn:
+            row = conn.execute("SELECT * FROM library_files WHERE id = ?", (fid,)).fetchone()
+            if row is None:
+                return None
+            row = dict(row)
+            same = self._same_audio(conn, [row])
+        return {**self._item(row, same), "comment": row["comment"], "bitrate": row["bitrate"],
+                "sample_rate": row["sample_rate"], "source_url": row["source_url"]}
+
+    # ------------------------------------------------------------ writes
+    def write_tags(self, file_id: int, changes: dict, expect: dict | None = None) -> WriteResult:
+        """Write any of the six tag fields into one file, in one atomic write
+        that takes one `rev` (docs/design/library.md, 4.3).
+
+        With `expect`, the named fields are read from the file itself first; if
+        one differs, nothing is written and the result's `differs` holds the
+        file's values of the fields that differ.
+
+        Raises LibraryError: 400 a field or value that is not valid, 404 unknown
+        id, 409 read-only format or fallback id, 410 trashed, gone or not on
+        disk, 423 another program holds the file.
+        """
+        changes = check_fields(changes)
+        expect = check_fields(expect, "expect") if expect is not None else {}
+        with self._writing:
+            row = self.file(file_id)
+            if row is None:
+                raise LibraryError(404, "no such track")
+            if row["state"] != "present":
+                raise LibraryError(410, "the file is in the trash" if row["state"] == "trashed"
+                                   else "the file is no longer in the library")
+            if not self._editable(row["format"], row["audio_id"]):
+                raise LibraryError(409, "a damaged file cannot be edited"
+                                   if audiohash.is_fallback(row["audio_id"]) else
+                                   f"{row['format'] or 'this format'} is read-only in this version")
+            path = self.root() / row["path"]
+            if not path.is_file():
+                raise LibraryError(410, "the file is not on disk")
+            if expect:
+                now_in_file = read_tags(path)
+                differs = {f: now_in_file[f] for f, v in expect.items() if now_in_file[f] != v}
+                if differs:
+                    return WriteResult(differs=differs)
+            if changes:
+                try:
+                    tagger.edit_file(path, changes)
+                except PermissionError as exc:
+                    raise LibraryError(423, "the file is in use by another program: close it "
+                                            "there (or unload it from the deck) and try "
+                                            "again") from exc
+                st = path.stat()
+                tags = read_tags(path)
+                with self.db.transaction() as conn:
+                    rev = self._next_rev(conn)
+                    fields = {**self._columns(row["path"], st.st_size, st.st_mtime_ns,
+                                              row["audio_id"], tags),
+                              "rev": rev, "content_rev": rev}
+                    sets = ", ".join(f"{k} = ?" for k in fields)
+                    conn.execute(f"UPDATE library_files SET {sets} WHERE id = ?",
+                                 (*fields.values(), file_id))
+                log.info("library: edited %s (%s)", row["path"], ", ".join(changes))
+        return WriteResult(item=self.item(file_id))
 
     @staticmethod
     def _where(q: str | None, genre: str | None, folder: str | None,

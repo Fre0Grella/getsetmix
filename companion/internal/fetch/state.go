@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 )
 
 const (
@@ -42,6 +44,60 @@ type Track struct {
 	Path string    `json:"path"` // the server path it was fetched from
 	Rev  int64     `json:"rev"`  // the rev this computer holds; 0 means older than any
 	At   time.Time `json:"at"`
+	// Tags are the six tag fields as this computer last saw them: read from
+	// the file when it was first fetched, and kept when a newer copy replaces
+	// it until the importer has written the changes to Rekordbox. Nil when not
+	// known (a track fetched before tags were remembered, or a file without
+	// tags).
+	Tags *library.Tags `json:"tags,omitempty"`
+	// Pending is set when fetch put a newer copy in place, until the importer
+	// has brought the Rekordbox row in line with it.
+	Pending bool `json:"pending,omitempty"`
+}
+
+// Stale names the local files whose newer copy Rekordbox does not have yet:
+// library.PathKey -> audio id. A track with a tombstone is left out, since the
+// server no longer has it. When a server path was replaced by other audio,
+// two ids share the path and only the newest one speaks for the file.
+func (s *State) Stale(folder string) map[string]string {
+	newest := map[string]string{}
+	for id, t := range s.Tracks {
+		p, err := Local(folder, t.Path)
+		if err != nil {
+			continue
+		}
+		key := library.PathKey(p)
+		cur, seen := newest[key]
+		if !seen || t.Rev > s.Tracks[cur].Rev || (t.Rev == s.Tracks[cur].Rev && id > cur) {
+			newest[key] = id
+		}
+	}
+	out := map[string]string{}
+	for key, id := range newest {
+		if _, removed := s.Removed[id]; s.Tracks[id].Pending && !removed {
+			out[key] = id
+		}
+	}
+	return out
+}
+
+// Remember notes the tags this computer has seen for the track with audio id;
+// whatever was waiting for the importer has been handled.
+func (s *State) Remember(id string, tags library.Tags) {
+	if t, ok := s.Tracks[id]; ok {
+		t.Tags, t.Pending = &tags, false
+		s.Tracks[id] = t
+	}
+}
+
+// Newer reports whether the listing holds a newer copy of a fetched track:
+// its rev is above the one this computer holds.
+func (s *State) Newer(f File) bool {
+	if !s.byID || f.ID == "" {
+		return false
+	}
+	t, ok := s.Tracks[f.ID]
+	return ok && f.Rev > t.Rev
 }
 
 // NewState is an empty state, written as version 1 until a protocol 2 server
