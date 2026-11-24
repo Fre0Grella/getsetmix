@@ -1,6 +1,36 @@
 # CHANGELOG
 
 
+## v1.12.0 (2026-11-24)
+
+### Features
+
+- **library**: Delete and restore ([#60](https://github.com/Fre0Grella/getsetmix/pull/60),
+  [`b7bc619`](https://github.com/Fre0Grella/getsetmix/commit/b7bc619b5cdcf444a82bb1c57f34551913075246))
+
+* feat(library): delete and restore
+
+Trash with restore and purge (trash_days, default 30), tombstones in removed[], the Trash view and
+  an Undo toast. The companion adds removed tracks to a 'GetSetMix: removed on server' playlist
+  under the importer's safety and can move the local file to the recycle bin (opt-in, off).
+
+Closes #38
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+* fix(library): keep replaced and vanished files
+
+A path the server lists again under another id was replaced, so it is no longer a removal and leaves
+  the "removed on server" playlist. The option to delete the local file acts only on tracks deleted
+  in GetSetMix: a file that vanished from the server may have its last copy on this computer.
+
+---------
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.11.0 (2026-11-14)
 
 ### Documentation
