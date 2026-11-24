@@ -1,6 +1,49 @@
 # CHANGELOG
 
 
+## v1.16.1 (2026-11-24)
+
+### Bug Fixes
+
+- One definition per thing, typed ([#76](https://github.com/Fre0Grella/getsetmix/pull/76),
+  [`5cfe94f`](https://github.com/Fre0Grella/getsetmix/commit/5cfe94fb903370c51bb565a4ea4dcc667e71026d))
+
+The fixes from the 2026-11-24 health check, with the ceilings lowered: ruff 45 -> 39, pyright 30 ->
+  0, Python duplication 0.13 -> 0, staticcheck 5 -> 0, coverage floor 86 -> 93. Background tasks
+  kept until done; staged covers checked like Library covers; one helper each for atomic writes
+  (Python and Go), timestamps, outbound requests and bearer parsing; settings values only in config.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+### Continuous Integration
+
+- Ratchet lint, types and coverage ([#74](https://github.com/Fre0Grella/getsetmix/pull/74),
+  [`9c9eef1`](https://github.com/Fre0Grella/getsetmix/commit/9c9eef1f0eb9539f9bb0acb6f40f585af96e2cfe))
+
+Ceilings in ratchets.json at today's values, checked by scripts/ratchet.py: ruff 45, pyright 30,
+  import contracts 0 broken, duplication py 0.13 / js 0 / go 0.27, coverage floor 86, staticcheck 5
+  (Linux). Browser smoke tests in tests/ui run in a new ui job.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+### Documentation
+
+- Write down the code rules and checks ([#75](https://github.com/Fre0Grella/getsetmix/pull/75),
+  [`ea160f0`](https://github.com/Fre0Grella/getsetmix/commit/ea160f04c899e0e386e00d917793e8e337dff7bb))
+
+docs/architecture.md 8.8: the layering, pure modules, settings only in config.py, one definition per
+  thing, and the rule -> check table; decision 9 (CI ratchets). Module tables, track identity and
+  risks brought up to date. CLAUDE.md points future sessions at 8.8.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.16.0 (2026-11-24)
 
 ### Features
