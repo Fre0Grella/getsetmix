@@ -12,11 +12,12 @@
   <meta name="theme-color" content="#14161b" />
   <script>
     // Theme before first paint: "light" / "dark" pin it, anything else follows the system.
+    // data-theme always holds the theme shown, so the CSS has one dark palette.
     (function () {
       var t = null;
       try { t = localStorage.getItem("gsm_theme"); } catch (e) { /* storage blocked */ }
-      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
-      else t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.dataset.theme = t;
       document.querySelector('meta[name="theme-color"]').content = t === "dark" ? "#14161b" : "#fdfdff";
     })();
   </script>

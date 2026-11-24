@@ -35,10 +35,10 @@ try { themePref = localStorage.getItem(THEME_KEY) || "system"; } catch { /* stor
 
 function applyTheme(pref) {
   themePref = pref === "light" || pref === "dark" ? pref : "system";
-  const root = document.documentElement;
-  if (themePref === "system") delete root.dataset.theme;
-  else root.dataset.theme = themePref;
+  // data-theme holds the theme shown, the system's when following it: the CSS
+  // has one dark palette, keyed on it (index.html sets it before first paint).
   const shown = themePref === "system" ? (darkScheme.matches ? "dark" : "light") : themePref;
+  document.documentElement.dataset.theme = shown;
   $('meta[name="theme-color"]').content = THEME_BAR[shown];
   document.querySelectorAll('input[name="theme"]').forEach((r) => { r.checked = r.value === themePref; });
 }
