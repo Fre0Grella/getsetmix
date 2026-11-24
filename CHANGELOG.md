@@ -1,6 +1,27 @@
 # CHANGELOG
 
 
+## v1.13.0 (2026-11-24)
+
+### Features
+
+- **library**: Edit one track, all the way ([#63](https://github.com/Fre0Grella/getsetmix/pull/63),
+  [`7ce6797`](https://github.com/Fre0Grella/getsetmix/commit/7ce679756898c835a023ea0f9593cb2e4d681cb3))
+
+Add the tagger's atomic edit path, library.write_tags with a check of old values, GET and PATCH
+  /api/library/{id}, and the detail sheet. An edit keeps the file's owner, so a shared volume stays
+  accessible.
+
+On the computer, a track with a newer rev is downloaded again and checked against its audio id. The
+  importer then updates only the changed fields of its Rekordbox row, under the existing safety.
+
+Closes #37
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.12.0 (2026-11-24)
 
 ### Features
