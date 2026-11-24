@@ -159,7 +159,7 @@ flowchart TB
 | `db.py` | SQLite: staged and processed tracks, URL history, counters |
 | `link.py` | `/api/link`: what paired computers may list and download |
 | `config.py`, `metrics.py` | settings with env overrides; Prometheus text |
-| `static/` | the UI: vanilla JavaScript, English and Italian, light and dark |
+| `static/` | the UI: vanilla JavaScript as ES modules, no build step, English and Italian, light and dark. `app.js` is the entry (Downloads, settings) and loads `library.js` (the Library screen); both use `core.js` (requests and the token, escaping, toasts, the yes/no dialog), `i18n.js` (the words) and `cover.js` (the cover picker). `library.js` never imports `app.js`. |
 
 How they may depend on each other is in [8.8](#88-code-structure-and-its-checks).
 

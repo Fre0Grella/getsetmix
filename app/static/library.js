@@ -1,10 +1,14 @@
 /* GetSetMix: the Library view (docs/design/library.md 4.5): a virtualised
    list with covers, genre and folder filters and sorts, the detail sheet that
    edits one track (tags, cover, a preview player), and the trash (delete with
-   an Undo toast, Restore, Empty trash). Loaded after app.js and uses its
-   helpers: api(), request(), esc(), fmtDur(), toast(), authHeaders(), genrePicks, narrow,
-   coverSink, doCoverSearch(), T, STR. */
-"use strict";
+   an Undo toast, Restore, Empty trash). Loaded by app.js, which opens a
+   track's sheet from the Downloads screen through openSheet(). */
+import {
+  $, api, askConfirm, esc, fmtDur, libRules, narrow, request, shared, toast,
+  toastAction,
+} from "./core.js";
+import { openCoverModal } from "./cover.js";
+import { lang, STR, T } from "./i18n.js";
 
 Object.assign(STR.en, {
   viewSwitch: "View", viewDownloads: "Downloads", viewLibrary: "Library",
@@ -589,7 +593,7 @@ function sheetChanges() {
 
 function sheetChips() {
   const genre = tagInput("genre").value;
-  const picks = [...new Set([...(Sheet.item?.genre ? [Sheet.item.genre] : []), ...genrePicks])].slice(0, 9);
+  const picks = [...new Set([...(Sheet.item?.genre ? [Sheet.item.genre] : []), ...shared.genrePicks])].slice(0, 9);
   $("#libSheetChips").innerHTML = picks.map((g) =>
     `<button type="button" class="chip" data-genre="${esc(g)}" aria-pressed="${g === genre}">${esc(g)}</button>`).join("");
 }
@@ -705,7 +709,7 @@ function sheetFill(item) {
   audioArm(item);
 }
 
-async function openSheet(id) {
+export async function openSheet(id) {
   try {
     const item = await api(`/api/library/${id}`);
     sheetFill(item);
@@ -856,15 +860,10 @@ async function saveCover(body, isUpload) {
 $("#libCoverBtn").addEventListener("click", () => {
   const item = Sheet.item;
   if (!item || !item.editable) return;
-  coverTrackId = null;
-  coverSink = {
+  openCoverModal([item.artist, item.title].filter(Boolean).join(" "), {
     url: (full) => saveCover({ url: full }, false),
     file: (f) => { const fd = new FormData(); fd.append("file", f); return saveCover(fd, true); },
-  };
-  $("#coverQuery").value = [item.artist, item.title].filter(Boolean).join(" ");
-  $("#coverResults").innerHTML = "";
-  $("#coverModal").classList.remove("hidden");
-  if ($("#coverQuery").value) doCoverSearch();
+  });
 });
 
 // A row opens its sheet, except in the trash and on its delete or restore button.
@@ -906,19 +905,6 @@ function setTrash(on) {
 }
 
 // A toast with one action button, for Undo; it stays a little longer than a plain one.
-function toastAction(msg, label, fn) {
-  const el = $("#toast");
-  el.innerHTML = `<span class="toast-msg">${esc(msg)}</span><button type="button" class="toast-act">${esc(label)}</button>`;
-  el.classList.remove("hidden");
-  el.classList.add("toast--action");
-  clearTimeout(toast._t);
-  el.querySelector(".toast-act").addEventListener("click", () => {
-    clearTimeout(toast._t);
-    el.classList.add("hidden");
-    fn();
-  }, { once: true });
-  toast._t = setTimeout(() => el.classList.add("hidden"), 7000);
-}
 
 function libDrop(id) {
   const i = Lib.rows.findIndex((t) => t.id === id);

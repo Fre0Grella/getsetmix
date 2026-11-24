@@ -1,175 +1,28 @@
-/* GetSetMix front-end */
-"use strict";
+/* GetSetMix front-end: the Downloads screen, settings and the folder picker.
+   The entry module: it loads the Library screen (library.js) with it. */
+import {
+  $, api, askConfirm, errorOf, esc, fmtDur, libRules, narrow, request, shared, toast,
+} from "./core.js";
+import { openCoverModal } from "./cover.js";
+import { lang, setLang, T } from "./i18n.js";
+import { openSheet } from "./library.js";
 
-const STR = {
-  it: {
-    offline: "Il server non risponde",
-    paste: "Aggiungi", download: "Scarica", cancel: "Ferma",
-    urlPh: "Incolla il link di una traccia o playlist",
-    settings: "Impostazioni", save: "Salva", close: "Chiudi", search: "Cerca",
-    secDownloads: "Download", secLibrary: "Libreria",
-    secInterface: "Interfaccia", secMaintenance: "Manutenzione",
-    outputFormat: "Formato", concurrency: "Download paralleli",
-    template: "Nome file", libraryRoot: "Cartella libreria",
-    trashDays: "Tieni i brani eliminati (giorni)",
-    trashDaysHint: "Poi il cestino li cancella per sempre. 0 li tiene finché non svuoti il cestino.",
-    browse: "Sfoglia", select: "Seleziona",
-    pickerTitle: "Scegli un percorso",
-    language: "Lingua", coverTitle: "Copertina", uploadCover: "Carica un'immagine",
-    purgeCompleted: "Togli le righe finite", purgeHistory: "Dimentica i link",
-    colTrack: "Traccia", colAlbum: "Album", colGenre: "Genere", colTime: "Durata", colStatus: "Stato",
-    emptyTitle: "La cassa è ancora vuota",
-    emptyHint: "Incolla qui sotto un link di YouTube o SoundCloud. Una playlist diventa una riga per traccia.",
-    footSource: "Codice sorgente",
-    footDocs: "Guida",
-    footLicenses: "Licenze",
-    footMadeBy: "Fatto con ❤️ da FreoGrella",
-    footDonate: "☕ Dona",
-    shareHint: "Su Android, installa GetSetMix e condividi i link direttamente da YouTube o SoundCloud.",
-    pasteAnywhere: "funziona ovunque nella pagina",
-    theme: "Tema", themeSystem: "Auto", themeLight: "Chiaro", themeDark: "Scuro",
-    themeHint: "Vale solo per questo dispositivo.", doneEdit: "Fatto",
-    fetching: u => `Lettura di ${u}`,
-    ready: "Pronto", queued: "In coda", processing: p => `${p}%`,
-    tagging: "Scrittura tag", done: "Nella libreria", retry: "Riprova", remove: "Rimuovi",
-    inTrash: "Nel cestino", gone: "Non è più nella libreria",
-    downloadOne: "Scarica questa", showPath: "Copia il percorso", changeCover: "Cambia copertina",
-    downloading: "Download in corso", titlePh: "Titolo (obbligatorio)",
-    artistPh: "Artista (obbligatorio)", albumPh: "Aggiungi album", genrePh: "Aggiungi genere",
-    statsLine: (a, b, c) => `${a} negli ultimi 30 giorni · ${b} nell'anno · ${c} in totale`,
-    notUrl: "Questo non sembra un link",
-    duplicate: "Questo link è già stato scaricato",
-    dupBadge: "Già presente?",
-    dupOf: (t) => `Già nella libreria: “${t}”. Tocca per aprirlo.`,
-    dupConfirm: n => (n === 1 ? "1 brano sembra già nella tua libreria. Scaricarlo comunque?"
-      : `${n} brani sembrano già nella tua libreria. Scaricarli comunque?`),
-    dupAnyway: "Scarica comunque", dupSkip: "Salta i duplicati",
-    batchOf: (d, t) => `${d} di ${t}`,
-    needMeta: "Servono titolo e artista",
-    purged: n => `Eliminati ${n} elementi`, saved: "Impostazioni salvate",
-    copyPath: "Percorso copiato", tokenPrompt: "Token di accesso:",
-    coverSet: "Copertina aggiornata",
-  },
-  en: {
-    offline: "The server does not answer",
-    paste: "Add", download: "Download", cancel: "Stop",
-    urlPh: "Paste a track or playlist link",
-    settings: "Settings", save: "Save", close: "Close", search: "Search",
-    secDownloads: "Downloads", secLibrary: "Library",
-    secInterface: "Interface", secMaintenance: "Housekeeping",
-    outputFormat: "Format", concurrency: "Parallel downloads",
-    template: "File name", libraryRoot: "Library folder",
-    trashDays: "Keep deleted tracks (days)",
-    trashDaysHint: "Then the trash removes them for good. 0 keeps them until you empty the trash.",
-    browse: "Browse", select: "Select",
-    pickerTitle: "Choose a path",
-    language: "Language", coverTitle: "Cover art", uploadCover: "Upload an image",
-    purgeCompleted: "Clear finished rows", purgeHistory: "Forget link history",
-    colTrack: "Track", colAlbum: "Album", colGenre: "Genre", colTime: "Time", colStatus: "Status",
-    emptyTitle: "Nothing in the crate yet",
-    emptyHint: "Paste a YouTube or SoundCloud link below. A playlist becomes one row per track.",
-    footSource: "Source code",
-    footDocs: "Docs",
-    footLicenses: "Licenses",
-    footMadeBy: "Made with ❤️ by FreoGrella",
-    footDonate: "☕ Donate",
-    shareHint: "On Android, install GetSetMix and share links to it straight from YouTube or SoundCloud.",
-    pasteAnywhere: "works anywhere on this page",
-    theme: "Theme", themeSystem: "Auto", themeLight: "Light", themeDark: "Dark",
-    themeHint: "Applies to this device only.", doneEdit: "Done",
-    fetching: u => `Reading ${u}`,
-    ready: "Ready", queued: "Queued", processing: p => `${p}%`,
-    tagging: "Writing tags", done: "In your library", retry: "Retry", remove: "Remove",
-    inTrash: "In the trash", gone: "Not in your library anymore",
-    downloadOne: "Download this one", showPath: "Copy file path", changeCover: "Change cover",
-    downloading: "Downloading", titlePh: "Title (required)",
-    artistPh: "Artist (required)", albumPh: "Add album", genrePh: "Add genre",
-    statsLine: (a, b, c) => `${a} in the last 30 days · ${b} this year · ${c} all time`,
-    notUrl: "That doesn't look like a link",
-    duplicate: "This link was downloaded before",
-    dupBadge: "Already owned?",
-    dupOf: (t) => `Already in your library: “${t}”. Tap to open it.`,
-    dupConfirm: n => (n === 1 ? "1 track looks like it's already in your library. Download it anyway?"
-      : `${n} tracks look like they're already in your library. Download them anyway?`),
-    dupAnyway: "Download anyway", dupSkip: "Skip the duplicates",
-    batchOf: (d, t) => `${d} of ${t}`,
-    needMeta: "Title and artist are required",
-    purged: n => `Removed ${n} items`, saved: "Settings saved",
-    copyPath: "Path copied", tokenPrompt: "Access token:",
-    coverSet: "Cover updated",
-  },
-};
 
 // The genre list and the one-tap picks live on the server (app/genres.py) and
 // arrive with GET /api/library/rules; see loadGenres().
-const $ = (sel) => document.querySelector(sel);
 const list = $("#trackList");
-// Phones: rows are compact until tapped open. Matches the CSS breakpoint.
-const narrow = matchMedia("(max-width: 720px)");
 
-let lang = "en";
-let T = STR[lang];
 let tracks = [];
 let busy = false;
 let batchTotal = 0;
 let settingsCache = {};
-let coverTrackId = null;
-let coverSink = null; // the Library's cover edit: { url(fullUrl), file(File) } takes the picks instead
 let pollTimer = null;
 let highlightId = null; // newly added (e.g. shared) track to scroll to + flash
 let openId = null; // the row expanded for editing on a phone
 let genreBasePicks = []; // the server's one-tap picks
-// Rules the Library sheet applies as you type, from /api/library/rules; the
-// server checks them again on save, so before they arrive nothing is refused.
-const libRules = { year: null, source: null };
-let genrePicks = genreBasePicks;
 const dirtyFields = new Set(); // "id:field" being edited right now
 const rowCache = new Map(); // id -> last-rendered row HTML, to skip untouched DOM
 
-// ------------------------------------------------------------------ fetch
-function authHeaders() {
-  const tok = localStorage.getItem("gsm_token");
-  return tok ? { "X-Auth-Token": tok } : {};
-}
-
-// Every request goes through here: it adds the token and, on a 401, asks
-// for it and tries again. One question at a time, shared by the requests
-// that fail together (the covers of a screenful of rows); a dismissed
-// question is not asked again until the page reloads, so polling never
-// turns into a stream of prompts. The Response is the caller's, any status
-// but 401; api() below is the JSON shortcut.
-let tokenAsked = null;
-async function request(path, opts = {}) {
-  const send = () => fetch(path, { ...opts, headers: { ...authHeaders(), ...(opts.headers || {}) } });
-  const res = await send();
-  if (res.status !== 401) return res;
-  const asking = tokenAsked ??= Promise.resolve().then(() => {
-    const tok = prompt(T.tokenPrompt);
-    if (tok) localStorage.setItem("gsm_token", tok);
-    return Boolean(tok);
-  });
-  if (!(await asking)) throw new Error("unauthorized");
-  if (tokenAsked === asking) tokenAsked = null; // answered: a later 401 may ask again
-  return send();
-}
-
-// The message of a failed response: the server's `detail`, else its status text.
-async function errorOf(res) {
-  let detail = res.statusText;
-  try { detail = (await res.json()).detail || detail; } catch { /* noop */ }
-  const err = new Error(detail);
-  err.status = res.status;
-  return err;
-}
-
-async function api(path, opts = {}) {
-  const res = await request(path, {
-    ...opts, headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-  });
-  if (!res.ok) throw await errorOf(res);
-  if (res.status === 204) return null;
-  return res.json();
-}
 
 // ------------------------------------------------------------------ theme
 // Per device, not a server setting: the phone can be dark while the desktop
@@ -207,8 +60,7 @@ $("#footYear").textContent = new Date().getFullYear();
 
 // ------------------------------------------------------------------- i18n
 function applyLang(next) {
-  lang = STR[next] ? next : "en";
-  T = STR[lang];
+  setLang(next);
   document.documentElement.lang = lang;
   document.querySelectorAll("[data-i18n]").forEach((el) => {
     const v = T[el.dataset.i18n];
@@ -235,18 +87,7 @@ const I = {
 };
 
 // ----------------------------------------------------------------- render
-function fmtDur(sec) {
-  sec = Math.round(sec || 0);
-  if (!sec) return "";
-  const m = Math.floor(sec / 60), s = sec % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, (c) => (
-    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-  ));
-}
 
 
 // yt-dlp prefixes everything with "ERROR:"; the cell is narrow, the tooltip has it all.
@@ -306,7 +147,7 @@ function rowHtml(t) {
     open ? "is-open" : "",
   ].join(" ").trim();
   const chips = open && editable
-    ? `<div class="genre-chips">${genrePicks.map((g) =>
+    ? `<div class="genre-chips">${shared.genrePicks.map((g) =>
         `<button type="button" class="chip" data-act="genre" data-genre="${esc(g)}" aria-pressed="${g === t.genre}">${esc(g)}</button>`
       ).join("")}</div>`
     : "";
@@ -354,7 +195,7 @@ function render() {
   const used = new Map();
   for (const t of tracks) if (t.genre) used.set(t.genre, (used.get(t.genre) || 0) + 1);
   const top = [...used].sort((a, b) => b[1] - a[1]).map(([g]) => g);
-  genrePicks = [...new Set([...top, ...genreBasePicks])].slice(0, 8);
+  shared.genrePicks = [...new Set([...top, ...genreBasePicks])].slice(0, 8);
 
   // Reconcile rows keyed by id instead of rebuilding the whole list every poll.
   // Wholesale innerHTML replacement tore down (and repainted) even the input the
@@ -503,39 +344,7 @@ function showHealth() {
 }
 
 // ---------------------------------------------------------------- actions
-function toast(msg) {
-  const el = $("#toast");
-  el.textContent = msg;
-  el.classList.remove("hidden", "toast--action");
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.add("hidden"), 2600);
-}
 
-// The app's own yes/no question (not the browser's confirm(), which looks
-// foreign and can be turned off). Resolves true only on `yes`; Cancel, the
-// backdrop and Escape all hide the modal, which answers false.
-function askConfirm(text, yes, no, { danger = false } = {}) {
-  const modal = $("#confirmModal");
-  const ok = $("#confirmYes");
-  $("#confirmText").textContent = text;
-  ok.textContent = yes;
-  $("#confirmNo").textContent = no;
-  ok.className = `btn ${danger ? "btn-danger" : "btn-primary"}`;
-  modal.classList.remove("hidden");
-  ok.focus();
-  return new Promise((resolve) => {
-    let answer = false;
-    const onYes = () => { answer = true; modal.classList.add("hidden"); };
-    const watch = new MutationObserver(() => {
-      if (!modal.classList.contains("hidden")) return;
-      watch.disconnect();
-      ok.removeEventListener("click", onYes);
-      resolve(answer);
-    });
-    ok.addEventListener("click", onYes);
-    watch.observe(modal, { attributes: true, attributeFilter: ["class"] });
-  });
-}
 
 async function addUrl(url) {
   if (!/^https?:\/\//i.test(url)) { toast(T.notUrl); return null; }
@@ -678,7 +487,7 @@ list.addEventListener("click", async (e) => {
         catch { prompt("", t.file_path); }
       }
     } else if (act === "cover") {
-      openCoverModal(id);
+      pickStagedCover(id);
     } else if (act === "restore") {
       await restoreDownload(tracks.find((x) => x.id === id));
     } else if (act === "dup-open") {
@@ -702,61 +511,29 @@ async function restoreDownload(t) {
   schedulePoll(150);
 }
 
-// ------------------------------------------------------------- cover modal
-function openCoverModal(id) {
-  coverTrackId = id;
-  coverSink = null;
+// A staged download's cover: a searched image is set by its URL, an upload is
+// stored with the track; either way the row refreshes.
+function pickStagedCover(id) {
   const t = tracks.find((x) => x.id === id);
-  $("#coverQuery").value = [t?.artist, t?.title].filter(Boolean).join(" ");
-  $("#coverResults").innerHTML = "";
-  $("#coverModal").classList.remove("hidden");
-  if ($("#coverQuery").value) doCoverSearch();
+  const done = () => { $("#coverModal").classList.add("hidden"); toast(T.coverSet); schedulePoll(150); };
+  openCoverModal([t?.artist, t?.title].filter(Boolean).join(" "), {
+    url: async (full) => {
+      try {
+        await api(`/api/tracks/${id}`, { method: "PATCH", body: JSON.stringify({ cover_url: full }) });
+        done();
+      } catch (err) { toast(err.message); }
+    },
+    file: async (file) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      try {
+        const res = await request(`/api/tracks/${id}/cover`, { method: "POST", body: fd });
+        if (!res.ok) throw await errorOf(res);
+        done();
+      } catch (err) { toast(err.message); }
+    },
+  });
 }
-
-async function doCoverSearch() {
-  const q = $("#coverQuery").value.trim();
-  if (!q) return;
-  $("#coverResults").innerHTML = '<span class="dashes"><i></i><i></i><i></i></span>';
-  try {
-    const res = await api(`/api/cover-search?q=${encodeURIComponent(q)}`);
-    $("#coverResults").innerHTML = res.results.map((r) =>
-      `<button data-full="${esc(r.full)}" title="${esc(r.label)}"><img src="${esc(r.thumb)}" alt=""></button>`
-    ).join("") || `<small>—</small>`;
-  } catch (e) { $("#coverResults").innerHTML = `<small>${esc(e.message)}</small>`; }
-}
-
-$("#btnCoverSearch").addEventListener("click", doCoverSearch);
-$("#coverQuery").addEventListener("keydown", (e) => { if (e.key === "Enter") doCoverSearch(); });
-
-$("#coverResults").addEventListener("click", async (e) => {
-  const btn = e.target.closest("button[data-full]");
-  if (btn && coverSink) { coverSink.url(btn.dataset.full); return; }
-  if (!btn || !coverTrackId) return;
-  try {
-    await api(`/api/tracks/${coverTrackId}`, {
-      method: "PATCH", body: JSON.stringify({ cover_url: btn.dataset.full }),
-    });
-    $("#coverModal").classList.add("hidden");
-    toast(T.coverSet);
-    schedulePoll(150);
-  } catch (err) { toast(err.message); }
-});
-
-$("#coverFile").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (file && coverSink) { coverSink.file(file); e.target.value = ""; return; }
-  if (!file || !coverTrackId) return;
-  const fd = new FormData();
-  fd.append("file", file);
-  try {
-    const res = await request(`/api/tracks/${coverTrackId}/cover`, { method: "POST", body: fd });
-    if (!res.ok) throw await errorOf(res);
-    $("#coverModal").classList.add("hidden");
-    toast(T.coverSet);
-    schedulePoll(150);
-  } catch (err) { toast(err.message); }
-  e.target.value = "";
-});
 
 // --------------------------------------------------------- settings modal
 async function openSettings() {

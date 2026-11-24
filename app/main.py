@@ -5,6 +5,7 @@ import asyncio
 import base64
 import json
 import logging
+import mimetypes
 import os
 import secrets
 import string
@@ -573,6 +574,10 @@ async def licenses_agpl():
 
 
 # --------------------------------------------------------------------- UI
+# The UI is ES modules, which a browser runs only when served as JavaScript.
+# Python takes types from the system, and a Windows registry can say
+# text/plain for .js: pin it, or the local app would show a blank page.
+mimetypes.add_type("text/javascript", ".js")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
