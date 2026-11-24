@@ -196,7 +196,7 @@ function libRowHtml(t, i) {
       <span class="lib-title">${title}</span>
       <span class="lib-sub"><span class="lib-artist">${esc(t.artist)}</span>${libFlags(t)}</span>
     </div>
-    <span class="lib-genre">${t.genre ? `<span class="lib-chip">${esc(t.genre)}</span>` : ""}</span>
+    <span class="lib-genre">${t.genre ? `<span class="lib-chip badge">${esc(t.genre)}</span>` : ""}</span>
     <span class="lib-dur">${fmtDur(t.duration)}</span>
     ${act}
   </article>`;

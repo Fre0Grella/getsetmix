@@ -16,3 +16,15 @@ helper or a layer. Module designs live in `docs/design/`.
   its ceiling in the same pull request.
 - Every test names what it protects, goes through the interface, and can
   fail. Check UI changes in a browser, not only with tests.
+
+## Commits and PR titles
+
+CI rejects these, so check them by counting in the shell before every
+`git commit`, `gh pr create` and `gh pr merge --subject`:
+
+- The squash headline, `"<PR title> (#<number>)"`, is at most 50
+  characters. Before the PR exists, count with the next number
+  (issues and PRs share numbers: `gh api "repos/Fre0Grella/getsetmix/issues?state=all&per_page=1" -q '.[0].number'` + 1):
+  `t="fix(ui): the title"; echo $(( ${#t} + 6 ))`.
+- The subject starts lowercase after `type(scope): `.
+- Body and footer lines are at most 100 characters; wrap at 72.
