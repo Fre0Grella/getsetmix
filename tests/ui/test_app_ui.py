@@ -44,6 +44,7 @@ def test_a_401_asks_for_the_token_once_however_many_requests_fail(open_tab):
     # Several requests fail together at load; a dismissed question is not asked again.
     tab = open_tab("/")
     tab.page.route("**/api/**", lambda route: route.fulfill(status=401, body="{}"))
-    tab.page.reload()
+    # not waiting for "load": the prompt can open while the page is still loading
+    tab.page.reload(wait_until="commit")
     tab.page.wait_for_timeout(5000)  # past the next poll
     assert len(tab.dialogs) == 1, tab.dialogs
