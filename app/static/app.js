@@ -35,10 +35,10 @@ try { themePref = localStorage.getItem(THEME_KEY) || "system"; } catch { /* stor
 
 function applyTheme(pref) {
   themePref = pref === "light" || pref === "dark" ? pref : "system";
-  const root = document.documentElement;
-  if (themePref === "system") delete root.dataset.theme;
-  else root.dataset.theme = themePref;
+  // data-theme holds the theme shown, the system's when following it: the CSS
+  // has one dark palette, keyed on it (index.html sets it before first paint).
   const shown = themePref === "system" ? (darkScheme.matches ? "dark" : "light") : themePref;
+  document.documentElement.dataset.theme = shown;
   $('meta[name="theme-color"]').content = THEME_BAR[shown];
   document.querySelectorAll('input[name="theme"]').forEach((r) => { r.checked = r.value === themePref; });
 }
@@ -78,7 +78,7 @@ function applyLang(next) {
 // ------------------------------------------------------------------ icons
 const I = {
   dl: '<svg viewBox="0 0 24 24"><path d="M12 5v10m0 0l-4-4m4 4l4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 19h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
-  x: '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><use href="#i-close"/></svg>', // the sprite in index.html
   retry: '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M20 11a8 8 0 1 0-2.34 6.06M20 5v6h-6"/></svg>',
   folder: '<svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h3.5l2 2H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
   up: '<svg viewBox="0 0 24 24"><path d="M12 19V5m0 0l-6 6m6-6l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
