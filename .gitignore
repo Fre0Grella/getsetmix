@@ -44,3 +44,4 @@ logs/
 # Archives
 *.zip
 *.tar.gz
+coverage.json

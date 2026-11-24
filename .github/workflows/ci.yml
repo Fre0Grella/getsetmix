@@ -13,12 +13,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      # Same version as .pre-commit-config.yaml: newer ruff releases widen the
-      # default rule set, which would fail CI with no code change.
-      - run: pip install ruff==0.6.9
-      - run: ruff check app scripts tests testdata run_local.py
+          cache: pip
+      # Tool versions are pinned in requirements-dev.txt: a new release can find
+      # more, which would change the counts below with no code change.
+      - run: pip install -r requirements-dev.txt
       # The UI has no build step, so nothing else would notice a syntax error.
       - run: for f in app/static/*.js; do node --check "$f"; done
+      # The ratchet: ruff, pyright, import-linter (pyproject.toml) and jscpd
+      # duplication. Each count must stay at or below its ceiling in
+      # ratchets.json. To LOWER a ceiling, edit that number in the same PR that
+      # improves the code (the script prints "lower the ceiling to N" when a
+      # count has dropped). Never raise one: fix the new finding instead.
+      - run: python scripts/ratchet.py
 
   test:
     runs-on: ubuntu-latest
@@ -29,8 +35,26 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-      - run: pip install -r requirements.txt pytest httpx
-      - run: python -m pytest tests/ -v
+      - run: pip install -r requirements-dev.txt
+      # playwright is installed, so tests/ui would be collected here; the ui job
+      # runs them, with a browser.
+      - run: python -m pytest tests/ -v --ignore=tests/ui --cov=app --cov-report=term --cov-report=json
+      # Coverage may rise, never fall: its floor is "coverage_percent_floor" in
+      # ratchets.json (the script says when to raise it).
+      - run: python scripts/ratchet.py coverage
+
+  ui:
+    # Browser smoke tests (tests/ui): the real app on a free port, in Chromium.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: playwright install --with-deps chromium
+      - run: python -m pytest tests/ui -v
 
   docker-build:
     # PR safety net: make sure the image still builds (no push)

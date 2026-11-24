@@ -13,9 +13,9 @@ on:
   push:
     branches: [main]
     tags: ["companion-v*"]
-    paths: ["companion/**", "testdata/audiohash/**", "app/static/assets/icon.png", "LICENSE", "THIRD-PARTY-NOTICES.md", ".github/workflows/companion.yml"]
+    paths: ["companion/**", "testdata/audiohash/**", "app/static/assets/icon.png", "LICENSE", "THIRD-PARTY-NOTICES.md", ".github/workflows/companion.yml", "ratchets.json", "scripts/ratchet.py"]
   pull_request:
-    paths: ["companion/**", "testdata/audiohash/**", "app/static/assets/icon.png", "LICENSE", "THIRD-PARTY-NOTICES.md", ".github/workflows/companion.yml"]
+    paths: ["companion/**", "testdata/audiohash/**", "app/static/assets/icon.png", "LICENSE", "THIRD-PARTY-NOTICES.md", ".github/workflows/companion.yml", "ratchets.json", "scripts/ratchet.py"]
   workflow_dispatch:
 
 permissions:
@@ -55,6 +55,22 @@ jobs:
           test -z "$(gofmt -l .)" || { gofmt -l .; echo "run gofmt"; exit 1; }
           go vet ./...
           go test ./...
+
+  # Go lint ratchet: staticcheck cannot cap its findings, so scripts/ratchet.py
+  # counts them and compares with "staticcheck" in ratchets.json. To lower the
+  # ceiling, edit that number in the same PR that fixes findings (the script
+  # prints "lower the ceiling to N"); never raise it. The staticcheck version is
+  # pinned in scripts/ratchet.py. Linux only: the findings do not depend on the
+  # OS, and cgo (SQLCipher) needs no extra setup there.
+  staticcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: companion/go.mod
+          cache-dependency-path: companion/go.sum
+      - run: python3 ../scripts/ratchet.py staticcheck
 
   # GetSetMix Setup (the companion opened with no arguments), built on every
   # PR and push so it can be tried before a release. Releases attach it via
