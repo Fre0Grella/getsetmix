@@ -408,7 +408,9 @@ body:has(.track .f:focus) .dock { display: none; }
   animation: fade .18s var(--ease);
 }
 .modal-card {
-  width: 100%; max-height: 92vh; max-height: 92dvh;
+  /* min-width: 0, or a grid item grows to its widest unbreakable line (a long
+     file name) and the card runs off the right edge of a phone */
+  width: 100%; min-width: 0; max-height: 92vh; max-height: 92dvh;
   display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--line-soft); border-width: 1px 0 0;
   border-radius: 18px 18px 0 0; box-shadow: var(--shadow);
