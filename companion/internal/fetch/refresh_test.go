@@ -1,10 +1,12 @@
 package fetch
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
@@ -262,4 +264,22 @@ func TestTheLockIsExclusive(t *testing.T) {
 		t.Fatal(err)
 	}
 	again()
+}
+
+// Every caller fetches through RunLocked, so a run while another holds the
+// lock neither downloads nor touches fetched.json.
+func TestAFetchWhileAnotherRunsDoesNothing(t *testing.T) {
+	dir := t.TempDir()
+	unlock, err := Lock(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	srv := Server{URL: "http://127.0.0.1:1", Token: "t", Folder: t.TempDir()}
+	if _, _, err := RunLocked(context.Background(), dir, srv, time.Now); err != ErrLocked {
+		t.Fatalf("got %v, want ErrLocked", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, stateFile)); !os.IsNotExist(err) {
+		t.Fatalf("fetched.json was written: %v", err)
+	}
 }
