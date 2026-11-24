@@ -118,6 +118,7 @@ let busy = false;
 let batchTotal = 0;
 let settingsCache = {};
 let coverTrackId = null;
+let coverSink = null; // the Library's cover edit: { url(fullUrl), file(File) } takes the picks instead
 let pollTimer = null;
 let highlightId = null; // newly added (e.g. shared) track to scroll to + flash
 let openId = null; // the row expanded for editing on a phone
@@ -621,6 +622,7 @@ list.addEventListener("click", async (e) => {
 // ------------------------------------------------------------- cover modal
 function openCoverModal(id) {
   coverTrackId = id;
+  coverSink = null;
   const t = tracks.find((x) => x.id === id);
   $("#coverQuery").value = [t?.artist, t?.title].filter(Boolean).join(" ");
   $("#coverResults").innerHTML = "";
@@ -645,6 +647,7 @@ $("#coverQuery").addEventListener("keydown", (e) => { if (e.key === "Enter") doC
 
 $("#coverResults").addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-full]");
+  if (btn && coverSink) { coverSink.url(btn.dataset.full); return; }
   if (!btn || !coverTrackId) return;
   try {
     await api(`/api/tracks/${coverTrackId}`, {
@@ -658,6 +661,7 @@ $("#coverResults").addEventListener("click", async (e) => {
 
 $("#coverFile").addEventListener("change", async (e) => {
   const file = e.target.files[0];
+  if (file && coverSink) { coverSink.file(file); e.target.value = ""; return; }
   if (!file || !coverTrackId) return;
   const fd = new FormData();
   fd.append("file", file);

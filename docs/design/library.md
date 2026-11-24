@@ -212,6 +212,7 @@ All under `/api/library`, behind the same auth as the rest of `/api`.
       "title": "Title", "artist": "Artist", "album": "", "genre": "House",
       "year": null, "duration": 312.4, "has_cover": true,
       "size": 12518400, "added_at": "2026-11-12T21:04:10+00:00",
+      "content_rev": 4801,
       "editable": true,
       "multi": [],
       "same_audio": []
@@ -800,6 +801,62 @@ moves. That answers #11's fourth open question.
 **Delete confirmation.** One track: an *Undo* toast, no dialog. A selection:
 a dialog with the count. No confirmation phrase: a delete is recoverable for
 `trash_days`.
+
+**As built** ([#40](https://github.com/Fre0Grella/getsetmix/issues/40)):
+
+- **The list.** Rows have one fixed height (64 px on a phone, 52 px from 721
+  px up). The list element is as tall as all its rows, so the scroll bar is
+  true, and each row that exists is placed by its position. The page holds the
+  rows on screen plus 8 above and 8 below, never more (checked on 3,200
+  rows). Pages of 200 come with the cursor, which only goes forward: a jump far
+  down fetches the pages in between in a row, and the rows not yet there show
+  as skeletons. When `rev` moves the view fetches again as many rows as it
+  needs to cover what is on screen and swaps them in at once. Its own writes
+  take the next `rev` and do not trigger a reload.
+- **Sort and filters.** A sort menu (added, artist, title, genre) with a
+  button that reverses it; genre chips with their counts (the 16 largest, tap
+  again to clear); on a desktop a folder menu beside them. Both read
+  `GET /api/library/facets`, which is fetched again when `rev` moves.
+- **Covers in rows.** A row with `has_cover` asks for its image a moment after
+  it appears (a fast fling asks for none), four at a time, newest request
+  first. The image is decoded at 96 px and only that copy is kept (600 of them,
+  least recently used out), so a large embedded picture costs one decode and
+  no memory. A row without a cover, or whose image cannot be read, keeps the
+  placeholder.
+- **Preview.** The detail sheet has a native audio element on
+  `GET /api/library/{id}/audio`, which loads nothing before Play. It is stopped
+  before any write to the file, because a tag or cover write moves the audio
+  inside it.
+- **Markers.** A small *Same audio* marker on rows that share their audio with
+  another file (the sheet lists the other paths), and a *Read-only* marker
+  that names the format, or says the file is damaged; the full reason is in the
+  marker's title and in the sheet.
+
+**The new routes, as built.**
+
+| Request | Answer |
+|---|---|
+| `GET /api/library/facets?state=present` | `{rev, genres: [{name, count}], folders: [{path, count}]}`, genres by count then name, folders by name; a folder counts the files directly in it, like the `folder` filter; files with no genre and files in the root are in no facet |
+| `GET /api/library/{id}/cover?v=` | the embedded image with its type read from its bytes (front cover first, else the first picture); `ETag` from `content_rev`; `?v=` equal to the current `content_rev` is cached for a year, anything else revalidates, so a new cover has a new address; `304` on a matching `If-None-Match`; `404` no cover |
+| `GET /api/library/{id}/audio` | the file, `206` for a `Range` of one range (`first-last`, `first-`, `-last`), `416` with `Content-Range: bytes */size` past the end, `200` whole for anything else; the file is opened once per 256 KB so a write is never blocked on Windows |
+| `POST /api/library/{id}/cover` | multipart `file`, or JSON `{"url": "https://..."}`; the updated item; `400` not a JPEG, PNG or WebP image, or an address that is not http(s); `413` over 10 MB; `502` the address did not give an image; then as `PATCH` |
+
+- Both reads serve a present row from its path and a trashed row from the
+  trash, and never anything outside the library root: a row path with `..`,
+  an absolute one, a link that leaves the root, or a trash path that is not a
+  `.trash/<time>-<id>/` one is a `404`. A purged (`gone`) track, a `missing`
+  one and a file that is not on disk are `410`; an unknown id is `404`.
+- The list item gains `content_rev`, the `rev` of the last change of the
+  file's bytes. A tag or cover write sets it to the write's `rev`.
+- `library.write_cover(file_id, image)` takes `(bytes, mime)` or `None` (remove)
+  and returns `CoverResult(item, previous)`; `previous` is the image the file
+  had, as `(bytes, mime)`, or `None`. The mime type is replaced by what the bytes
+  are. It uses the tag write's atomic copy and rename, its owner-keeping, its
+  lock and its errors; the picture written is the only one in the file, as a
+  front cover. `edit_file(path, changes, cover=...)` takes `KEEP`, `None` or the
+  image, so a tag change never touches the cover.
+- The download of a cover address only takes `http` and `https`, and at most
+  10 MB; this also closes `file:` addresses for the download path.
 
 ### 4.6 What a computer does
 

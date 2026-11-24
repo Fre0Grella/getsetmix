@@ -97,6 +97,25 @@ class WriteResult:
         return self.differs is None
 
 
+@dataclass
+class CoverResult:
+    """What write_cover did: the updated item, and the image it replaced as
+    (bytes, mime type), or None if the file had no cover."""
+    item: dict
+    previous: tuple[bytes, str] | None
+
+
+def check_image(data: bytes) -> tuple[bytes, str]:
+    """An image taken as a cover, with its mime type read from its bytes.
+    Raises LibraryError: 413 over 10 MB, 400 not a JPEG, PNG or WebP image."""
+    if len(data) > tagger.MAX_COVER:
+        raise LibraryError(413, "the image is larger than 10 MB")
+    mime = tagger.image_type(data)
+    if mime is None:
+        raise LibraryError(400, "the cover must be a JPEG, PNG or WebP image")
+    return data, mime
+
+
 def check_fields(values: dict, what: str = "changes") -> dict:
     """The six editable fields with valid values; a 400 names what is wrong.
 
@@ -755,43 +774,125 @@ class Library:
         changes = check_fields(changes)
         expect = check_fields(expect, "expect") if expect is not None else {}
         with self._writing:
-            row = self.file(file_id)
-            if row is None:
-                raise LibraryError(404, "no such track")
-            if row["state"] != "present":
-                raise LibraryError(410, "the file is in the trash" if row["state"] == "trashed"
-                                   else "the file is no longer in the library")
-            if not self._editable(row["format"], row["audio_id"]):
-                raise LibraryError(409, "a damaged file cannot be edited"
-                                   if audiohash.is_fallback(row["audio_id"]) else
-                                   f"{row['format'] or 'this format'} is read-only in this version")
-            path = self.root() / row["path"]
-            if not path.is_file():
-                raise LibraryError(410, "the file is not on disk")
+            row, path = self._writable(file_id)
             if expect:
                 now_in_file = read_tags(path)
                 differs = {f: now_in_file[f] for f, v in expect.items() if now_in_file[f] != v}
                 if differs:
                     return WriteResult(differs=differs)
             if changes:
-                try:
-                    tagger.edit_file(path, changes)
-                except PermissionError as exc:
-                    raise LibraryError(423, "the file is in use by another program: close it "
-                                            "there (or unload it from the deck) and try "
-                                            "again") from exc
-                st = path.stat()
-                tags = read_tags(path)
-                with self.db.transaction() as conn:
-                    rev = self._next_rev(conn)
-                    fields = {**self._columns(row["path"], st.st_size, st.st_mtime_ns,
-                                              row["audio_id"], tags),
-                              "rev": rev, "content_rev": rev}
-                    sets = ", ".join(f"{k} = ?" for k in fields)
-                    conn.execute(f"UPDATE library_files SET {sets} WHERE id = ?",
-                                 (*fields.values(), file_id))
-                log.info("library: edited %s (%s)", row["path"], ", ".join(changes))
+                self._edit(row, path, changes, ", ".join(changes))
         return WriteResult(item=self.item(file_id))
+
+    def write_cover(self, file_id: int, image: tuple[bytes, str] | None) -> CoverResult:
+        """Replace the embedded cover of one file with `image` (JPEG, PNG or WebP
+        bytes and a mime type, which is checked against the bytes and replaced
+        by what they are), or remove it with None (design 4.3).
+
+        The cover goes through the same atomic write as the tags and takes one
+        `rev`; the audio id does not change. The result holds the image the
+        file had before, or None, so a caller that keeps a journal can put it
+        back. Raises LibraryError like write_tags, and 400 or 413 for an image
+        that is not valid.
+        """
+        if image is not None:
+            image = check_image(image[0])
+        with self._writing:
+            row, path = self._writable(file_id)
+            previous = tagger.read_cover(path)
+            self._edit(row, path, {}, "cover", cover=image)
+        return CoverResult(item=self.item(file_id), previous=previous)
+
+    def _writable(self, file_id: int) -> tuple[dict, Path]:
+        """The row and path of a file a write may change; LibraryError if not."""
+        row = self.file(file_id)
+        if row is None:
+            raise LibraryError(404, "no such track")
+        if row["state"] != "present":
+            raise LibraryError(410, "the file is in the trash" if row["state"] == "trashed"
+                               else "the file is no longer in the library")
+        if not self._editable(row["format"], row["audio_id"]):
+            raise LibraryError(409, "a damaged file cannot be edited"
+                               if audiohash.is_fallback(row["audio_id"]) else
+                               f"{row['format'] or 'this format'} is read-only in this version")
+        path = self.root() / row["path"]
+        if not path.is_file():
+            raise LibraryError(410, "the file is not on disk")
+        return row, path
+
+    def _edit(self, row: dict, path: Path, changes: dict, what: str, cover=tagger.KEEP) -> None:
+        """One atomic write, then the row: new tags, size and time, one `rev`."""
+        try:
+            tagger.edit_file(path, changes, cover=cover)
+        except PermissionError as exc:
+            raise LibraryError(423, "the file is in use by another program: close it "
+                                    "there (or unload it from the deck) and try "
+                                    "again") from exc
+        st = path.stat()
+        tags = read_tags(path)
+        with self.db.transaction() as conn:
+            rev = self._next_rev(conn)
+            fields = {**self._columns(row["path"], st.st_size, st.st_mtime_ns,
+                                      row["audio_id"], tags),
+                      "rev": rev, "content_rev": rev}
+            sets = ", ".join(f"{k} = ?" for k in fields)
+            conn.execute(f"UPDATE library_files SET {sets} WHERE id = ?",
+                         (*fields.values(), row["id"]))
+        log.info("library: edited %s (%s)", row["path"], what)
+
+    # ------------------------------------------------------- media (reads)
+    def media(self, fid: int) -> tuple[dict, Path]:
+        """The row and the file behind it, for the audio and the cover.
+
+        A present row is served from its path, a trashed one from the trash. The
+        file is always inside the library root, whatever the row says (a path
+        with `..`, an absolute one, a link that leaves the root): anything else
+        is a 404. Raises LibraryError: 404 unknown id or a path that is not the
+        library's; 410 a purged (`gone`) track, a `missing` one, or a file that
+        is not on disk.
+        """
+        row = self.file(fid)
+        if row is None:
+            raise LibraryError(404, "no such track")
+        state = row["state"]
+        if state == "gone":
+            raise LibraryError(410, "the track was removed from the library")
+        if state == "missing":
+            raise LibraryError(410, "the file is not on disk")
+        rel = (row["path"] if state == "present" else row["trash_path"]) or ""
+        parts = rel.split("/")
+        root = Path(self.root()).resolve()
+        if (not rel or "\\" in rel or rel.startswith("/") or ".." in parts
+                or (state == "present" and not served(rel))
+                or (state == "trashed" and _trash_folder(root, rel) is None)):
+            raise LibraryError(404, "no such file")
+        path = (root / rel).resolve()
+        if root not in path.parents:
+            raise LibraryError(404, "no such file")
+        if not path.is_file():
+            raise LibraryError(410, "the file is not on disk")
+        return row, path
+
+    def facets(self, state: str = "present") -> dict:
+        """The genres and the folders of a state with their counts, for the
+        filters. A folder counts the files directly in it, as the `folder` filter
+        matches them; files in the library root belong to no folder."""
+        if state not in STATES:
+            raise ValueError(f"state must be one of {', '.join(STATES)}")
+        with self.db.transaction() as conn:
+            genres = [{"name": r[0], "count": r[1]} for r in conn.execute(
+                "SELECT genre, COUNT(*) AS n FROM library_files WHERE state = ? AND genre <> '' "
+                "GROUP BY genre ORDER BY n DESC, genre COLLATE NOCASE", (state,))]
+            counts: dict[str, int] = {}
+            for (path,) in conn.execute("SELECT path FROM library_files WHERE state = ?",
+                                        (state,)):
+                if "/" in path:
+                    folder = path.rsplit("/", 1)[0]
+                    counts[folder] = counts.get(folder, 0) + 1
+            rev = int(self._meta(conn, "rev") or 0)
+        folders = [{"path": p, "count": n} for p, n in
+                   sorted(counts.items(), key=lambda kv: kv[0].casefold())]
+        return {"rev": rev, "genres": genres, "folders": folders}
 
     @staticmethod
     def _where(q: str | None, genre: str | None, folder: str | None,
@@ -893,6 +994,7 @@ class Library:
             "album": row["album"], "genre": row["genre"], "year": row["year"],
             "duration": row["duration"], "has_cover": bool(row["has_cover"]),
             "size": row["size"], "added_at": row["added_at"],
+            "content_rev": row["content_rev"],
             "editable": self._editable(row["format"], row["audio_id"]),
             "multi": [f for f in row["multi"].split(",") if f],
             "same_audio": [i for i in same.get(row["audio_id"], []) if i != row["id"]],
