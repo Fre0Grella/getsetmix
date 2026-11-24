@@ -149,14 +149,19 @@ flowchart TB
 | `main.py` | API routes, auth middleware, serves the UI |
 | `worker.py` | the download queue: fetch, convert, tag, place in the library |
 | `metadata.py`, `ytdl.py` | resolve a link into tracks; yt-dlp options and health |
-| `tagger.py` | write ID3v2.4 and FLAC tags with embedded cover |
+| `tagger.py` | read and write ID3v2.4 and FLAC tags and the embedded cover |
 | `naming.py` | file names from the template, sanitised |
-| `library.py`, `library_api.py` | the Library index of every file under the root: tags, trash, edits; where a finished download is now, and which staged one it already has |
+| `library.py`, `library_api.py` | the Library index of every file under the root: tags, trash, edits, covers, the preview stream; where a finished download is now, and which staged one it already has |
+| `audiohash.py` | a track's identity: the hash of its audio payload, tags skipped ([decision 4](#9-decision-log)) |
+| `thumbs.py` | small cover thumbnails for the list, kept on disk |
 | `matching.py` | the same-song rules: source link, or title and artist as token sets |
+| `rules.py`, `genres.py` | the cleanup rule catalogue and the genre quick picks |
 | `db.py` | SQLite: staged and processed tracks, URL history, counters |
 | `link.py` | `/api/link`: what paired computers may list and download |
 | `config.py`, `metrics.py` | settings with env overrides; Prometheus text |
 | `static/` | the UI: vanilla JavaScript, English and Italian, light and dark |
+
+How they may depend on each other is in [8.8](#88-code-structure-and-its-checks).
 
 **The companion** (`companion/`, Go):
 
@@ -167,16 +172,18 @@ flowchart TB
 | `scan`, `watch` | find files that arrived in the watched folders |
 | `importer` | one safe sync into Rekordbox (see [8.1](#81-writing-to-rekordbox)) |
 | `library` | reads and writes `master.db` and `masterPlaylists6.xml` |
-| `audio` | reads stream facts and tags from audio files |
+| `audio` | reads stream facts and tags from audio files, and the audio hash (the same function as `app/audiohash.py`, held together by shared test vectors in `testdata/audiohash`) |
 | `rekordbox` | finds the Rekordbox install and whether it is running |
+| `recycle` | moves a file to the system's recycle bin |
+| `config`, `notices` | the companion's own settings; the third-party notices it ships |
 | `install` | the launcher shortcut, autostart, the scheduled fetch |
 
-Planned modules, each with a design doc written before it is built:
+Modules and their design docs, each written and approved before the module is built:
 
-| Module | Design doc | Issue |
+| Module | Design doc | Status |
 |---|---|---|
-| Library: index, identity, changes, trash, the Library view | `docs/design/library.md` | [#19](https://github.com/Fre0Grella/getsetmix/issues/19), for [#11](https://github.com/Fre0Grella/getsetmix/issues/11) |
-| Batch editing and cleanup rules | `docs/design/batch-editing.md` | [#20](https://github.com/Fre0Grella/getsetmix/issues/20) |
+| Library: index, identity, changes, trash, the Library view | `docs/design/library.md` | built; selection and bulk actions ([#39](https://github.com/Fre0Grella/getsetmix/issues/39)) and more formats ([#42](https://github.com/Fre0Grella/getsetmix/issues/42)) to come |
+| Batch editing and cleanup rules | `docs/design/batch-editing.md` | the rule catalogue is built; editing comes with [#47](https://github.com/Fre0Grella/getsetmix/issues/47) |
 | Analysis | decided after the spikes | [#24](https://github.com/Fre0Grella/getsetmix/issues/24) |
 
 ## 6. Runtime
@@ -261,11 +268,12 @@ again over the local copy, and its existing Rekordbox row is updated.
 
 ### 8.3 Track identity
 
-Today a track is its path: in the server's listing, in the companion's
-state, and in the duplicate check before an import. That breaks on a rename
-or a move, and it cannot tie an analysis result made on the computer to the
-server's copy. The Library module replaces it with a hash of the audio
-payload ([decision 4](#9-decision-log)).
+A track is the hash of its audio payload ([decision 4](#9-decision-log)):
+in the server's Library index, in the link listing (protocol 2), in the
+companion's state, and for a finished download in the Downloads view. Tag
+edits, moves and renames keep it. Python and Go compute it separately; the
+shared test vectors in `testdata/audiohash` keep the two in step. The path
+is only a fallback, for a download made before its id was stored.
 
 ### 8.4 Access
 
@@ -293,6 +301,41 @@ Settings live in `<data>/config.json`, are editable in the UI, and are
 overridden by `GSM_*` environment variables at boot. `/healthz` serves
 probes; `/metrics` exposes job counts, durations and errors.
 
+### 8.8 Code structure and its checks
+
+The app is layered, and the layering is already clean; the checks keep it
+that way.
+
+- **Routes:** `main.py` and `library_api.py` take requests and answer them.
+  Nothing imports them, except `main.py` mounting `library_api.py`.
+- **Core:** the Library, the worker, the link, tagging, thumbnails, metadata
+  and yt-dlp. They hold the rules and call storage.
+- **Base:** `db.py` and `config.py`. They import nothing else from the app,
+  except `db.py` reading `config.py`. Settings and environment variables are
+  read only in `config.py`.
+- **Pure modules:** `audiohash.py`, `matching.py`, `naming.py`, `genres.py`
+  and `rules.py` hold rules with no storage behind them, so they can be
+  tested and reused alone. They import neither `db`, `config`, the Library,
+  the worker nor the routes.
+- **The UI** talks to the app only through the API.
+- **One definition per thing:** search before writing a helper, a constant
+  or an allowed value; extend the one that exists.
+
+CI holds these rules with ratchets: each count is capped at its value on the
+day the check was added, and a pull request that lowers a count lowers its
+ceiling in the same change. A ceiling is never raised.
+
+| Rule | Check | In CI |
+|---|---|---|
+| The layers above, and the pure modules | import-linter contracts | yes |
+| One definition per thing | duplication percentage per part (jscpd), capped; the rest in review | yes, and review |
+| Lint and style | ruff with the project's own rule set, findings capped | yes |
+| Types | pyright over `app/`, errors capped | yes |
+| Go | `go vet`, staticcheck | yes |
+| Behaviour | pytest with a coverage floor; Go tests on three systems; browser tests of the UI | yes |
+| Settings read only in `config.py` | review | no |
+| The UI talks only through the API | review | no |
+
 ## 9. Decision log
 
 | # | Date | Decision | Why | Alternatives rejected |
@@ -305,6 +348,7 @@ probes; `/metrics` exposes job counts, durations and errors.
 | 6 | 2026-11-13 | Roadmap scope. In: Library view, batch editing and cleanup rules, BPM/key match and sort, similar tracks, scatter map and graph playlist. To try: auto cue points. Out: online tag lookup, duplicates by audio fingerprint, identifying untagged files, genre detection. | The features in are the ones worth their cost to a DJ; each uncertain one starts with a spike. Tag lookup and fingerprint services add terms and rate limits for doubtful matches on this kind of library; genre is already one tap at ingest. | Building the whole list in #12. |
 | 7 | 2026-11-14 | Auto cue points leave the roadmap. This replaces "to try: auto cue points" in decision 6. | The spike on a real library ([rekordbox-read](research/rekordbox-read.md)) showed Rekordbox's phrases are not a reliable source of cue positions: on tracks with hand-checked cues, a third of the cues are not on a phrase start and more than half of the phrase starts have no cue. A generator that works from those phrases already exists outside GetSetMix. | Building a cue generator on Rekordbox's phrases. Analysing song structure with a model of our own: not ruled out for later, not planned. |
 | 8 | 2026-11-24 | The Rekordbox XML features are removed: the inbox XML written on ingest, its purge against a collection export, the duplicate check against both, and their settings (`xml_path`, `collection_xml_path`, `playlist_name`). "Already owned?" and "In your library" are answered from the Library index instead ([#71](https://github.com/Fre0Grella/getsetmix/issues/71)). | The companion imports straight into `master.db`, and the server indexes every file it has, so the XML only duplicated both. The collection export had to be made by hand and went stale; the inbox grew forever; "In your library" was set once at ingest and never checked again. | Keeping the collection XML as an extra source for tracks that are in Rekordbox but not on the server: a second, stale truth for a case the companion's import already covers. Keeping the inbox XML for DJs without the companion: Setup installs the companion in both of its shapes, and without it adding the files by hand is no more work than reloading an XML. |
+| 9 | 2026-11-24 | The code rules in [8.8](#88-code-structure-and-its-checks) are enforced in CI by ratchets: lint findings, type errors and duplication are capped at their count on the day each check was added, test coverage has a floor, and the import rules must hold. A pull request that improves a count lowers its ceiling; none is ever raised. | A health check after a fast month found the code sound but unguarded: no type checking, ruff on its defaults, the same helper written up to five times, and the architecture text behind the code. Rules only written down are forgotten in long sessions; a check in CI is not. | Fixing every finding before adding any check: the count keeps moving while the fixes are made. Zero-tolerance checks from day one: the build is red until all old findings are fixed, so the checks get turned off. Review only: what slipped through is what review missed. |
 
 The log starts on 2026-11-13. Earlier choices are described in
 [section 4](#4-solution-strategy).
@@ -316,13 +360,11 @@ The log starts on 2026-11-13. Earlier choices are described in
 | The server is single-user: one library root, one set of credentials. | A hosted offering needs either one instance per customer or tenancy in the app. | open; to decide before any hosting work |
 | Hosting downloads for other people carries legal exposure that a self-hosted tool does not. | May limit what a hosted copy can offer. | open |
 | `master.db` is undocumented and changes with Rekordbox versions. | A Rekordbox update can break the importer. | field-by-field checks against a real library; backups before every write |
-| Identity is the path everywhere. | Renames and moves look like a delete plus a new track. | [#19](https://github.com/Fre0Grella/getsetmix/issues/19) |
-| The link listing still walks the disk on every request and knows nothing of the library index, which exists since [#35](https://github.com/Fre0Grella/getsetmix/issues/35). | Slow listings on large libraries; computers cannot learn of changed or deleted tracks. | [#36](https://github.com/Fre0Grella/getsetmix/issues/36) |
-| The tagger writes MP3 and FLAC only, while the link serves nine formats. | Tag edits can't cover the whole library yet. | [#19](https://github.com/Fre0Grella/getsetmix/issues/19), [#20](https://github.com/Fre0Grella/getsetmix/issues/20) |
-| The companion can only add tracks to Rekordbox; it cannot update tags or write cues. | Server-side edits and cue points have no path into the collection. | [#19](https://github.com/Fre0Grella/getsetmix/issues/19), [#23](https://github.com/Fre0Grella/getsetmix/issues/23) |
+| The tagger writes MP3 and FLAC only, while the link serves nine formats. | Tag edits can't cover the whole library yet. | [#42](https://github.com/Fre0Grella/getsetmix/issues/42) |
+| The companion updates a track's tags in Rekordbox but not its artwork: Rekordbox keeps its own copy of the cover. | A cover changed on the server shows only after *Reload Tag*. | [#68](https://github.com/Fre0Grella/getsetmix/issues/68) |
+| A computer gets a new companion only when Setup runs again. | Server and companion drift apart in version; fixes reach the computer late. | [#69](https://github.com/Fre0Grella/getsetmix/issues/69) |
 | YouTube changes break downloads. | Ingest stops until yt-dlp catches up. | weekly image rebuild; a banner when yt-dlp is stale |
 | Setup and the companion are unsigned. | Windows Defender and macOS Gatekeeper warn or block. | [#16](https://github.com/Fre0Grella/getsetmix/issues/16) |
-| Dependency licenses have not been checked against AGPL-3.0 one by one. | A conflict would force a replacement. | [#18](https://github.com/Fre0Grella/getsetmix/issues/18) |
 
 ## 11. Glossary
 
