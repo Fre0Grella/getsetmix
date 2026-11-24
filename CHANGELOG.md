@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v1.16.3 (2026-11-24)
+
+### Bug Fixes
+
+- **ui**: Health dot, duplicate dialog, token
+  ([#79](https://github.com/Fre0Grella/getsetmix/pull/79),
+  [`10ce8b1`](https://github.com/Fre0Grella/getsetmix/commit/10ce8b162d7cdca94e6b6b26b5dd90828d8d6f2f))
+
+The health dot keeps engine problems red; the duplicate question uses the app dialog; every request
+  goes through request(), which asks for the token once on a 401 and not again after a dismissal.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.16.2 (2026-11-24)
 
 ### Bug Fixes
