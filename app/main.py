@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import (
-    __version__, genres, library, library_api, link, metadata, metrics, outbound, rules, tagger,
+    __version__, genres, library, library_api, link, matching, metadata, metrics, outbound, rules, tagger,
     ytdl,
 )
 from .auth import bearer_token
@@ -255,8 +255,12 @@ async def _resolve_new(tid: str, url: str) -> None:
 @app.get("/api/tracks")
 async def list_tracks():
     await _recheck_duplicates()
+    tracks = await asyncio.to_thread(_with_library_state, db.list_tracks())
+    for t in tracks:  # the UI reads these instead of keeping its own status lists
+        t["editable"] = t["status"] in EDITABLE_STATUSES
+        t["active"] = t["status"] in ACTIVE_STATUSES
     return {
-        "tracks": await asyncio.to_thread(_with_library_state, db.list_tracks()),
+        "tracks": tracks,
         "active_downloads": worker.active_downloads,
         "busy": worker.busy,
     }
@@ -500,7 +504,9 @@ async def library_rules():
     """The cleanup-rule catalogue, plus the genre list the UI's picker reads.
     The UI reads only the genres today; the catalogue is for batch editing (#47)."""
     return {**rules.catalogue(), "genres": list(genres.GENRES),
-            "genre_picks": list(genres.GENRE_PICKS)}
+            "genre_picks": list(genres.GENRE_PICKS),
+            # rules the UI applies as you type; the server checks them again
+            "year_range": list(library.YEAR_RANGE), "source_pattern": matching.SOURCE_PATTERN}
 
 
 # ------------------------------------------------------------------- link

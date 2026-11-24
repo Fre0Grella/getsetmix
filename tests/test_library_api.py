@@ -4,8 +4,8 @@ from conftest import fresh_modules
 from fastapi.testclient import TestClient
 
 ITEM_KEYS = {"id", "audio_id", "path", "format", "title", "artist", "album", "genre", "year",
-             "duration", "has_cover", "size", "added_at", "content_rev", "editable", "multi",
-             "same_audio"}
+             "duration", "has_cover", "size", "added_at", "content_rev", "editable", "damaged",
+             "source", "multi", "same_audio"}
 
 
 def _client(tmp_path, monkeypatch, token=""):
@@ -52,7 +52,7 @@ def shelf(api, music):
 
 
 def test_a_new_library_lists_nothing(api):
-    assert listing(api) == {"rev": 0, "total": 0, "next": None, "items": []}
+    assert listing(api) == {"rev": 0, "total": 0, "next": None, "order": "desc", "items": []}
 
 
 def test_an_item_has_the_shape_of_the_design(shelf):
@@ -164,3 +164,31 @@ def test_the_library_api_needs_the_app_token(tmp_path, monkeypatch, music):
             assert getattr(c, method)(url).status_code == 401, url
             ok = getattr(c, method)(url, headers={"X-Auth-Token": "sekret"})
             assert ok.status_code in (200, 202), url
+
+
+# ---------------------------------------------- rules the UI no longer copies
+def test_the_list_says_which_order_it_used_when_none_was_asked(shelf):
+    assert listing(shelf)["order"] == "desc"              # added: newest first
+    assert listing(shelf, sort="title")["order"] == "asc"
+    assert listing(shelf, sort="title", order="desc")["order"] == "desc"
+
+
+def test_an_item_says_whether_its_file_is_damaged_and_which_source_it_names(api, music):
+    music.mp3("Src - Stamped.mp3", seed=7, title="Stamped",
+              comment="Source: https://example.test/x | via GetSetMix")
+    music.mp3("Src - Bare.mp3", seed=8, title="Bare", comment="see https://example.test/y")
+    rescan(api)
+    items = {i["title"]: i for i in listing(api)["items"]}
+    assert items["Stamped"]["source"] == "https://example.test/x"
+    assert items["Bare"]["source"] == ""                 # a bare link is not a source
+    assert items["Stamped"]["damaged"] is False
+
+
+def test_the_rules_endpoint_gives_the_ui_its_year_range_and_source_pattern(api):
+    import re
+
+    body = api.get("/api/library/rules").json()
+    from app import library
+    assert body["year_range"] == list(library.YEAR_RANGE)
+    source = re.compile(body["source_pattern"], re.I)
+    assert source.search("Source: https://example.test/x | via GetSetMix").group(1) == "https://example.test/x"

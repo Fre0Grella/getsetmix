@@ -55,7 +55,7 @@ Object.assign(STR.en, {
   libAskKeep: "Keep the link", libAskReplace: "Replace it",
   libSaved: "Saved to the file",
   libNoChange: "Nothing changed",
-  libBadYear: "The year needs four digits, from 1000 to 9999",
+  libBadYear: (lo, hi) => `The year needs four digits, from ${lo} to ${hi}`,
   libChanged: "The file changed meanwhile. The sheet now shows what it holds; check and save again.",
   libInUse: "Another program has this file open, maybe a deck in Rekordbox. Unload it and try again.",
 });
@@ -108,7 +108,7 @@ Object.assign(STR.it, {
   libAskKeep: "Tieni il link", libAskReplace: "Sostituisci",
   libSaved: "Salvato nel file",
   libNoChange: "Nessuna modifica",
-  libBadYear: "L'anno deve avere quattro cifre, da 1000 a 9999",
+  libBadYear: (lo, hi) => `L'anno deve avere quattro cifre, da ${lo} a ${hi}`,
   libChanged: "Nel frattempo il file è cambiato. Ora la scheda mostra cosa contiene: controlla e salva di nuovo.",
   libInUse: "Un altro programma ha aperto questo file, forse un deck di Rekordbox. Scaricalo dal deck e riprova.",
 });
@@ -161,7 +161,6 @@ function libLabel(t) {
   return t && t.title.trim() ? t.title.trim() : libName(t ? t.path : "");
 }
 
-const isDamaged = (t) => t.audio_id.startsWith("f1_");
 
 // A small marker for a row that shares its audio with another file, and one
 // that says why a row is read-only (design 4.5).
@@ -172,8 +171,8 @@ function libFlags(t) {
     html += `<span class="lib-flag lib-flag--dup" role="img" title="${esc(why)}" aria-label="${esc(why)}">${DUP}<span class="lib-flag-text">${esc(T.libDup)}</span></span>`;
   }
   if (!t.editable) {
-    const why = isDamaged(t) ? T.libDamaged : T.libReadOnlyFormat(t.format);
-    const what = isDamaged(t) ? T.libDamagedShort : t.format.toUpperCase();
+    const why = t.damaged ? T.libDamaged : T.libReadOnlyFormat(t.format);
+    const what = t.damaged ? T.libDamagedShort : t.format.toUpperCase();
     html += `<span class="lib-flag lib-flag--ro" role="img" title="${esc(why)}" aria-label="${esc(why)}">${LOCK}<span class="lib-flag-text"><span class="lib-flag-long">${esc(T.libRo)} · </span>${esc(what)}</span></span>`;
   }
   return html;
@@ -300,7 +299,7 @@ async function libFill(upto) {
       const page = await api(`/api/library?${libQuery({ limit: PAGE, ...(Lib.started ? { cursor: Lib.next } : {}) })}`);
       if (seq !== Lib.seq) return;
       Lib.rows.push(...page.items);
-      Object.assign(Lib, { next: page.next, total: page.total, rev: page.rev, started: true });
+      Object.assign(Lib, { next: page.next, total: page.total, rev: page.rev, shownOrder: page.order, started: true });
       libSize();
       libPaint();
       libTexts();
@@ -376,7 +375,7 @@ function libTexts() {
   const reverse = $("#libOrder");
   reverse.setAttribute("aria-label", T.libReverse);
   reverse.title = T.libReverse;
-  reverse.dataset.dir = Lib.order || (Lib.sort === "added" ? "desc" : "asc");
+  reverse.dataset.dir = Lib.order || Lib.shownOrder || ""; // the server says its default
   $("#libGenres").setAttribute("aria-label", T.libGenres);
   $("#libFolder").setAttribute("aria-label", T.libFolderLabel);
 }
@@ -417,7 +416,7 @@ $("#libGenres").addEventListener("click", (e) => {
 $("#libFolder").addEventListener("change", (e) => { Lib.folder = e.target.value; libLoad(); });
 $("#libSort").addEventListener("change", (e) => { Lib.sort = e.target.value; Lib.order = null; libLoad(); });
 $("#libOrder").addEventListener("click", () => {
-  const now = Lib.order || (Lib.sort === "added" ? "desc" : "asc");
+  const now = Lib.order || Lib.shownOrder;
   Lib.order = now === "asc" ? "desc" : "asc";
   libLoad();
 });
@@ -564,14 +563,16 @@ const TAGS = ["title", "artist", "album", "genre", "year", "comment"];
 const sheet = $("#libSheet");
 const tagInput = (f) => sheet.querySelector(`[data-tag="${f}"]`);
 const Sheet = { item: null, shown: {}, saving: false, askDone: false, coverUrl: null, coverSeq: 0 };
-const SOURCE = /https?:\/\/[^\s|]+/i;
 const audio = $("#libAudio");
 
 function sheetValue(f) {
   const v = tagInput(f).value;
   if (f !== "year") return v;
   const s = v.trim();
-  return s === "" ? null : (/^\d{4}$/.test(s) && Number(s) >= 1000 ? Number(s) : NaN);
+  if (s === "") return null;
+  const n = /^\d+$/.test(s) ? Number(s) : NaN;
+  const [lo, hi] = libRules.year || [-Infinity, Infinity]; // the server's range; it checks again
+  return n >= lo && n <= hi ? n : NaN;
 }
 
 function sheetChanges() {
@@ -594,7 +595,9 @@ function sheetChips() {
 }
 
 function sheetSource() {
-  const m = (tagInput("comment").value.match(SOURCE) || [])[0];
+  // the server's rule (libRules.source): "Source: <url>", as the tagger writes it
+  const found = libRules.source && tagInput("comment").value.match(libRules.source);
+  const m = found ? found[1].replace(/;$/, "") : "";
   const el = $("#libSheetSource");
   el.classList.toggle("hidden", !m);
   el.innerHTML = m ? `${esc(T.libSource)}: <a href="${esc(m)}" target="_blank" rel="noreferrer">${esc(m)}</a>` : "";
@@ -690,7 +693,7 @@ function sheetFill(item) {
   }
   const ro = $("#libSheetReadOnly");
   ro.classList.toggle("hidden", item.editable);
-  ro.textContent = item.editable ? "" : (isDamaged(item) ? T.libDamaged : T.libReadOnlyFormat(item.format));
+  ro.textContent = item.editable ? "" : (item.damaged ? T.libDamaged : T.libReadOnlyFormat(item.format));
   $("#libSheetSave").classList.toggle("hidden", !item.editable);
   $("#libSheetChips").classList.toggle("hidden", !item.editable);
   $("#libCoverBtn").disabled = !item.editable;
@@ -753,10 +756,10 @@ function libRefreshRow(i) {
 async function saveSheet() {
   if (!Sheet.item || Sheet.saving) return;
   const { changes, expect } = sheetChanges();
-  if (Number.isNaN(changes.year)) { toast(T.libBadYear); tagInput("year").focus(); return; }
+  if (Number.isNaN(changes.year)) { toast(T.libBadYear(...libRules.year)); tagInput("year").focus(); return; }
   if (!Object.keys(changes).length) { sheet.classList.add("hidden"); toast(T.libNoChange); return; }
   // The source link is the only record of a download's origin in the file: ask once.
-  if ("comment" in changes && SOURCE.test(Sheet.item.comment) && !Sheet.askDone) {
+  if ("comment" in changes && Sheet.item.source && !Sheet.askDone) {
     $("#libSheetAskText").textContent = T.libAsk;
     $("#libSheetAsk").classList.remove("hidden");
     $("#libAskReplace").focus();
