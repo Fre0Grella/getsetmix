@@ -55,15 +55,19 @@ func (c *Client) tombstones(l Listing, state *State, now time.Time, rep *Report)
 		return
 	}
 	listed := map[string]bool{}
+	paths := map[string]bool{}
 	for _, f := range l.Files {
+		paths[f.Path] = true
 		if f.ID != "" {
 			listed[f.ID] = true
 		}
 	}
 
-	// Restored on the server: listed again.
+	// Restored on the server: listed again. A path the server lists under
+	// another id counts too: the file was replaced, so the track at that
+	// path is not gone and must not stay in the "removed" playlist.
 	for id, tomb := range state.Removed {
-		if !listed[id] {
+		if !listed[id] && !paths[tomb.Path] {
 			continue
 		}
 		delete(state.Removed, id)
@@ -92,11 +96,13 @@ func (c *Client) tombstones(l Listing, state *State, now time.Time, rep *Report)
 		} else if _, ok := state.Legacy[r.Path]; ok {
 			serverPath = r.Path
 		}
-		if serverPath == "" {
+		if serverPath == "" || paths[serverPath] {
 			continue
 		}
+		// Only a track deleted in GetSetMix. A file that vanished from the
+		// server's disk was nobody's decision, and this copy may be the last.
 		state.Removed[r.ID] = Tombstone{Path: serverPath, At: now, Reason: r.Reason,
-			Recycle: c.Server.DeleteRemovedFiles}
+			Recycle: c.Server.DeleteRemovedFiles && r.Reason == "deleted"}
 		rep.Removed = append(rep.Removed, serverPath)
 	}
 

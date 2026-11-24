@@ -871,7 +871,11 @@ imports do.
   change number, as pyrekordbox does.
 - *Delete the local file too* is `"delete_removed_files": true` in the
   `server` entry of `companion.json`; Setup does not offer it yet. It acts
-  on tombstones handled while it is on, never on older ones. Windows: the
+  on tombstones handled while it is on, never on older ones, and only on
+  tracks deleted in GetSetMix: a file that vanished from the server's disk
+  (reason `missing`) leaves the local copy alone, since it may be the last.
+  A path the server lists again under another id was replaced, so it is not
+  a removal. Windows: the
   Recycle Bin through `SHFileOperationW` with undo, only on a fixed drive
   (a network share or a USB stick has no bin and Windows would delete for
   good), and asking rather than deleting if the bin is turned off. macOS:

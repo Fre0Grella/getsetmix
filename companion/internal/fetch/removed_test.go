@@ -199,3 +199,51 @@ func TestTombstonesSurviveASaveAndTheFirstForm(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+func TestAFileReplacedOnTheServerIsNotARemoval(t *testing.T) {
+	s, c, state := twoTracks(t)
+	bin := &fakeBin{dir: t.TempDir()}
+	c.Recycle = bin.recycle
+	c.Server.DeleteRemovedFiles = true
+	s.files["House/b.mp3"] = "other audio"
+	s.listing = Listing{Protocol: 2, Rev: 6,
+		Files:   []File{both.Files[0], file("House/b.mp3", "other audio", "a1_new", 6)},
+		Removed: []Removed{tomb("a1_b", "House/b.mp3", "deleted")}}
+
+	rep := run(t, c, state)
+	if len(rep.Removed) != 0 || len(state.Removed) != 0 || len(bin.moved) != 0 {
+		t.Fatalf("report %+v, removed %+v, recycled %v", rep, state.Removed, bin.moved)
+	}
+}
+
+func TestATombstoneIsDroppedWhenAnotherTrackTakesItsPath(t *testing.T) {
+	s, c, state := twoTracks(t)
+	s.listing = onlyA
+	run(t, c, state)
+	if len(state.Removed) != 1 {
+		t.Fatalf("removed %+v", state.Removed)
+	}
+	s.files["House/b.mp3"] = "other audio"
+	s.listing = Listing{Protocol: 2, Rev: 7,
+		Files:   []File{both.Files[0], file("House/b.mp3", "other audio", "a1_new", 7)},
+		Removed: onlyA.Removed}
+
+	run(t, c, state)
+	if len(state.Removed) != 0 {
+		t.Fatalf("the path is live again, but removed is %+v", state.Removed)
+	}
+}
+
+func TestAFileThatVanishedOnTheServerStaysHere(t *testing.T) {
+	s, c, state := twoTracks(t)
+	bin := &fakeBin{dir: t.TempDir()}
+	c.Recycle = bin.recycle
+	c.Server.DeleteRemovedFiles = true
+	s.listing = Listing{Protocol: 2, Rev: 6, Files: both.Files[:1],
+		Removed: []Removed{tomb("a1_b", "House/b.mp3", "missing")}}
+
+	run(t, c, state)
+	if len(state.Removed) != 1 || len(bin.moved) != 0 {
+		t.Fatalf("removed %+v, recycled %v", state.Removed, bin.moved)
+	}
+}
