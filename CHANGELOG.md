@@ -1,6 +1,46 @@
 # CHANGELOG
 
 
+## v1.16.5 (2026-11-24)
+
+### Bug Fixes
+
+- **ui**: One notice, badge and pill style ([#84](https://github.com/Fre0Grella/getsetmix/pull/84),
+  [`b82d448`](https://github.com/Fre0Grella/getsetmix/commit/b82d44892c17a6080b170add29bbb4c4a7df28ac))
+
+Part of #83: one .notice, .badge, .count and .btn-pill; the view switch shares .seg's track; tokens
+  for the top bar height and the raw shadows and colours; one download icon; .lib-note defined once.
+  CLAUDE.md lists the commit and PR-title rules.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+### Refactoring
+
+- **ui**: One palette, shared icons ([#82](https://github.com/Fre0Grella/getsetmix/pull/82),
+  [`79af863`](https://github.com/Fre0Grella/getsetmix/commit/79af863cc71cc4792abd479f04cc99ddbb7249ad))
+
+data-theme always holds the theme shown, so styles.css has one dark palette instead of two identical
+  blocks; the close and trash icons are symbols in the sprite, used everywhere. Screenshots match.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+- **ui**: Split the UI into ES modules ([#81](https://github.com/Fre0Grella/getsetmix/pull/81),
+  [`5cf4aaf`](https://github.com/Fre0Grella/getsetmix/commit/5cf4aaf1c10e7513af189ead31a1643d28505b03))
+
+app.js and library.js now import what they use from core.js (requests, escaping, toasts, the dialog,
+  shared state), i18n.js (the words) and cover.js (the cover picker) instead of sharing ~20 globals;
+  library.js never imports app.js. .js is served as text/javascript so modules run on any Windows
+  registry.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.16.4 (2026-11-24)
 
 ### Bug Fixes
