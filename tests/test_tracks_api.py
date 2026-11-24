@@ -247,3 +247,11 @@ def test_each_track_says_whether_it_can_be_edited_and_whether_it_is_busy(api):
         assert editable == (status in EDITABLE_STATUSES), status
         assert active == (status in ACTIVE_STATUSES), status
     assert got["staged"] == (True, False) and got["downloading"] == (False, True)
+
+
+def test_the_ui_modules_are_served_as_javascript(api):
+    # A browser refuses to run a module served as anything else.
+    for name in ("app.js", "library.js", "core.js", "i18n.js", "cover.js"):
+        r = api.get(f"/static/{name}")
+        assert r.status_code == 200, name
+        assert "javascript" in r.headers["content-type"], (name, r.headers["content-type"])

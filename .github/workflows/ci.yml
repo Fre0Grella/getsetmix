@@ -18,6 +18,10 @@ jobs:
       # more, which would change the counts below with no code change.
       - run: pip install -r requirements-dev.txt
       # The UI has no build step, so nothing else would notice a syntax error.
+      # Its files are ES modules: Node 22 reads import/export in a .js file.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - run: for f in app/static/*.js; do node --check "$f"; done
       # The ratchet: ruff, pyright, import-linter (pyproject.toml) and jscpd
       # duplication. Each count must stay at or below its ceiling in
