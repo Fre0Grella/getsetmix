@@ -94,7 +94,10 @@ func TestTokensMatchTheApp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != want {
+	// A Windows checkout may turn the copy's line endings into CRLF.
+	if strings.ReplaceAll(string(got), "
+", "
+") != want {
 		t.Fatalf("ui/tokens.css differs from the app's colours: run `go generate ./internal/setup`")
 	}
 }
