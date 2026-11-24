@@ -460,9 +460,9 @@ function setView(view) {
 // ---------------------------------------------------------- row covers
 // A row's cover is loaded only when the row is on screen and has one, a moment
 // after it appears (a fast fling loads nothing), a few at a time, and kept as a
-// 96 px copy: the embedded image can be large, and decoding it for every row
-// would make scrolling heavy. The server sends the image once per revision
-// (`?v=`, cached for good); an edited cover has a new revision.
+// 96 px copy. The server sends a small thumbnail (`?size=thumb`, a few KB; the
+// full picture only if it cannot make one) once per revision (`?v=`, cached for
+// good); an edited cover has a new revision.
 const Cover = { cache: new Map(), queue: [], active: 0, limit: 4, delay: 120, keep: 600, none: new Set() };
 
 function coverDraw(art, bitmap) {
@@ -512,7 +512,7 @@ async function coverThumb(blob) {
     bitmap = await createImageBitmap(blob);
   }
   if (bitmap.width <= COVER_PX * 1.5) return bitmap;
-  // the full image came back (no resize options here): keep a small copy, not that
+  // the full image came back (no thumbnail, or no resize options here): keep a small copy, not that
   const small = document.createElement("canvas");
   small.width = COVER_PX;
   small.height = Math.max(1, Math.round((COVER_PX * bitmap.height) / bitmap.width));
@@ -525,7 +525,7 @@ async function coverLoad(key) {
   const [id, rev] = key.split(":");
   let res;
   try {
-    res = await fetch(`/api/library/${id}/cover?v=${rev}`, { headers: authHeaders() });
+    res = await fetch(`/api/library/${id}/cover?size=thumb&v=${rev}`, { headers: authHeaders() });
   } catch {
     return;                         // a dropped connection: asked again when the row next appears
   }

@@ -40,7 +40,7 @@ import mutagen
 from mutagen.id3 import ID3
 from mutagen.mp4 import MP4Tags
 
-from . import audiohash, config, tagger
+from . import audiohash, config, tagger, thumbs
 from . import db as dbmod
 from .link import AUDIO_EXTS, served
 from .link import _skip as skipped  # the link's skip rules, shared on purpose
@@ -643,6 +643,7 @@ class Library:
                 conn.execute("UPDATE library_files SET state = 'gone', state_changed_at = ?, "
                              "rev = ? WHERE id = ? AND state = 'trashed'",
                              (_iso(now), self._next_rev(conn), row["id"]))
+            thumbs.drop(row["id"])  # its cover can no longer be asked for
             purged += 1
         if purged:
             log.info("library: purged %d file(s) from the trash", purged)

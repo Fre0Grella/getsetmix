@@ -17,7 +17,7 @@ import re
 from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from . import library, tagger
+from . import library, tagger, thumbs
 
 router = APIRouter(prefix="/api/library")
 
@@ -115,18 +115,27 @@ def _etag_matches(request: Request, etag: str) -> bool:
 
 
 @router.get("/{fid:int}/cover")
-async def get_cover(fid: int, request: Request, v: int | None = None):
-    """The embedded cover, as stored. Cached by its `content_rev`: a request
+async def get_cover(fid: int, request: Request, v: int | None = None,
+                    size: str | None = None):
+    """The embedded cover, as stored; with `?size=thumb` a small JPEG of it, for
+    the list (made once per `content_rev` and kept on disk, app/thumbs.py; the
+    full cover if it cannot be decoded). Cached by its `content_rev`: a request
     that names the current one with `?v=` may keep the image for a year, any
     other revalidates, so an edited cover refreshes."""
+    if size not in (None, "thumb"):
+        raise HTTPException(400, "size can only be thumb")
     row, path = await _call(library.current().media, fid)
-    etag = f'W/"cover-{row["id"]}-{row["content_rev"]}"'
+    etag = f'W/"cover-{"thumb-" if size else ""}{row["id"]}-{row["content_rev"]}"'
     fresh = v is not None and v == row["content_rev"]
     headers = {"ETag": etag, "X-Content-Type-Options": "nosniff",
                "Cache-Control": ("private, max-age=31536000, immutable" if fresh
                                  else "private, no-cache")}
     if _etag_matches(request, etag):
         return Response(status_code=304, headers=headers)
+    if size:
+        thumb = await asyncio.to_thread(thumbs.get, row["id"], row["content_rev"], path)
+        if thumb is not None:
+            return Response(thumb, media_type="image/jpeg", headers=headers)
     cover = await asyncio.to_thread(tagger.read_cover, path)
     if cover is None:
         raise HTTPException(404, "this track has no cover")

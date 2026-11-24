@@ -5,3 +5,4 @@ uvicorn[standard]>=0.30
 yt-dlp[default]>=2026.8.19
 mutagen>=1.47
 python-multipart>=0.0.9
+Pillow>=11.0
