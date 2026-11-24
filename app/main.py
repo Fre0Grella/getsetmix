@@ -5,20 +5,27 @@ import asyncio
 import base64
 import json
 import logging
+import os
 import secrets
+import string
 import sys
 import urllib.parse
-import urllib.request
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, genres, library, library_api, link, metadata, metrics, rules, ytdl
+from . import (
+    __version__, genres, library, library_api, link, metadata, metrics, outbound, rules, tagger,
+    ytdl,
+)
+from .auth import bearer_token
 from .config import (
-    AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, TRASH_DAYS_MAX, ensure_dirs, settings,
+    AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, ensure_dirs, patch_problem, settings,
 )
 from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
 from .worker import worker
@@ -31,6 +38,19 @@ app.include_router(library_api.router)
 STATIC = Path(__file__).parent / "static"
 
 FETCH_CONCURRENCY = asyncio.Semaphore(2)
+
+# The event loop keeps only a weak reference to a task: one nothing else holds
+# can be garbage-collected before it finishes. Background work is kept here
+# until it is done.
+_background: set[asyncio.Task] = set()
+
+
+def _spawn(work: Coroutine[Any, Any, None]) -> asyncio.Task:
+    """Run `work` in the background, held until it finishes."""
+    task = asyncio.create_task(work)
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+    return task
 
 
 # --------------------------------------------------------------------- auth
@@ -60,7 +80,7 @@ async def auth_middleware(request: Request, call_next):
             supplied = (
                 request.headers.get("x-auth-token")
                 or request.query_params.get("token")
-                or request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+                or bearer_token(request.headers.get("authorization", ""))
             )
             if not secrets.compare_digest(supplied or "", AUTH_TOKEN):
                 return JSONResponse({"detail": "unauthorized"}, status_code=401)
@@ -152,10 +172,10 @@ def _with_library_state(tracks: list[dict]) -> list[dict]:
         return tracks
     found = lib.locate([(t.get("audio_id") or "", t.get("file_path") or "") for t in done])
     for t, row in zip(done, found):
-        state = row["state"] if row else ""
-        kept = state in ("present", "trashed")
-        t["library_state"] = state if kept else "absent"
-        t["library_id"] = row["id"] if kept else None
+        if row is not None and row["state"] in ("present", "trashed"):
+            t["library_state"], t["library_id"] = row["state"], row["id"]
+        else:
+            t["library_state"], t["library_id"] = "absent", None
     return tracks
 
 
@@ -191,7 +211,7 @@ async def add_tracks(body: AddUrl):
         raise HTTPException(400, "Not a valid URL")
     duplicate = db.url_seen(url)
     tid = db.create_track(url, status="fetching")
-    asyncio.create_task(_resolve_new(tid, url))
+    _spawn(_resolve_new(tid, url))
     return {"ids": [tid], "duplicate": duplicate}
 
 
@@ -229,7 +249,7 @@ async def _resolve_new(tid: str, url: str) -> None:
             thumbnail=entry["thumbnail"], video_id=entry["id"],
             source=entry["extractor"],
         )
-        asyncio.create_task(_fetch_track_meta(new_id, eurl))
+        _spawn(_fetch_track_meta(new_id, eurl))
 
 
 @app.get("/api/tracks")
@@ -242,14 +262,24 @@ async def list_tracks():
     }
 
 
-@app.patch("/api/tracks/{tid}")
-async def edit_track(tid: str, body: TrackEdit):
+def _track_or_404(tid: str) -> dict:
     track = db.get_track(tid)
     if not track:
         raise HTTPException(404, "Track not found")
-    # Metadata edits allowed only before download starts.
+    return track
+
+
+def _editable_track(tid: str) -> dict:
+    """A track whose metadata and cover may change: only before its download starts."""
+    track = _track_or_404(tid)
     if track["status"] not in EDITABLE_STATUSES:
         raise HTTPException(409, "Track is locked while downloading")
+    return track
+
+
+@app.patch("/api/tracks/{tid}")
+async def edit_track(tid: str, body: TrackEdit):
+    track = _editable_track(tid)
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
     if patch:
         if track["status"] == "fetch_error" and (
@@ -261,14 +291,14 @@ async def edit_track(tid: str, body: TrackEdit):
         # Editing title/artist changes a track's identity -> re-check duplicates.
         if "title" in patch or "artist" in patch:
             await _flag_duplicate(tid)
-    return db.get_track(tid)
+    return _track_or_404(tid)
 
 
 @app.delete("/api/tracks/{tid}", status_code=204)
 async def remove_track(tid: str):
     track = db.get_track(tid)
     if not track:
-        return Response(status_code=204)
+        return Response(status_code=204)  # already gone: deleting is idempotent
     if track["status"] in ACTIVE_STATUSES:
         raise HTTPException(409, "Cannot remove a track while it downloads")
     db.delete_track(tid)
@@ -277,33 +307,37 @@ async def remove_track(tid: str):
 
 @app.post("/api/tracks/{tid}/cover")
 async def upload_cover(tid: str, file: UploadFile):
-    track = db.get_track(tid)
-    if not track:
-        raise HTTPException(404, "Track not found")
-    if track["status"] not in EDITABLE_STATUSES:
-        raise HTTPException(409, "Track is locked while downloading")
-    data = await file.read()
-    if len(data) > 10 * 1024 * 1024:
-        raise HTTPException(413, "Image larger than 10 MB")
+    """A cover for a staged track, used when it is downloaded. Checked as the
+    Library's covers are: 413 over 10 MB, 400 not a JPEG, PNG or WebP image."""
+    _editable_track(tid)
+    try:
+        data, _ = library.check_image(await file.read(tagger.MAX_COVER + 1))
+    except library.LibraryError as exc:
+        raise HTTPException(exc.status, exc.detail) from None
     dest = DATA_DIR / "covers" / f"{tid}.img"
     dest.write_bytes(data)
     db.update_track(tid, cover_path=str(dest), cover_url="")
-    return db.get_track(tid)
+    return _track_or_404(tid)
 
 
 @app.get("/api/tracks/{tid}/cover")
 async def get_cover(tid: str):
-    track = db.get_track(tid)
-    if not track or not track.get("cover_path") or not Path(track["cover_path"]).exists():
+    """The uploaded cover, with the type its bytes say (never what a client
+    claimed: an SVG served from this origin could run script)."""
+    track = _track_or_404(tid)
+    try:
+        data = Path(track["cover_path"]).read_bytes() if track.get("cover_path") else b""
+    except OSError:
+        data = b""
+    mime = tagger.image_type(data)
+    if mime is None:
         raise HTTPException(404, "No uploaded cover")
-    return FileResponse(track["cover_path"])
+    return Response(data, media_type=mime, headers={"X-Content-Type-Options": "nosniff"})
 
 
 @app.post("/api/tracks/{tid}/retry")
 async def retry_track(tid: str):
-    track = db.get_track(tid)
-    if not track:
-        raise HTTPException(404, "Track not found")
+    track = _track_or_404(tid)
     if track["status"] != "error":
         raise HTTPException(409, "Only failed tracks can be retried")
     queued = await worker.start_batch([tid])
@@ -344,8 +378,7 @@ async def cover_search(q: str):
     url = f"https://itunes.apple.com/search?{qs}"
 
     def _get() -> list[dict]:
-        req = urllib.request.Request(url, headers={"User-Agent": "GetSetMix/1.0"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with outbound.open_url(url) as resp:
             payload = json.loads(resp.read().decode("utf-8", "replace"))
         out = []
         for item in payload.get("results", []):
@@ -361,7 +394,54 @@ async def cover_search(q: str):
     try:
         return {"results": await asyncio.to_thread(_get)}
     except Exception as exc:
-        raise HTTPException(502, f"Cover search failed: {exc}")
+        raise HTTPException(502, f"Cover search failed: {exc}") from exc
+
+
+def _drives() -> dict:
+    """The drive letters of a Windows machine, as the top of the folder picker."""
+    drives = [{"name": f"{d}:", "path": f"{d}:\\"}
+              for d in string.ascii_uppercase if Path(f"{d}:\\").exists()]
+    return {"path": "", "parent": None, "dirs": drives}
+
+
+def _subfolders(base: Path) -> list[dict]:
+    """The folders directly in `base`, by name; hidden and unreadable ones left out.
+    Raises OSError when `base` itself cannot be listed."""
+    dirs = []
+    for p in sorted(base.iterdir(), key=lambda p: p.name.lower()):
+        if p.name.startswith("."):
+            continue
+        try:
+            if p.is_dir():
+                dirs.append({"name": p.name, "path": str(p)})
+        except OSError:
+            continue  # broken symlinks, unreadable entries
+    return dirs
+
+
+def _folder_listing(path: str) -> dict:
+    if not path.strip():
+        if os.name == "nt":
+            return _drives()
+        base = Path("/")
+    else:
+        base = Path(path).expanduser()
+    try:
+        base = base.resolve()
+        if not base.is_dir():
+            base = base.parent  # tolerate file paths pasted in the inputs
+        if not base.is_dir():
+            raise HTTPException(404, "Not a directory")
+        dirs = _subfolders(base)
+    except PermissionError:
+        raise HTTPException(403, "Permission denied") from None
+    except OSError as exc:
+        raise HTTPException(400, str(exc).splitlines()[0]) from exc
+    if base.parent != base:
+        parent = str(base.parent)
+    else:
+        parent = "" if os.name == "nt" else None  # drive root -> drive list
+    return {"path": str(base), "parent": parent, "dirs": dirs}
 
 
 @app.get("/api/fs/list")
@@ -370,49 +450,7 @@ async def fs_list(path: str = ""):
 
     Empty path lists drives on Windows and / on POSIX. Only folders are listed.
     """
-    import os
-    import string
-
-    def _list() -> dict:
-        if not path.strip():
-            if os.name == "nt":
-                drives = [
-                    {"name": f"{d}:", "path": f"{d}:\\"}
-                    for d in string.ascii_uppercase if Path(f"{d}:\\").exists()
-                ]
-                return {"path": "", "parent": None, "dirs": drives}
-            base = Path("/")
-        else:
-            base = Path(path).expanduser()
-        try:
-            base = base.resolve()
-            if not base.is_dir():
-                base = base.parent  # tolerate file paths pasted in the inputs
-            if not base.is_dir():
-                raise HTTPException(404, "Not a directory")
-            entries = sorted(base.iterdir(), key=lambda p: p.name.lower())
-        except HTTPException:
-            raise
-        except PermissionError:
-            raise HTTPException(403, "Permission denied")
-        except OSError as exc:
-            raise HTTPException(400, str(exc).splitlines()[0])
-        dirs = []
-        for p in entries:
-            if p.name.startswith("."):
-                continue
-            try:
-                if p.is_dir():
-                    dirs.append({"name": p.name, "path": str(p)})
-            except OSError:
-                continue  # broken symlinks, unreadable entries
-        if base.parent != base:
-            parent = str(base.parent)
-        else:
-            parent = "" if os.name == "nt" else None  # drive root -> drive list
-        return {"path": str(base), "parent": parent, "dirs": dirs}
-
-    return await asyncio.to_thread(_list)
+    return await asyncio.to_thread(_folder_listing, path)
 
 
 @app.get("/api/settings")
@@ -423,16 +461,9 @@ async def get_settings():
 @app.put("/api/settings")
 async def put_settings(body: SettingsPatch):
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
-    if "output_format" in patch and patch["output_format"] not in ("mp3", "flac"):
-        raise HTTPException(400, "output_format must be 'mp3' or 'flac'")
-    if "language" in patch and patch["language"] not in ("it", "en"):
-        raise HTTPException(400, "language must be 'it' or 'en'")
-    if "concurrency" in patch and not 1 <= int(patch["concurrency"]) <= 8:
-        raise HTTPException(400, "concurrency must be between 1 and 8")
-    if "trash_days" in patch and not 0 <= int(patch["trash_days"]) <= TRASH_DAYS_MAX:
-        raise HTTPException(400, f"trash_days must be between 0 and {TRASH_DAYS_MAX}")
-    if "filename_template" in patch and not patch["filename_template"].strip():
-        raise HTTPException(400, "filename_template cannot be empty")
+    problem = patch_problem(patch)
+    if problem:
+        raise HTTPException(400, problem)
     settings.update(patch)
     ensure_dirs()
     return settings.data
@@ -466,7 +497,8 @@ async def purge(body: Purge):
 # ------------------------------------------------------------ cleanup rules
 @app.get("/api/library/rules")
 async def library_rules():
-    """The cleanup-rule catalogue, plus the genre list the UI's picker reads."""
+    """The cleanup-rule catalogue, plus the genre list the UI's picker reads.
+    The UI reads only the genres today; the catalogue is for batch editing (#47)."""
     return {**rules.catalogue(), "genres": list(genres.GENRES),
             "genre_picks": list(genres.GENRE_PICKS)}
 
@@ -506,8 +538,9 @@ def _notice_file(name: str) -> Path | None:
     """LICENSE and THIRD-PARTY-NOTICES.md, wherever this build keeps them: the
     source tree, the Docker image, or the PyInstaller bundle."""
     roots = [Path(__file__).parent.parent, Path("/usr/share/doc/getsetmix")]
-    if getattr(sys, "_MEIPASS", None):
-        roots.insert(0, Path(sys._MEIPASS))
+    bundle = getattr(sys, "_MEIPASS", None)  # set by PyInstaller only
+    if bundle:
+        roots.insert(0, Path(bundle))
     for root in roots:
         if (root / name).is_file():
             return root / name
@@ -570,7 +603,6 @@ async def favicon():
 @app.on_event("startup")
 async def on_startup():
     ensure_dirs()
-    worker.bind_loop(asyncio.get_running_loop())
     # Recover tracks stuck mid-download from a previous run.
     for t in db.tracks_by_status(*ACTIVE_STATUSES):
         db.update_track(t["id"], status="staged", progress=0)

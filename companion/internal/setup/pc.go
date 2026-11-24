@@ -432,19 +432,7 @@ func (w *Wizard) fetchApp(ctx context.Context, dir string) error {
 			return err
 		}
 		defer in.Close()
-		tmp := filepath.Join(dir, ".app.part")
-		out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(out, in)
-		if cerr := out.Close(); err == nil {
-			err = cerr
-		}
-		if err != nil {
-			return err
-		}
-		return replace(tmp, filepath.Join(dir, appFile()))
+		return installFrom(in, dir, appFile())
 	}
 	return fetchAsset(ctx, asset{URL: src}, dir, appFile(), w.progress("app"))
 }

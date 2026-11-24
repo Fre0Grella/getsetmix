@@ -153,20 +153,9 @@ func extract(zipPath, dir string, names []string) error {
 		if err != nil {
 			return err
 		}
-		tmp := filepath.Join(dir, "."+base+".part")
-		out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
-		if err == nil {
-			_, err = io.Copy(out, rc)
-			if cerr := out.Close(); err == nil {
-				err = cerr
-			}
-		}
+		err = installFrom(rc, dir, base)
 		rc.Close()
 		if err != nil {
-			os.Remove(tmp)
-			return err
-		}
-		if err := replace(tmp, filepath.Join(dir, base)); err != nil {
 			return err
 		}
 		delete(want, base)
@@ -179,6 +168,25 @@ func extract(zipPath, dir string, names []string) error {
 		return fmt.Errorf("%s doesn't contain %s", filepath.Base(zipPath), strings.Join(missing, ", "))
 	}
 	return nil
+}
+
+// installFrom writes what r holds to dir/name through a hidden ".name.part" file
+// and then replaces dir/name with it. Not atomicfile.Write: the program being
+// replaced may be running, which replace works around.
+func installFrom(r io.Reader, dir, name string) error {
+	tmp := filepath.Join(dir, "."+name+".part")
+	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+	if err == nil {
+		_, err = io.Copy(out, r)
+		if cerr := out.Close(); err == nil {
+			err = cerr
+		}
+	}
+	if err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return replace(tmp, filepath.Join(dir, name))
 }
 
 // replace moves src over dst, making it executable.

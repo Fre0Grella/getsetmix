@@ -25,6 +25,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/atomicfile"
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
 	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
@@ -109,7 +110,7 @@ func (im *Importer) loadFetched(ready []scan.File) (*fetched, error) {
 }
 
 // ErrRekordboxRunning is returned by Sync when files wait but Rekordbox is open.
-var ErrRekordboxRunning = errors.New("Rekordbox is running; tracks will be imported once it is closed")
+var ErrRekordboxRunning = errors.New("tracks wait while Rekordbox is running; they will be imported once it is closed")
 
 // Sync performs one sync. With dryRun it reports what it would import and
 // writes nothing at all (not even state).
@@ -387,17 +388,8 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
-	tmp := dst + ".tmp"
-	out, err := os.Create(tmp)
-	if err != nil {
+	return atomicfile.Write(dst, 0o644, func(w io.Writer) error {
+		_, err := io.Copy(w, in)
 		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	if err := out.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp, dst)
+	})
 }

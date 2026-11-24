@@ -1,7 +1,7 @@
 // Package notices carries the license texts that ship with the companion and
 // GetSetMix Setup: the project's AGPL-3.0 text and THIRD-PARTY-NOTICES.md.
 //
-// go:embed cannot reach above the module directory, so the two files here are
+// An embed directive cannot reach above the module directory, so the two files here are
 // copies of the ones at the repository root. TestCopiesMatchTheRepositoryRoot
 // fails when they drift (companion.yml runs it whenever the root files change);
 // `go generate ./internal/notices` refreshes them.

@@ -13,9 +13,11 @@ from __future__ import annotations
 import asyncio
 import mimetypes
 import re
+from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.datastructures import UploadFile
 
 from . import library, tagger, thumbs
 
@@ -83,7 +85,7 @@ async def library_file(fid: int):
 
 
 @router.patch("/{fid:int}")
-async def edit_library_file(fid: int, body: dict = Body(...)):
+async def edit_library_file(fid: int, body: Annotated[dict, Body()]):
     """Edit tags: any of title, artist, album, genre, year and comment, plus an
     optional `expect` with the values the caller believes the file holds."""
     changes = dict(body)
@@ -164,7 +166,7 @@ async def set_cover(fid: int, request: Request):
             upload = (await request.form()).get("file")
         except Exception:
             upload = None
-        if upload is None or not hasattr(upload, "read"):
+        if not isinstance(upload, UploadFile):
             raise HTTPException(400, 'send {"url": "https://..."} or upload an image')
         data = await upload.read(tagger.MAX_COVER + 1)
     result = await _call(library.current().write_cover, fid, (data, ""))
