@@ -24,6 +24,7 @@ Two kinds of GPL software are involved. GetSetMix offers the corresponding sourc
 | yt-dlp-ejs | JavaScript challenge solvers for yt-dlp | Unlicense | none (public domain) | https://github.com/yt-dlp/ejs |
 | mutagen | Reads and writes audio tags | GPL-2.0-or-later | See the upstream COPYING and README | https://github.com/quodlibet/mutagen |
 | python-multipart | Form and upload parsing | Apache-2.0 | See the upstream LICENSE | https://github.com/Kludex/python-multipart |
+| Pillow | Makes small cover thumbnails | MIT-CMU (HPND) | Copyright 1997-2011 by Secret Labs AB, 1995-2011 by Fredrik Lundh and contributors, 2010 by Jeffrey 'Alex' Clark and contributors | https://github.com/python-pillow/Pillow |
 
 **ffmpeg source.** The package comes from Debian. Debian publishes the source package and its copyright file at https://metadata.ftp-master.debian.org/changelogs/main/f/ffmpeg/stable_copyright. Upstream source: https://ffmpeg.org/releases/. The exact Debian release depends on the `python:3.12-slim` tag at build time.
 
@@ -38,7 +39,7 @@ The executables bundle the Python runtime, the app, and the Python packages name
 | Python 3.12 | Runtime | PSF-2.0 | Python Software Foundation | https://www.python.org/ |
 | PyInstaller (bootloader and hooks) | Builds the executable | GPL-2.0-or-later with a special exception that allows bundling in any program | See the upstream COPYING.txt | https://github.com/pyinstaller/pyinstaller |
 | mutagen | Reads and writes audio tags | GPL-2.0-or-later | See the Docker table | https://github.com/quodlibet/mutagen |
-| FastAPI, uvicorn, yt-dlp, yt-dlp-ejs, python-multipart and their Python dependencies | As in the Docker table | As in the Docker table | As in the Docker table | As in the Docker table |
+| FastAPI, uvicorn, yt-dlp, yt-dlp-ejs, python-multipart, Pillow and their Python dependencies | As in the Docker table | As in the Docker table | As in the Docker table | As in the Docker table |
 
 ## Downloaded by Setup (not inside GetSetMix's own files)
 

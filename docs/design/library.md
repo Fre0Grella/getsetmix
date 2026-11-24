@@ -179,7 +179,7 @@ All under `/api/library`, behind the same auth as the rest of `/api`.
 | `GET /api/library/{id}` | one file, all fields |
 | `PATCH /api/library/{id}` | edit tags |
 | `POST /api/library/{id}/cover` | replace the embedded cover (upload, or `{"url": …}`) |
-| `GET /api/library/{id}/cover` | the embedded cover |
+| `GET /api/library/{id}/cover` | the embedded cover; `?size=thumb` a small JPEG of it, for the list |
 | `GET /api/library/{id}/audio` | the file, with range requests, for the preview |
 | `DELETE /api/library/{id}` | move to trash |
 | `POST /api/library/{id}/restore` | bring back from trash |
@@ -819,10 +819,25 @@ a dialog with the count. No confirmation phrase: a delete is recoverable for
   `GET /api/library/facets`, which is fetched again when `rev` moves.
 - **Covers in rows.** A row with `has_cover` asks for its image a moment after
   it appears (a fast fling asks for none), four at a time, newest request
-  first. The image is decoded at 96 px and only that copy is kept (600 of them,
-  least recently used out), so a large embedded picture costs one decode and
-  no memory. A row without a cover, or whose image cannot be read, keeps the
-  placeholder.
+  first. It asks for the thumbnail (`?size=thumb`, see below), decodes it at
+  96 px and keeps only that copy (600 of them, least recently used out). A row
+  without a cover, or whose image cannot be read, keeps the placeholder. The
+  detail sheet still loads the full cover.
+- **Thumbnails.** The embedded picture can be hundreds of kilobytes (on the
+  first real library the median was 103 KB and the largest 493 KB), and a row
+  shows it in a 44 px box, so scrolling the list once would download tens of
+  megabytes. `GET /api/library/{id}/cover?size=thumb` answers with a square
+  JPEG of at most 144 px (about 3x the box; centred crop, never enlarged,
+  quality 80, a few KB), made with Pillow on first request and kept in
+  `DATA_DIR/thumbs/<id>-<content_rev>.jpg` (`app/thumbs.py`). It is written
+  to a temporary file and moved into place, the thumbnails of older revisions
+  of the file are removed when a new one is made, and a purge from the trash
+  removes them all. A JPEG is decoded reduced (`Image.draft`), a picture over
+  the 10 MB cover cap or over 25 million pixels is not decoded, and one
+  thumbnail is made at a time, so a burst of rows cannot fill the pod's 1 GiB.
+  Whatever cannot be thumbnailed (damaged, an unknown format, too large) is
+  answered with the full cover as before; no cover is the same `404`. The
+  cache headers are the full cover's, with their own `ETag`.
 - **Preview.** The detail sheet has a native audio element on
   `GET /api/library/{id}/audio`, which loads nothing before Play. It is stopped
   before any write to the file, because a tag or cover write moves the audio
@@ -838,6 +853,7 @@ a dialog with the count. No confirmation phrase: a delete is recoverable for
 |---|---|
 | `GET /api/library/facets?state=present` | `{rev, genres: [{name, count}], folders: [{path, count}]}`, genres by count then name, folders by name; a folder counts the files directly in it, like the `folder` filter; files with no genre and files in the root are in no facet |
 | `GET /api/library/{id}/cover?v=` | the embedded image with its type read from its bytes (front cover first, else the first picture); `ETag` from `content_rev`; `?v=` equal to the current `content_rev` is cached for a year, anything else revalidates, so a new cover has a new address; `304` on a matching `If-None-Match`; `404` no cover |
+| `GET /api/library/{id}/cover?size=thumb&v=` | the same, as a JPEG thumbnail of at most 144 px (the full cover when it cannot be made); its own `ETag`; `400` for any other `size` |
 | `GET /api/library/{id}/audio` | the file, `206` for a `Range` of one range (`first-last`, `first-`, `-last`), `416` with `Content-Range: bytes */size` past the end, `200` whole for anything else; the file is opened once per 256 KB so a write is never blocked on Windows |
 | `POST /api/library/{id}/cover` | multipart `file`, or JSON `{"url": "https://..."}`; the updated item; `400` not a JPEG, PNG or WebP image, or an address that is not http(s); `413` over 10 MB; `502` the address did not give an image; then as `PATCH` |
 
