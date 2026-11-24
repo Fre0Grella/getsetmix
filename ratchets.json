@@ -5,5 +5,5 @@
   "import_contracts_broken": 0,
   "duplication_percent": {"python": 0.13, "javascript": 0, "go": 0.27},
   "coverage_percent_floor": 86,
-  "staticcheck": 3
+  "staticcheck": 5
 }
