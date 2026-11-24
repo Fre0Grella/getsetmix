@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **approved** by the maintainer on 2026-11-14. The two proposals left open on approval, 17 (fields with several values) and 18 (a full date when the year is edited), were decided on 2026-11-14 as proposed; see [section 6](#6-decisions-and-open-questions) |
+| **Status** | **approved** by the maintainer on 2026-11-14. The two proposals left open on approval, 17 (fields with several values) and 18 (a full date when the year is edited), were decided on 2026-11-14 as proposed; see [section 6](#6-decisions-and-open-questions). Section [4.6.1](#461-the-companions-view-of-server-changes-consolidation), added on 2026-11-24, was **approved** on 2026-11-24 with its five open questions decided as recommended |
 | **Issues** | design [#19](https://github.com/Fre0Grella/getsetmix/issues/19), feature [#11](https://github.com/Fre0Grella/getsetmix/issues/11), roadmap [#12](https://github.com/Fre0Grella/getsetmix/issues/12) |
 | **Date** | 2026-11-13 |
 
@@ -1038,6 +1038,337 @@ server:
 `state.json` values are widened in place on the first sync: each handled
 path gets the size and time the file has at that moment, and nothing is
 acted on.
+
+#### 4.6.1 The companion's view of server changes (consolidation)
+
+**Status: draft**, 2026-11-24, for the maintainer's approval. Nothing here
+is built. It changes how the companion's code is arranged, not what it does.
+It is numbered under 4.6 so that 4.7 and 4.8 keep their numbers: the code
+cites "4.7" for local mode.
+
+##### What the walk found
+
+A read-only walk of the companion on 2026-11-24 traced how it knows what
+changed on the server. Each finding below was checked against the code.
+Where the walk was wrong or incomplete, the row says so.
+
+| # | Finding | Where |
+|---|---|---|
+| 1 | "Removed on server" crosses five packages. `fetch` records tombstones by audio id. `importer` compares them with the paths it has already listed. `config` holds that list. `library` writes the playlist. `main` logs it. | `fetch.Client.tombstones`, `fetch.State.Removed`; `importer.removals`; `config.State.Removed` (type `config.Listed`); `library.MarkRemoved`; `main.logRemoved` |
+| 2 | Two maps are both called `Removed` and use different keys: `fetch.State.Removed` is keyed by audio id, `config.State.Removed` by `library.PathKey`. `fetch` alone also has a type `Removed` (a listing entry) and a field `Report.Removed` (server paths). | `fetch/state.go`, `fetch/fetch.go`, `config/config.go` |
+| 3 | "Changed on server" is decided across four packages: `fetch` (`refresh`, `State.Stale`, `State.Remember`, `Track.Pending`, `Track.Tags`), `importer` (`loadFetched`, `prepare`), `library` (`Changed`, `Update`) and `audio` (`ReadTags`, `TagsOf`). **Correction:** `config.Handled.Widen` runs in the same sync but decides nothing. The size and time it stores are written and never read; they wait for slice 7. | `importer/importer.go` |
+| 4 | "Has this file been handled" is three different facts in three stores: handled by the importer (`state.json` `seen`, by path key), fetched from the server (`fetched.json`, by audio id or by path), and in the collection (`library.KnownPaths`). The mapping between a path key and an audio id is built in two places, `fetch.State.Stale` and `importer.removals`, both through `fetch.Local`. **Correction:** `importer.Sync` does not rebuild it; it uses the map from `Stale` and turns report paths back into keys with `PathKey` to find it again. | `fetch/state.go`, `importer/removed.go`, `importer/importer.go` |
+| 5 | `fetched.json` is read at five call sites and written at four. Reads: `main.runFetch` (locked), `importer.loadFetched` (an unlocked first look, then again under the lock), `importer.removals` (unlocked), `setup` step `first` (unlocked). Writes: `main.runFetch` (locked), `importer.Sync` (locked), `setup` step `first` (unlocked), `setup.seedFetchState` (unlocked). | `cmd/gsm-companion/main.go`, `importer`, `setup/pc.go` |
+| 6 | **Correction:** step `first` re-implements `runFetch` only in the `DryRunOS` test run. A real Setup starts `gsm-companion fetch`, which takes the lock. **Missed by the walk:** `seedFetchState` writes a whole new `fetched.json` without the lock. An unlocked read is never torn, because `Save` writes a temporary file and renames it. But one sync reads two versions of the file: one in `removals`, one in `loadFetched`. | `setup/pc.go` |
+| 7 | **New:** `state.json` has no lock at all, and nothing stops two syncs at once. The launcher, the scheduled fetch and `watch` can each run `importer.Sync`. Two syncs both rewrite `state.json`, and both copy `master.db` into the same `backup` folder. A sync that fails could restore a copy the other sync took while it was writing. | `importer/importer.go` (`snapshot`, `restore`) |
+| 8 | `config.State` is shallow: its interface is as large as its data. Only the importer writes it (`Sync`, `Baseline`). Only `cmdStatus` also reads it. `config` imports `fetch` only for the `fetch.Server` type. **Addition:** it also imports `scan`, for `scan.File` in `Mark` and `Widen`. | `config/config.go` |
+| 9 | The domain types `Track` and `Tags`, the function `PathKey` and the file type codes live in `library`, the SQLCipher package. So `audio`, `scan` and `fetch` import the database package, and every test of theirs builds the cgo driver. **Correction:** `config` does not import `library` itself; it reaches it through `fetch` and `scan`. | `library/import.go`, `library/update.go`, `library/db.go` |
+| 10 | The query `SELECT … FolderPath FROM djmdContent WHERE rb_local_deleted = 0 …` is written five times: `KnownPaths`, `DominantFolder`, inline in `Import`, `contentIDs`, inline in `Update`. **Correction:** only two of them pick a row for a path. `Update` keeps the oldest row (`ORDER BY created_at`). `contentIDs`, used by `MarkRemoved`, keeps the last row read, with no `ORDER BY`, so the winner is not defined. `KnownPaths` and `Import` build a set of paths, and `DominantFolder` counts folders. So when a path has two rows, `Update` and `MarkRemoved` can act on different rows, and a later restore can take out a different row than the one listed. | `library/db.go`, `library/import.go`, `library/removed.go`, `library/update.go` |
+
+The behaviour is right and well tested. The problem is **locality**. Each
+of the questions "what is new", "what changed" and "what was removed" is
+answered by code spread over several packages. The next rules (slice 7:
+synced folders, local mode, "handled file is gone") would add a third key
+mapping and touch every one of them again.
+
+##### Goals and non-goals
+
+Goals:
+
+- **One module owns what the companion knows about server tracks.** It
+  answers "what changed", "what was removed" and "what is new since the
+  last sync". Its answers name each server track by audio id. The local path
+  comes with each answer as a derived view.
+- **One owner for `fetched.json` and `state.json`.** No other package reads
+  or writes them. Every write happens under the file's lock.
+- **Domain types in a pure package.** `audio`, `scan`, `fetch`, `config` and
+  the new module build and test without SQLCipher.
+- **One path-to-row lookup in `library`**, with a defined winner when a path
+  has several rows.
+- **Same behaviour.** Every existing importer and fetch test passes, with
+  the same assertions.
+
+Non-goals:
+
+- No change to what is written to `master.db`, or to when it is written.
+  The one exception is a path with two live rows: the row chosen becomes
+  defined (slice 2 of the build plan).
+- No change to the formats of `fetched.json`, `state.json` or
+  `companion.json`, unless a step below needs it. None does.
+- Any later migration stays backwards compatible: a new companion reads
+  every file an old one wrote, and an old one keeps working on what a new
+  one wrote.
+- The Rekordbox safety rules of
+  [architecture 8.1](../architecture.md#81-writing-to-rekordbox) stay as
+  they are.
+- No new feature. Local mode and synced folders stay slice 7.
+- No change to the link protocol or to the server.
+
+##### The proposed shape
+
+**A pure package, `track`.** It holds what every other package means by a
+track:
+
+- `Track` (the import candidate), `Tags`, the field names, `Changed`;
+- `PathKey`, and `Local` (a server path mapped safely into a folder);
+- the Rekordbox file type codes that `audio.Probe` fills in;
+- the link listing types (`File`, `Listing`, the listing's removed entry),
+  since they name tracks by audio id.
+
+It imports nothing from the companion and no database driver. `library`
+keeps type aliases (`type Track = track.Track`) while callers move.
+`FolderPath` stays in `library`: it is a Rekordbox storage rule.
+
+**A deep module, `ledger`, owns the two state files.** Its interface is
+small: three questions, and one record call for each outcome. Behind that
+interface it holds:
+
+- the two file formats and their migrations;
+- the mapping between path keys and audio ids;
+- the newest-id-per-path rule;
+- the rule that a tombstone wins;
+- the two `removed` records joined into one answer;
+- the locks.
+
+| Call | Caller | What it answers or records | Key | File | Lock |
+|---|---|---|---|---|---|
+| `Plan(listing)` | fetch | which listed tracks are new, which have a newer copy, which were deleted here, which tombstones to record or drop, which local files go to the recycle bin | audio id (path for protocol 1) | `fetched.json` | `fetch.lock`, held by the fetch run |
+| `Fetched`, `Refreshed`, `Kept`, `Tombstoned`, `Restored`, `Recycled` | fetch | what the run did, one call per outcome | audio id | `fetched.json` | `fetch.lock` |
+| `Seed(listing, all)` | Setup, through fetch | the first state: everything to fetch, or only what arrives from now on | audio id | `fetched.json` | `fetch.lock` |
+| `Unhandled(files)` | importer, `status` | the scanned local files no sync has handled yet | path key | `state.json` | none: a snapshot |
+| `Work()` | importer | `Changed` (a newer copy is in place and the row is behind), `Removed` (a tombstone not yet listed), `Restored` (listed, but the server has it again) | audio id, with the local path | both | none for `Removed` and `Restored`; `Changed` is read again under `fetch.lock` |
+| `Handled(files)`, `Baseline(files)` | importer | local files dealt with | path key | `state.json` | `sync.lock` |
+| `Applied(changed, tags)` | importer | the row now holds these tags; `pending` is cleared | audio id | `fetched.json` | `fetch.lock`, taken before the write as today |
+| `Listed(item)`, `Unlisted(item)` | importer | the playlist now has, or no longer has, the track | audio id outside; path key inside the file | `state.json` | `sync.lock` |
+
+The importer hands the items of `Work()` back to the record calls. It never
+builds a key itself. `library` names the input items in its results, so the
+importer does not turn paths back into keys at the end of a sync.
+
+The vocabulary changes with it:
+
+- a **tombstone** is the server saying a track is removed;
+- **listed** means the track is in the *removed on server* playlist;
+- the name `Removed` is used once, for the item `Work()` returns.
+
+**The seam moves.** Today `fetch` and `importer` meet in two JSON files
+that each one reads and interprets. After the change they meet at the
+ledger's interface. Tests can sit at that seam without a server and without
+a `master.db`.
+
+**Who touches the files.**
+
+- Only `ledger` reads or writes `fetched.json`, `fetched.v1.json` and
+  `state.json`. No other package knows the file names.
+- A read that leads to a write of the same file happens under that file's
+  lock, after the lock is taken.
+- A read for a question only may be a snapshot without the lock: `status`,
+  or the check whether a sync has anything to do. Files are replaced by a
+  rename, so a snapshot is always whole.
+- `fetch.lock` keeps its meaning: a fetch is running, or `fetched.json` is
+  being changed. A fetch run holds it, as today. Setup's seed and its
+  dry-run fetch now take it too, through `fetch`.
+- `sync.lock` is new. It means an import into Rekordbox is running, and it
+  covers `state.json` and the backup folder. One sync at a time closes
+  finding 7.
+- Lock order: `sync.lock` first, then `fetch.lock`. The importer only
+  *tries* `fetch.lock`. If a fetch holds it, changed tracks wait for the
+  next sync, as today. A fetch never waits for `sync.lock` while it holds
+  `fetch.lock`. So the two locks cannot deadlock.
+- One lock for both files was considered. It would block every import for
+  as long as a fetch runs, up to 30 minutes for the scheduled one. That is
+  worse than today.
+
+**`config` becomes settings only.** `fetch.Server` moves to `config.Server`.
+`fetch` keeps a type alias for one release. `config.State` moves into
+`ledger`. After that `config` imports nothing from the companion.
+
+**`fetch` becomes the network half.** It lists, downloads, checks the audio
+id and moves files. It asks `ledger.Plan` what to do and records what it
+did. `main.runFetch` moves into `fetch` as one function, so the launcher,
+the scheduled task and Setup's dry run run the same code under the same
+lock.
+
+**One path-to-row lookup in `library`.** One function reads `ID`,
+`FolderPath` and `created_at` of the live rows, once per transaction. It
+returns, for each path key, the row that wins. The winner is the **oldest
+live row** (`created_at`, then `ID`): the row Rekordbox has had longest,
+most likely the one with the cues. This is `Update`'s rule today.
+`KnownPaths`, `Import`, `MarkRemoved` and `Update` all use the function.
+`DominantFolder` counts folders, not rows; it stays its own query.
+
+**Dependencies before** (code outside tests; `install`, `notices`,
+`serverscript` left out):
+
+```mermaid
+flowchart TB
+    cmd["cmd/gsm-companion"]
+    setup --> config & fetch & importer & library & rekordbox
+    cmd --> config & fetch & importer & library & rekordbox & scan & setup & watch
+    watch --> importer & scan & audio
+    importer --> config & fetch & library & scan & audio & rekordbox
+    config --> fetch & scan
+    fetch --> library & audio & recycle
+    scan --> library & audio
+    audio --> library
+    library --> cgo[("go-sqlcipher (cgo)")]
+    fetch -.->|reads, writes| fj[("fetched.json")]
+    importer -.->|reads, writes| fj
+    setup -.->|reads, writes| fj
+    cmd -.->|reads, writes| fj
+    importer -.->|reads, writes| sj[("state.json")]
+    cmd -.->|reads| sj
+```
+
+**Dependencies after:**
+
+```mermaid
+flowchart TB
+    cmd["cmd/gsm-companion"]
+    setup --> config & fetch & importer & library & rekordbox
+    cmd --> config & fetch & importer & ledger & library & rekordbox & scan & setup & watch
+    watch --> importer & scan & audio
+    importer --> config & ledger & library & scan & audio & rekordbox
+    fetch --> config & ledger & audio & recycle & track
+    ledger --> track & scan
+    scan --> audio & track
+    audio --> track
+    library --> track
+    library --> cgo[("go-sqlcipher (cgo)")]
+    ledger -.->|only owner| fj[("fetched.json")]
+    ledger -.->|only owner| sj[("state.json")]
+```
+
+After the change only `importer`, `setup` and `cmd` import `library`. Only
+they link SQLCipher.
+
+##### Data contracts
+
+No format changes. The table says who owns each file after the change.
+
+| File | Version | Owner | Writes under | Old companions |
+|---|---|---|---|---|
+| `companion.json` | none | `config` | Setup only | unchanged |
+| `fetched.json` | 1 while the server speaks protocol 1, 2 after | `ledger` | `fetch.lock` | read it as today |
+| `fetched.v1.json` | the version 1 file, kept once | `ledger` | `fetch.lock` | unchanged |
+| `state.json` | none; `seen` values are a time or `{at, size, mtime}` | `ledger` | `sync.lock` | read it as today |
+| `fetch.lock` | — | `fetch` run and `ledger` writes | — | same meaning |
+| `sync.lock` | new | importer | — | ignored; they behave as today |
+
+The migrations that exist move into `ledger` unchanged, with their tests:
+
+- `fetched.json` version 1 to version 2, on the first protocol 2 listing;
+- a tombstone written as a time alone;
+- a `seen` value written as a time alone, widened on the first sync.
+
+An old companion reads everything a new one writes, because nothing new is
+written. The only new thing on disk is `sync.lock`, which an old companion
+does not know. During the minutes Setup takes to replace the program, an
+old and a new process can still run two syncs at once, as any two do today.
+
+A later format change becomes possible without touching any caller.
+Example: keep "listed" on the tombstone itself, keyed by audio id, instead
+of in `state.json` by path. It is not proposed here; see the open
+questions.
+
+##### Alternatives considered
+
+| Alternative | For | Against |
+|---|---|---|
+| **Leave the code as is, add tests only** | No risk to working code. The importer's tests already cover most behaviour through `Sync`. | The unlocked writers (finding 6) and the concurrent syncs (finding 7) stay. Slice 7 adds another key mapping in four packages. Tests that sit on two JSON files break with every internal change. |
+| **Targeted fixes only**: lock the two Setup writers, add `sync.lock`, one row lookup | Small, and it closes the real risks. | Locality does not improve. It is slices 2 and 3 of the plan below without the ledger. It is a good fallback if the ledger is not approved. |
+| **Merge `config.State` into `fetch.State`**, one file owned by `fetch` | One file, one lock, one owner. | `state.json` also serves folders with no server (synced folders), where `fetch` has no business. `fetch` would become the importer's memory too. Losing `state.json` is dangerous: an old companion that finds no `state.json` treats every file as new and re-imports tracks the DJ removed from Rekordbox. The format change cannot be read by old companions. |
+| **Make `fetch` the deep module**, owning both files | One package fewer. | `fetch` would hold the network, the download policy and the importer's memory. The importer would depend on the network package for its own state. |
+| **One SQLite file (`state.db`) instead of JSON** | Transactions and locks come with SQLite. Queries instead of maps. | The state module would depend on a cgo driver, against the goal of a pure core. The data is small: thousands of entries load and save in milliseconds. JSON can be read and fixed by hand. The move is one-way: old companions cannot read it. Worth looking at again if per-track data grows, for example analysis results. |
+
+##### Testing
+
+What is protected, and how:
+
+- **The ledger, through its interface.** These are pure Go tests: no
+  server, no `master.db`, no cgo. Each case writes the two files, calls a
+  question, and checks the answer and the files after the record calls:
+  - new, newer, deleted here, tombstoned;
+  - the newest id wins when a server path was replaced;
+  - a tombstone wins over a waiting newer copy;
+  - a restore takes out a listed track only;
+  - `Applied` stores the tags and clears `pending`;
+  - `Unhandled` after `Handled`.
+- **The locks.** Two ledgers on one folder lose no write. A second sync gets
+  `sync.lock` only after the first ends. The importer skips changed tracks,
+  and only those, while `fetch.lock` is held. A lock older than its limit is
+  taken over.
+- **Migration.** Golden files in `testdata/ledger/` record each form the
+  files have had:
+  - `fetched.json` version 1;
+  - version 2 with time-only tombstones;
+  - `state.json` with time-only `seen` values;
+  - `state.json` with `removed`.
+
+  Each is opened, asked the three questions, and saved. The answers must
+  equal what today's code gives for the same files. Opening twice changes
+  nothing. A copy of today's decoder, kept in the test, must read every
+  saved file the same way. That is the old-companion check.
+- **The importer, with the `librarytest` fixture.** Today's tests in
+  `importer_test.go`, `removed_test.go` and `update_test.go` stay as the net
+  for every slice. Only their set-up changes: they prepare state through
+  ledger test helpers, not by writing `fetch.State` by hand. They assert the
+  same columns, playlist rows and backups.
+- **The row lookup, with `librarytest`.** Two live rows share one path.
+  `Update` changes the oldest only. `MarkRemoved` lists the oldest and a
+  restore takes the same row out. `KnownPaths` is unchanged.
+- **The import rules.** A Go test runs `go list -deps`. It fails if `track`,
+  `audio`, `scan`, `fetch`, `ledger` or `config` depend on `library` or on
+  go-sqlcipher. It also fails if a package other than `ledger` names
+  `fetched.json` or `state.json`.
+
+##### Decisions (2026-11-24)
+
+The five questions of the draft, decided by the maintainer as recommended:
+
+1. **`sync.lock` is added**: one sync at a time. A sync that finds it held
+   waits up to 30 seconds, then skips and logs; the launcher starts
+   Rekordbox either way. A launch right after the scheduled sync still
+   imports its tracks.
+2. **Duplicate paths**: only the oldest live row is updated and listed
+   (built in [#77](https://github.com/Fre0Grella/getsetmix/pull/77)), and
+   the lookup is limited to this computer's `DeviceID`: a duplicate row is
+   usually a leftover, and writing to it could touch a row Rekordbox does
+   not use.
+3. **Names**: `track` and `ledger`.
+4. **The two `removed` records** stay as they are, joined inside the
+   ledger. No format change; revisit only if the join causes trouble.
+5. **Architecture**: the companion's layering goes into
+   [architecture 8.8](../architecture.md#88-code-structure-and-its-checks)
+   with an import-rule test in CI, and decision 10 records it.
+
+##### Build plan
+
+Each slice is one pull request. The companion stays releasable after each,
+and the existing tests pass unchanged in what they assert.
+
+1. **Pure `track` package.** Move `Track`, `Tags`, `Changed`, `PathKey`,
+   `Local`, the file type codes and the link listing types. Keep aliases in
+   `library` and `fetch`. Add the import-rule test. No behaviour change.
+2. **One row lookup in `library`.** Use it in `KnownPaths`, `Import`,
+   `MarkRemoved` and `Update`. Add the duplicate-path test. Behaviour
+   changes only for a path with two live rows.
+3. **`ledger` with today's formats.** Move `fetch.State`, `config.State`,
+   their load, save and lock, and the migrations into it. Move
+   `fetch.Server` to `config.Server`. Every reader and writer goes through
+   the ledger. Setup's seed and dry-run fetch go through `fetch`'s single
+   run. Add `sync.lock`, if open question 1 is approved. This closes
+   findings 5 to 7.
+4. **The ledger's questions.** Add `Plan`, `Unhandled`, `Work` and the
+   record calls. Remove `importer.removals`, `fetch.State.Stale`, the key
+   handling in `loadFetched` and the re-keying at the end of `Sync`. The
+   golden migration tests come in this slice.
+5. **Clean-up.** Remove the aliases. Bring the `fetch` and `config` package
+   comments, and 4.6 above, in line with the code.
+
+Slice 7 of the library plan (local mode and synced folders) is then built
+on the ledger. "A handled file is gone" becomes one more kind of item that
+`Work()` returns.
 
 ### 4.7 Local mode
 
