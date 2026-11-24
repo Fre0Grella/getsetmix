@@ -79,20 +79,74 @@ body.view-library .engine-banner { display: none !important; }
 }
 .toast-act:hover { background: color-mix(in oklch, var(--bg) 26%, transparent); }
 
+/* ----------------------------------------- sort, genre chips and folders */
+.lib-sort { display: inline-flex; gap: 6px; }
+body.lib-in-trash .lib-sort { display: none; }  /* the trash lists newest deleted first, and that is enough */
+.lib-select {
+  position: relative; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 0 28px 0 10px;
+  border: 1px solid var(--line); border-radius: 999px;
+  color: var(--text-2); font-size: .84rem; font-weight: 500; cursor: pointer;
+  transition: background-color .15s var(--ease), color .15s var(--ease);
+}
+.lib-select:hover { background: var(--hover); color: var(--text); }
+.lib-select:focus-within { border-color: var(--accent); }
+.lib-select::after {
+  content: ""; position: absolute; right: 12px; top: 50%;
+  width: 6px; height: 6px; margin-top: -5px; pointer-events: none;
+  border: solid currentColor; border-width: 0 1.8px 1.8px 0; transform: rotate(45deg); opacity: .7;
+}
+.lib-select svg { width: 16px; height: 16px; flex: none; pointer-events: none; }
+.lib-select select {
+  appearance: none; -webkit-appearance: none; max-width: 15rem; height: 34px;
+  margin: 0 -28px 0 0; padding: 0 28px 0 0; border: 0; border-radius: 0;
+  background: transparent; color: inherit; font: inherit; cursor: pointer;
+  text-overflow: ellipsis;
+}
+.lib-select select:focus-visible { outline: 0; }
+.lib-select select option { color: var(--text); background: var(--surface); }
+.lib-order { width: 36px; padding: 0; justify-content: center; }
+/* On a phone the trash is an icon with its count, to leave room for the sort. */
+.lib-trash-btn { position: relative; width: 36px; padding: 0; justify-content: center; }
+.lib-trash-label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.lib-badge {
+  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px;
+  display: grid; place-items: center; border-radius: 999px;
+  background: var(--accent); color: var(--on-accent);
+  font-size: .68rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.lib-order svg { transition: transform .2s var(--ease); }
+.lib-order[data-dir="asc"] svg { transform: rotate(180deg); }
+
+.lib-filters { display: flex; align-items: center; gap: 12px; padding: 4px var(--gutter) 10px; }
+.lib-filters.hidden { display: none; }
+.lib-genres {
+  display: flex; flex: 1; min-width: 0; gap: 6px; overflow-x: auto; scrollbar-width: none;
+  margin: 0 calc(var(--gutter) * -1); padding: 0 var(--gutter);
+}
+.lib-genres::-webkit-scrollbar { display: none; }
+.lib-gchip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; white-space: nowrap; }
+.lib-gchip small { font-size: .74rem; font-variant-numeric: tabular-nums; opacity: .65; }
+.lib-folder { display: none; }
+
 /* ---------------------------------------------------------------- rows */
 .lib-wrap { width: 100%; } /* centred by .list-wrap, but never shrunk to its rows */
 .lib-head { display: none; }
-.lib-list { display: flex; flex-direction: column; }
-.lib-more { height: 1px; }
+/* Only the rows near the screen exist; each sits at its own place in a list
+   as tall as all of them, so the scroll bar is the real length. */
+.lib-list { position: relative; overflow-anchor: none; }
 
 .lib-row {
+  position: absolute; left: 0; right: 0; top: 0;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto auto;
   grid-template-areas:
     "art who genre act"
     "art who dur act";
   column-gap: 12px; align-items: center;
-  min-height: 64px; padding: 8px var(--gutter);
+  height: var(--row-h, 64px); padding: 8px var(--gutter);
   border-bottom: 1px solid var(--line-soft);
 }
 .lib-act { grid-area: act; }
@@ -103,14 +157,39 @@ body.view-library .engine-banner { display: none !important; }
 }
 .lib-restore { height: 36px; padding: 0 12px; font-size: .86rem; }
 .lib-art {
-  grid-area: art; display: grid; place-items: center;
+  grid-area: art; display: grid; place-items: center; overflow: hidden;
   width: 44px; height: 44px; border-radius: 8px;
   background: var(--field); color: var(--text-3);
 }
 .lib-art svg { width: 20px; height: 20px; }
+/* A cover on its way: the placeholder, a little warmer. Then the picture. */
 .lib-art.has-cover { color: var(--accent); background: var(--accent-wash); }
+.lib-art canvas { grid-area: 1 / 1; width: 100%; height: 100%; display: block; animation: fade .2s var(--ease); }
+.lib-art.has-image { background: var(--field); }
+.lib-art.has-image svg { display: none; }
 .lib-who { grid-area: who; display: flex; flex-direction: column; min-width: 0; }
 .lib-title, .lib-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-sub { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lib-sub .lib-artist { flex: 0 1 auto; min-width: 0; }
+/* Markers: the audio is also in another file; the file is read-only, and why. */
+.lib-flag {
+  display: inline-flex; align-items: center; gap: 3px; flex: none;
+  height: 18px; padding: 0 5px; border-radius: 5px;
+  background: var(--field); color: var(--text-2);
+  font-size: .68rem; font-weight: 600; letter-spacing: .02em; line-height: 1; white-space: nowrap;
+}
+.lib-flag svg { width: 11px; height: 11px; }
+.lib-flag--dup { color: var(--accent); background: var(--accent-wash); }
+.lib-flag--ro { color: var(--warn); background: color-mix(in oklch, var(--warn) 13%, transparent); }
+.lib-flag--dup .lib-flag-text, .lib-flag-long { display: none; }
+
+/* A row whose page is on its way. */
+.lib-skel { pointer-events: none; }
+.lib-skel .lib-art { animation: pulse 1.4s ease-in-out infinite; }
+.lib-skel .lib-who { gap: 8px; }
+.lib-bar-a, .lib-bar-b { display: block; height: 10px; border-radius: 5px; background: var(--field); animation: pulse 1.4s ease-in-out infinite; }
+.lib-bar-a { width: 55%; }
+.lib-bar-b { width: 35%; height: 8px; }
 .lib-title { font-weight: 600; }
 .lib-file { font-weight: 500; color: var(--text-2); }
 .lib-artist { color: var(--text-2); font-size: .875rem; min-height: 1.2em; }
@@ -167,6 +246,7 @@ body.view-library .engine-banner { display: none !important; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .lib-source a { color: var(--accent); }
+#libTrashNote.lib-note { margin: 0 var(--gutter) 8px; padding: 8px 12px; }
 .lib-note {
   margin: 0; padding: 10px 12px; border-radius: var(--radius);
   background: var(--field); color: var(--text-2); font-size: .88rem; line-height: 1.45;
@@ -181,6 +261,21 @@ body.view-library .engine-banner { display: none !important; }
 .lib-ask-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .lib-sheet .modal-foot .btn.hidden { display: none; }
 
+/* Cover, a line about the file, the preview player. */
+.lib-sheet-top { display: flex; flex: none; align-items: flex-start; gap: 14px; }
+.lib-cover {
+  flex: none; display: grid; place-items: center; overflow: hidden;
+  width: 112px; height: 112px; border-radius: 12px;
+  background: var(--field); color: var(--text-3);
+}
+.lib-cover svg { width: 36px; height: 36px; }
+.lib-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lib-sheet-side { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
+.lib-meta { margin: 0; color: var(--text-3); font-size: .85rem; line-height: 1.45; }
+.lib-cover-btn { height: 38px; padding: 0 14px; font-size: .88rem; }
+.lib-audio { flex: none; width: 100%; height: 44px; }  /* flex: none, or a short dialog squeezes it away */
+.lib-same code { font: .8rem/1.4 var(--mono); word-break: break-all; }
+
 /* The search field in the deck: the link field's shape, without a button. */
 .lib-dock .add { padding-right: 14px; }
 .lib-dock input[type="search"] { -webkit-appearance: none; appearance: none; }
@@ -190,6 +285,14 @@ body.view-library .engine-banner { display: none !important; }
   .view-switch { margin-left: 0; margin-right: auto; }
   .view-switch button { height: 30px; font-size: .86rem; }
 
+  .lib-trash-btn { width: auto; padding: 0 12px 0 10px; }
+  .lib-trash-label { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+  .lib-badge { display: none; }
+  .lib-folder { display: inline-flex; }
+  .lib-genres { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
+  .lib-gchip { height: 30px; font-size: .82rem; }
+  .lib-filters { padding: 2px 16px 10px; align-items: flex-start; }
+  .lib-flag--dup .lib-flag-text, .lib-flag-long { display: inline; }
   .lib-head, .lib-row {
     grid-template-columns: 40px minmax(0, 3fr) minmax(0, 1fr) 52px 32px;
     grid-template-areas: none;
@@ -212,14 +315,11 @@ body.view-library .engine-banner { display: none !important; }
   }
   .lib-head.hidden { display: none; }
   .lib-row {
-    min-height: 52px; padding: 6px 10px;
-    border-bottom: 0; border-radius: 8px; position: relative;
+    padding: 6px 10px;
+    border-bottom: 0; border-radius: 8px;
+    box-shadow: inset 0 -1px 0 var(--line-soft);
   }
-  .lib-row + .lib-row::before {
-    content: ""; position: absolute; left: 10px; right: 10px; top: 0; border-top: 1px solid var(--line-soft);
-  }
-  .lib-row:hover { background: var(--hover); }
-  .lib-row:hover::before, .lib-row:hover + .lib-row::before { opacity: 0; }
+  .lib-row:hover { background: var(--hover); box-shadow: none; }
   .lib-art { grid-area: auto; width: 40px; height: 40px; border-radius: 6px; }
   .lib-who, .lib-genre, .lib-dur { grid-area: auto; }
   .lib-title { font-size: .96rem; }

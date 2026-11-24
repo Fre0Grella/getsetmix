@@ -4,7 +4,8 @@ from conftest import fresh_modules
 from fastapi.testclient import TestClient
 
 ITEM_KEYS = {"id", "audio_id", "path", "format", "title", "artist", "album", "genre", "year",
-             "duration", "has_cover", "size", "added_at", "editable", "multi", "same_audio"}
+             "duration", "has_cover", "size", "added_at", "content_rev", "editable", "multi",
+             "same_audio"}
 
 
 def _client(tmp_path, monkeypatch, token=""):

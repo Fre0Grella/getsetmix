@@ -85,13 +85,34 @@
         <span data-i18n="viewLibrary">Library</span>
       </button>
       <span id="libCount" class="stats-text"></span>
+      <div class="lib-sort">
+        <label class="lib-tool lib-select">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h7M4 17h4M17 6v12m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <select id="libSort" aria-label="Sort">
+            <option value="added" data-i18n="libSortAdded">Added</option>
+            <option value="artist" data-i18n="libSortArtist">Artist</option>
+            <option value="title" data-i18n="libSortTitle">Title</option>
+            <option value="genre" data-i18n="libSortGenre">Genre</option>
+          </select>
+        </label>
+        <button id="libOrder" type="button" class="lib-tool lib-order" aria-label="Reverse the order" title="Reverse the order" data-dir="desc">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m0 0l-5-5m5 5l5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
       <button id="libTrashBtn" type="button" class="lib-tool lib-trash-btn">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span id="libTrashLabel">Trash</span>
+        <span id="libTrashLabel" class="lib-trash-label">Trash</span>
+        <span id="libTrashBadge" class="lib-badge hidden" aria-hidden="true"></span>
       </button>
       <button id="libEmptyTrash" type="button" class="lib-tool lib-empty-trash hidden" data-i18n="libEmptyTrash">Empty trash</button>
     </div>
     <p id="libTrashNote" class="lib-note hidden"></p>
+    <div id="libFilters" class="lib-filters hidden">
+      <div id="libGenres" class="lib-genres" role="group" aria-label="Genres"></div>
+      <label class="lib-select lib-folder">
+        <select id="libFolder" aria-label="Folder"></select>
+      </label>
+    </div>
     <div id="libHead" class="lib-head hidden" aria-hidden="true">
       <span></span>
       <span data-i18n="colTrack">Track</span>
@@ -99,8 +120,7 @@
       <span class="num" data-i18n="colTime">Time</span>
       <span></span>
     </div>
-    <div id="libList" class="lib-list"></div>
-    <div id="libMore" class="lib-more" aria-hidden="true"></div>
+    <div id="libList" class="lib-list" role="list"></div>
     <section id="libEmpty" class="empty hidden">
       <svg class="empty-mark" aria-hidden="true"><use href="#gsm-mark" /></svg>
       <h1 id="libEmptyTitle"></h1>
@@ -296,6 +316,16 @@
       </div>
       <div class="modal-body">
         <p id="libSheetReadOnly" class="lib-note hidden"></p>
+        <div class="lib-sheet-top">
+          <div id="libSheetCover" class="lib-cover" role="img"></div>
+          <div class="lib-sheet-side">
+            <p id="libSheetMeta" class="lib-meta"></p>
+            <button id="libCoverBtn" type="button" class="btn btn-quiet lib-cover-btn" data-i18n="libChangeCover">Change cover</button>
+          </div>
+        </div>
+        <audio id="libAudio" class="lib-audio" controls preload="none"></audio>
+        <p id="libAudioNote" class="lib-note hidden"></p>
+        <p id="libSheetSame" class="lib-note lib-same hidden"></p>
         <div class="lib-fields">
           <label class="lib-field lib-field--wide"><span data-i18n="libTitle">Title</span>
             <input id="libFTitle" type="text" data-tag="title" spellcheck="false" /></label>

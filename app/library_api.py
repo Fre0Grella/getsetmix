@@ -1,8 +1,9 @@
 """The Library API (docs/design/library.md, 3.3), behind the same auth as /api.
 
-This module serves the list, the status, the rescan, one file and its tag
-edit, and the trash: delete, restore and purge. The index and the writes are
-in app/library.py; the routes here are thin callers.
+This module serves the list, the facets, the status, the rescan, one file and
+its tag edit, its cover (read and replace) and audio (with range requests, for
+the preview), and the trash: delete, restore and purge. The index and the
+writes are in app/library.py; the routes here are thin callers.
 
 Routes that take an id use the `int` path convertor, so fixed paths such as
 `/api/library/trash` or `/api/library/rules` are never read as an id.
@@ -10,13 +11,21 @@ Routes that take an id use the `int` path convertor, so fixed paths such as
 from __future__ import annotations
 
 import asyncio
+import mimetypes
+import re
 
-from fastapi import APIRouter, Body, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from . import library
+from . import library, tagger
 
 router = APIRouter(prefix="/api/library")
+
+CHUNK = 256 * 1024
+AUDIO_TYPES = {".mp3": "audio/mpeg", ".flac": "audio/flac", ".m4a": "audio/mp4",
+               ".aac": "audio/aac", ".wav": "audio/wav", ".aif": "audio/aiff",
+               ".aiff": "audio/aiff", ".ogg": "audio/ogg", ".opus": "audio/ogg"}
+RANGE = re.compile(r"^bytes=(\d*)-(\d*)$")
 
 
 @router.get("")
@@ -27,6 +36,15 @@ async def list_library(q: str = "", genre: str = "", folder: str = "", state: st
         return await asyncio.to_thread(
             library.current().list, q=q, genre=genre, folder=folder, state=state, sort=sort,
             order=order, limit=limit, cursor=cursor)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@router.get("/facets")
+async def library_facets(state: str = "present"):
+    """Genres and folders with their counts, for the filters."""
+    try:
+        return await asyncio.to_thread(library.current().facets, state)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from None
 
@@ -87,3 +105,119 @@ async def delete_file(fid: int):
 async def restore_file(fid: int):
     """Bring one file back from the trash; 409 if its path is taken."""
     return await _call(library.current().restore, fid)
+
+
+# ------------------------------------------------------------------- cover
+def _etag_matches(request: Request, etag: str) -> bool:
+    given = request.headers.get("if-none-match", "")
+    return any(tag.strip().removeprefix("W/") == etag.removeprefix("W/")
+               for tag in given.split(","))
+
+
+@router.get("/{fid:int}/cover")
+async def get_cover(fid: int, request: Request, v: int | None = None):
+    """The embedded cover, as stored. Cached by its `content_rev`: a request
+    that names the current one with `?v=` may keep the image for a year, any
+    other revalidates, so an edited cover refreshes."""
+    row, path = await _call(library.current().media, fid)
+    etag = f'W/"cover-{row["id"]}-{row["content_rev"]}"'
+    fresh = v is not None and v == row["content_rev"]
+    headers = {"ETag": etag, "X-Content-Type-Options": "nosniff",
+               "Cache-Control": ("private, max-age=31536000, immutable" if fresh
+                                 else "private, no-cache")}
+    if _etag_matches(request, etag):
+        return Response(status_code=304, headers=headers)
+    cover = await asyncio.to_thread(tagger.read_cover, path)
+    if cover is None:
+        raise HTTPException(404, "this track has no cover")
+    return Response(cover[0], media_type=cover[1], headers=headers)
+
+
+@router.post("/{fid:int}/cover")
+async def set_cover(fid: int, request: Request):
+    """Replace the embedded cover: an uploaded image (multipart, field `file`)
+    or `{"url": "https://..."}` to download one. Answers with the updated item."""
+    if request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            url = (await request.json()).get("url")
+        except Exception:
+            url = None
+        if not isinstance(url, str):
+            raise HTTPException(400, 'send {"url": "https://..."} or upload an image')
+        if not url.lower().startswith(("http://", "https://")):
+            raise HTTPException(400, "the address must start with http:// or https://")
+        fetched = await asyncio.to_thread(tagger.fetch_image, url)
+        if fetched is None:
+            raise HTTPException(502, "could not download an image from that address")
+        data = fetched[0]
+    else:
+        try:
+            upload = (await request.form()).get("file")
+        except Exception:
+            upload = None
+        if upload is None or not hasattr(upload, "read"):
+            raise HTTPException(400, 'send {"url": "https://..."} or upload an image')
+        data = await upload.read(tagger.MAX_COVER + 1)
+    result = await _call(library.current().write_cover, fid, (data, ""))
+    return result.item
+
+
+# ------------------------------------------------------------------- audio
+def _byte_range(header: str | None, size: int) -> tuple[int, int] | None:
+    """The (first, last) byte a Range header asks for; None to send it all.
+    Raises ValueError when the range cannot be satisfied. A header that is not
+    one simple `bytes=` range is ignored, as the standard allows."""
+    m = RANGE.match((header or "").strip())
+    if not m or (m.group(1) == "" and m.group(2) == ""):
+        return None
+    if m.group(1) == "":  # the last n bytes
+        n = int(m.group(2))
+        if n == 0:
+            raise ValueError
+        return max(size - n, 0), size - 1
+    first = int(m.group(1))
+    last = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+    if first >= size or first > last:
+        raise ValueError
+    return first, last
+
+
+def _chunks(path, first: int, last: int):
+    # The file is opened for each chunk and not held between them: a tag edit
+    # replaces the file, and on Windows a held handle would make that fail.
+    pos = first
+    while pos <= last:
+        with open(path, "rb") as fh:
+            fh.seek(pos)
+            data = fh.read(min(CHUNK, last - pos + 1))
+        if not data:
+            return
+        pos += len(data)
+        yield data
+
+
+@router.get("/{fid:int}/audio")
+async def get_audio(fid: int, request: Request):
+    """The audio file, with range requests, for the preview player."""
+    _, path = await _call(library.current().media, fid)
+    try:
+        st = await asyncio.to_thread(path.stat)
+    except OSError:
+        raise HTTPException(410, "the file is not on disk") from None
+    size = st.st_size
+    headers = {"Accept-Ranges": "bytes", "ETag": f'W/"{size}-{st.st_mtime_ns}"',
+               "Cache-Control": "private, no-cache", "X-Content-Type-Options": "nosniff"}
+    media = (AUDIO_TYPES.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0]
+             or "application/octet-stream")
+    try:
+        span = _byte_range(request.headers.get("range"), size)
+    except ValueError:
+        return Response(status_code=416, headers={**headers, "Content-Range": f"bytes */{size}"})
+    if span is None:
+        span, status = (0, size - 1), 200
+    else:
+        status = 206
+        headers["Content-Range"] = f"bytes {span[0]}-{span[1]}/{size}"
+    headers["Content-Length"] = str(max(span[1] - span[0] + 1, 0))
+    return StreamingResponse(_chunks(path, *span), status_code=status, media_type=media,
+                             headers=headers)
