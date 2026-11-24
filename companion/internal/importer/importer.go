@@ -109,6 +109,23 @@ func (im *Importer) loadFetched(ready []scan.File) (*fetched, error) {
 		seen: map[string]library.Tags{}, unlock: unlock}, nil
 }
 
+// Split sorts the ready files into what a sync acts on: pending ones were
+// never handled; changed ones were, and fetch has since put a newer copy
+// from the server in their place (stale: PathKey -> audio id, as
+// fetch.State.Stale gives it; nil when none). `status` counts with it too.
+func Split(ready []scan.File, state *config.State, stale map[string]string) (pending, changed []scan.File) {
+	for _, f := range ready {
+		_, done := state.Seen[f.Key]
+		switch {
+		case !done:
+			pending = append(pending, f)
+		case stale[f.Key] != "":
+			changed = append(changed, f)
+		}
+	}
+	return pending, changed
+}
+
 // ErrRekordboxRunning is returned by Sync when files wait but Rekordbox is open.
 var ErrRekordboxRunning = errors.New("tracks wait while Rekordbox is running; they will be imported once it is closed")
 
@@ -145,18 +162,14 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 	if known != nil {
 		defer known.unlock()
 	}
-	var pending, changed []scan.File
+	var stale map[string]string
+	if known != nil {
+		stale = known.stale
+	}
+	pending, changed := Split(found.Ready, state, stale)
 	byKey := map[string]scan.File{}
-	for _, f := range found.Ready {
-		_, done := state.Seen[f.Key]
-		switch {
-		case !done:
-			pending = append(pending, f)
-			byKey[f.Key] = f
-		case known != nil && known.stale[f.Key] != "":
-			changed = append(changed, f)
-			byKey[f.Key] = f
-		}
+	for _, f := range append(slices.Clone(pending), changed...) {
+		byKey[f.Key] = f
 	}
 	rep.New = len(pending)
 	rep.Changed = len(changed)

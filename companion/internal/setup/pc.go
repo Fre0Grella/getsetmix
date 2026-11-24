@@ -325,14 +325,7 @@ func (w *Wizard) pcStep(ctx context.Context, mode, id string) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			state, err := fetch.LoadState(o.Home)
-			if err != nil {
-				return "", err
-			}
-			rep, err := (&fetch.Client{Server: *cfg.Server}).Run(ctx, state, time.Now)
-			if serr := state.Save(o.Home); err == nil {
-				err = serr
-			}
+			rep, _, err := fetch.RunLocked(ctx, o.Home, *cfg.Server, time.Now)
 			return fmt.Sprintf("%d", len(rep.Downloaded)), err
 		}
 		// Start the first download now, in the background: it may be long,
@@ -396,7 +389,22 @@ func same(a, b string) bool {
 
 // seedFetchState decides what the first fetch downloads: everything the
 // server has, or (copyExisting false) only what arrives from now on.
+//
+// Only on first pairing: a computer that already fetched keeps its state,
+// whatever the choice, or Setup run again would forget what it holds and
+// what the server removed, and fetch again over local files. It writes
+// under the fetch lock, like every other writer of fetched.json.
 func (w *Wizard) seedFetchState(ctx context.Context, srv fetch.Server, copyExisting bool) error {
+	unlock, err := fetch.Lock(w.opts.Home)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if held, err := fetch.LoadState(w.opts.Home); err != nil {
+		return err
+	} else if !held.Empty() {
+		return nil
+	}
 	state := fetch.NewState()
 	if !copyExisting {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)

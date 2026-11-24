@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -32,4 +33,25 @@ func Lock(dir string) (func(), error) {
 		break
 	}
 	return nil, ErrLocked
+}
+
+// RunLocked is one whole fetch the way every caller must do it: take the
+// lock, read fetched.json, download from s, and save the state again even
+// when the run stopped early (what was fetched is recorded). It returns the
+// report and the state as saved, for the caller's own reporting.
+func RunLocked(ctx context.Context, dir string, s Server, now func() time.Time) (Report, *State, error) {
+	unlock, err := Lock(dir)
+	if err != nil {
+		return Report{}, nil, err
+	}
+	defer unlock()
+	state, err := LoadState(dir)
+	if err != nil {
+		return Report{}, nil, err
+	}
+	rep, err := (&Client{Server: s}).Run(ctx, state, now)
+	if serr := state.Save(dir); err == nil {
+		err = serr
+	}
+	return rep, state, err
 }

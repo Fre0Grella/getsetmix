@@ -122,9 +122,11 @@ func (d *DB) MarkRemoved(add, drop []string, now time.Time) (RemovedResult, erro
 }
 
 // contentIDs maps the PathKey of every track in the collection to its ID.
+// When Rekordbox holds two live rows for one file, the oldest one speaks for
+// it, the same row for every write (an update, the removed playlist).
 func contentIDs(tx *sql.Tx) (map[string]string, error) {
 	rows, err := tx.Query(`SELECT ID, FolderPath FROM djmdContent
-		WHERE rb_local_deleted = 0 AND FolderPath IS NOT NULL`)
+		WHERE rb_local_deleted = 0 AND FolderPath IS NOT NULL ORDER BY created_at, ID`)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +137,9 @@ func contentIDs(tx *sql.Tx) (map[string]string, error) {
 		if err := rows.Scan(&id, &p); err != nil {
 			return nil, err
 		}
-		ids[PathKey(p)] = id
+		if _, dup := ids[PathKey(p)]; !dup {
+			ids[PathKey(p)] = id
+		}
 	}
 	return ids, rows.Err()
 }

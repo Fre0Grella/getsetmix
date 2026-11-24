@@ -378,25 +378,20 @@ func cmdFetch(home string, logger *log.Logger, args []string) error {
 // runFetch is one fetch, guarded so the launcher and the scheduled task
 // never download at the same time.
 func runFetch(home string, cfg config.Config, logger *log.Logger, budget time.Duration) (fetch.Report, error) {
-	unlock, err := fetch.Lock(home)
-	if err != nil {
-		return fetch.Report{}, err
-	}
-	defer unlock()
-	state, err := fetch.LoadState(home)
-	if err != nil {
-		return fetch.Report{}, err
+	// The summary before the run, to log the skipped files only when they
+	// change. No lock needed to read: fetched.json is replaced atomically.
+	skippedBefore := ""
+	if before, err := fetch.LoadState(home); err == nil {
+		skippedBefore = before.SkippedSummary()
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
-	c := &fetch.Client{Server: *cfg.Server}
-	skippedBefore := state.SkippedSummary()
-	rep, err := c.Run(ctx, state, time.Now)
+	rep, state, err := fetch.RunLocked(ctx, home, *cfg.Server, time.Now)
+	if state == nil {
+		return rep, err
+	}
 	if s := state.SkippedSummary(); s != "" && s != skippedBefore {
 		logger.Printf("fetch: skipped %s", s)
-	}
-	if serr := state.Save(home); err == nil {
-		err = serr
 	}
 	for _, p := range rep.Downloaded {
 		logger.Printf("fetched %s", p)
@@ -465,13 +460,16 @@ func cmdStatus(home string) error {
 	if err != nil {
 		return err
 	}
-	pending := 0
-	for _, f := range found.Ready {
-		if _, ok := state.Seen[f.Key]; !ok {
-			pending++
+	var stale map[string]string
+	if cfg.Server != nil && cfg.Server.Folder != "" {
+		// No lock needed to read: fetched.json is replaced atomically.
+		if fetched, err := fetch.LoadState(home); err == nil {
+			stale = fetched.Stale(cfg.Server.Folder)
 		}
 	}
-	fmt.Printf("pending     %d new, %d still syncing\n", pending, len(found.Settling))
+	pending, changed := importer.Split(found.Ready, state, stale)
+	fmt.Printf("pending     %d new, %d changed on the server, %d still syncing\n",
+		len(pending), len(changed), len(found.Settling))
 	fmt.Printf("log         %s\n", filepath.Join(home, "companion.log"))
 	return nil
 }
