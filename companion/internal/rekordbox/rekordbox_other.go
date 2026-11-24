@@ -20,4 +20,4 @@ func Running() ([]uint32, error) { return nil, nil }
 func waitExit(context.Context, []uint32) error { return nil }
 
 // Launch always fails on this OS.
-func Launch(string) error { return errors.New("Rekordbox runs on Windows and macOS only") }
+func Launch(string) error { return errors.New("only Windows and macOS run Rekordbox") }
