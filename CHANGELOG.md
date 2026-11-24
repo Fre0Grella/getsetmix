@@ -1,6 +1,23 @@
 # CHANGELOG
 
 
+## v1.16.2 (2026-11-24)
+
+### Bug Fixes
+
+- **companion**: Keep the sync list on rerun
+  ([#77](https://github.com/Fre0Grella/getsetmix/pull/77),
+  [`db64144`](https://github.com/Fre0Grella/getsetmix/commit/db6414401986368198e9636c8a5394dea2bde502))
+
+Setup run again no longer replaces fetched.json (it seeds only an empty state, under the lock).
+  fetch.RunLocked is the one way to fetch; one path -> row lookup with the oldest row winning;
+  importer.Split shared by sync and status, which now counts tracks changed on the server.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.16.1 (2026-11-24)
 
 ### Bug Fixes
