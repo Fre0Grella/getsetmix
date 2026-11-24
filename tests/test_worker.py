@@ -112,8 +112,14 @@ def test_the_audio_id_survives_an_index_failure(env, monkeypatch):
 
 async def _run_batch(worker, ids, concurrency=None) -> list[str]:
     """Queue `ids` as the API does and wait until the batch is done."""
+    from app.db import db
+
     queued = await worker.start_batch(ids, concurrency)
-    while worker.busy:
+    # Wait for every queued track to finish, not for `busy`: between one
+    # track and the next the worker can look idle for a moment.
+    for _ in range(1000):
+        if all(db.get_track(t)["status"] in ("ingested", "error") for t in queued):
+            break
         await asyncio.sleep(0.01)
     return queued
 
