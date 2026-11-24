@@ -75,7 +75,7 @@ Android only: iPhones don't let web apps into the share menu.)
 **Set: the metadata, right the first time**
 
 - Every field editable before anything downloads, with a DJ-genre picker and cover search or upload
-- Duplicate detection against your collection, by source link or a fuzzy title and artist match
+- Duplicate detection against the Library, by source link or a fuzzy title and artist match; a finished download says whether its file is still in the Library, or in the trash (with Restore)
 - ID3v2.4 and FLAC tags with embedded artwork; filenames from a template (`{artist} - {title}`, and more)
 - Batch downloads with progress per track, adjustable parallelism, cancel and retry; one failure never stops the batch
 
@@ -83,7 +83,6 @@ Android only: iPhones don't let web apps into the share menu.)
 
 - The [companion](companion/README.md) writes new tracks straight into the Rekordbox collection, safely (backup, one transaction, integrity check), whenever you open Rekordbox through its shortcut
 - With a home server, tracks download to each paired computer on their own, one way, so the server stays the backup
-- Or, without the companion, a Rekordbox XML with an *Inbox* playlist that drops what you've already imported
 
 **Running it**
 
@@ -195,16 +194,15 @@ python run_local.py --port 9000 --no-browser
 2. Rows resolve their metadata. Fix title/artist, pick a genre, optionally set the album and the cover. On a computer every field is editable in place (hover the artwork to search or upload a cover); on a phone, tap a row to open it, with one-tap genre picks under the genre field.
 3. Press **Download** to start the batch (the ×N selector overrides parallelism for this batch only). Edits lock once a track is queued.
 4. Watch per-track progress and the batch bar; cancel anytime (in-flight tracks are stopped and re-staged).
-5. When tracks show **Done**, open Rekordbox → **File ▸ Import collection / reload the rekordbox.xml source** and find them in the **Inbox** playlist.
+5. When tracks show **In your library**, the companion brings them into Rekordbox (below). The label follows the Library: a track you delete there shows **In the trash**, with a Restore button, and one that is gone for good shows **Not in your library anymore**. A staged track the Library already has (same source link, or the same title and artist) is marked **Already owned?**; tap the mark to open that track, and **Download** asks before making a second copy.
 
-In Rekordbox, point *Preferences ▸ Advanced ▸ Database ▸ rekordbox xml* at the XML path shown in Settings (default `<data>/rekordbox/getsetmix.xml`), then refresh the *rekordbox xml* tree in the sidebar after each batch.
-
-### Skip the XML: gsm-companion
+### Into Rekordbox: gsm-companion
 
 [`companion/`](companion/README.md) is the program on the computer that runs
 Rekordbox, and GetSetMix Setup installs it for you. It adds new tracks
-**straight into the Rekordbox collection** (into a `GetSetMix` playlist), so
-there is no XML to refresh. With a home server it also downloads them first
+**straight into the Rekordbox collection** (into a `GetSetMix` playlist).
+Without it, add the files from the library folder to Rekordbox yourself.
+With a home server it also downloads them first
 (`gsm-companion fetch`, every 15 minutes while the computer is on). Nothing
 has to stay running: Rekordbox must be closed while its database is written,
 so you open Rekordbox through a *Rekordbox (GetSetMix)* shortcut that imports
@@ -213,8 +211,6 @@ first (≈1 s) and then starts it. By hand:
 ```sh
 gsm-companion setup && gsm-companion install
 ```
-
-To keep the inbox tidy, export your full collection (*File ▸ Export Collection in xml format*) and set its path as **Rekordbox collection XML** in Settings (or `GSM_COLLECTION_XML_PATH`). Before each batch GetSetMix compares the inbox XML against the collection (by file location, falling back to title + artist) and removes the tracks you've already imported — the Inbox playlist only ever shows what's still missing from your collection.
 
 ## Share to GetSetMix (Android)
 
@@ -235,11 +231,8 @@ Everything is editable in the UI (settings icon) and persisted to `<data>/config
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `GSM_DATA_DIR` | `./data` (`/data` in Docker) | SQLite DB, config, covers, default XML location |
+| `GSM_DATA_DIR` | `./data` (`/data` in Docker) | SQLite DB, config, covers |
 | `GSM_LIBRARY_ROOT` | `./music` (`/music` in Docker) | Downloads land directly here (no inbox folder) |
-| `GSM_XML_PATH` | `<data>/rekordbox/getsetmix.xml` | Inbox XML path (new downloads) |
-| `GSM_COLLECTION_XML_PATH` | *(unset)* | Full Rekordbox collection XML; when set, already-imported tracks are purged from the inbox XML before each batch |
-| `GSM_PLAYLIST_NAME` | `Inbox` | Target playlist inside the XML |
 | `GSM_OUTPUT_FORMAT` | `mp3` | `mp3` (320 kbps) or `flac` — global only |
 | `GSM_CONCURRENCY` | `2` | Global parallel-download default |
 | `GSM_FILENAME_TEMPLATE` | `{artist} - {title}` | Tokens: `{title} {artist} {album} {source} {id} {genre}` |
@@ -333,7 +326,8 @@ app/
   worker.py      # asyncio download queue (yt-dlp + ffmpeg)
   metadata.py    # server-side metadata fetch, playlist fan-out
   tagger.py      # ID3v2.4 / FLAC tagging + cover embedding
-  rekordbox.py   # DJ_PLAYLISTS XML writer (atomic, corruption-safe)
+  library.py     # the Library index: one row per audio file, trash, tag edits
+  matching.py    # same-song rules (source link, title + artist tokens)
   naming.py      # filename templates + sanitization
   db.py          # SQLite persistence (tracks, history, counters)
   metrics.py     # Prometheus exposition
@@ -360,7 +354,7 @@ companion/       # gsm-companion (Go): imports deliveries into Rekordbox's maste
 | Method & path | Purpose |
 |---|---|
 | `POST /api/tracks {url}` | Add URL (playlist fans out); returns ids + duplicate flag |
-| `GET /api/tracks` | All rows + active download count |
+| `GET /api/tracks` | All rows + active download count; finished rows carry `library_state` (`present` / `trashed` / `absent`) and `library_id`, staged ones `duplicate`, `duplicate_reason` (the matching Library track) and `duplicate_of` |
 | `PATCH /api/tracks/{id}` | Edit metadata (only before download / after error) |
 | `DELETE /api/tracks/{id}` | Remove row |
 | `POST /api/tracks/{id}/cover` / `GET …/cover` | Upload / fetch cover |

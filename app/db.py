@@ -29,7 +29,9 @@ CREATE TABLE IF NOT EXISTS tracks (
     error TEXT DEFAULT '',
     duplicate INTEGER DEFAULT 0,
     duplicate_reason TEXT DEFAULT '',
+    duplicate_of INTEGER,
     file_path TEXT DEFAULT '',
+    audio_id TEXT DEFAULT '',
     download_seconds REAL DEFAULT 0,
     created_at TEXT,
     updated_at TEXT,
@@ -114,6 +116,10 @@ class Database:
         for col, ddl in (
             ("duplicate", "duplicate INTEGER DEFAULT 0"),
             ("duplicate_reason", "duplicate_reason TEXT DEFAULT ''"),
+            # Issue #71: the Library file a staged track duplicates, and the
+            # audio id of a finished download's file, to find it in the index.
+            ("duplicate_of", "duplicate_of INTEGER"),
+            ("audio_id", "audio_id TEXT DEFAULT ''"),
         ):
             if col not in have:
                 self._conn.execute(f"ALTER TABLE tracks ADD COLUMN {ddl}")

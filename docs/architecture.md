@@ -86,7 +86,7 @@ flowchart LR
 | DJ, through a phone or a computer browser | links in; tag edits; settings |
 | YouTube, SoundCloud and anything yt-dlp supports | audio and metadata out of them, never anything in |
 | iTunes Search | cover art candidates |
-| Rekordbox | new rows in `master.db`, or an XML it imports |
+| Rekordbox | new rows in `master.db` |
 | Nextcloud, Syncthing | optional: a music folder the DJ already syncs, which the companion only watches |
 | GHCR and GitHub Releases | the Docker image, GetSetMix Setup, the companion; Watchtower or Keel pull updates |
 | Prometheus | optional metrics scrape |
@@ -151,7 +151,8 @@ flowchart TB
 | `metadata.py`, `ytdl.py` | resolve a link into tracks; yt-dlp options and health |
 | `tagger.py` | write ID3v2.4 and FLAC tags with embedded cover |
 | `naming.py` | file names from the template, sanitised |
-| `rekordbox.py` | the Rekordbox XML inbox, and duplicate checks against a collection export |
+| `library.py`, `library_api.py` | the Library index of every file under the root: tags, trash, edits; where a finished download is now, and which staged one it already has |
+| `matching.py` | the same-song rules: source link, or title and artist as token sets |
 | `db.py` | SQLite: staged and processed tracks, URL history, counters |
 | `link.py` | `/api/link`: what paired computers may list and download |
 | `config.py`, `metrics.py` | settings with env overrides; Prometheus text |
@@ -192,7 +193,7 @@ sequenceDiagram
 
     DJ->>Phone: Share > GetSetMix
     Phone->>App: POST /api/tracks {url}
-    App->>App: resolve metadata, flag duplicates
+    App->>App: resolve metadata, flag songs the Library has
     DJ->>Phone: pick genre, fix tags, Download
     Phone->>App: POST /api/batch/start
     App->>App: download, convert, tag, place in the library
@@ -207,8 +208,7 @@ sequenceDiagram
 
 Without a home server the app runs on the computer, the DJ pastes the link
 there, and the companion imports straight from the library folder. Without
-the companion, the app writes a Rekordbox XML with an *Inbox* playlist that
-the DJ reloads by hand.
+the companion, the DJ adds the files to Rekordbox by hand.
 
 ### 6.2 One import into Rekordbox
 
@@ -304,6 +304,7 @@ probes; `/metrics` exposes job counts, durations and errors.
 | 5 | 2026-11-13 | The first Library version does not rename files. | A rename ripples into Rekordbox's paths on every paired computer; tags are what the DJ sees. Decision 4 keeps renaming possible later. | Rename per track or in bulk from the filename template, as first proposed in #11. |
 | 6 | 2026-11-13 | Roadmap scope. In: Library view, batch editing and cleanup rules, BPM/key match and sort, similar tracks, scatter map and graph playlist. To try: auto cue points. Out: online tag lookup, duplicates by audio fingerprint, identifying untagged files, genre detection. | The features in are the ones worth their cost to a DJ; each uncertain one starts with a spike. Tag lookup and fingerprint services add terms and rate limits for doubtful matches on this kind of library; genre is already one tap at ingest. | Building the whole list in #12. |
 | 7 | 2026-11-14 | Auto cue points leave the roadmap. This replaces "to try: auto cue points" in decision 6. | The spike on a real library ([rekordbox-read](research/rekordbox-read.md)) showed Rekordbox's phrases are not a reliable source of cue positions: on tracks with hand-checked cues, a third of the cues are not on a phrase start and more than half of the phrase starts have no cue. A generator that works from those phrases already exists outside GetSetMix. | Building a cue generator on Rekordbox's phrases. Analysing song structure with a model of our own: not ruled out for later, not planned. |
+| 8 | 2026-11-24 | The Rekordbox XML features are removed: the inbox XML written on ingest, its purge against a collection export, the duplicate check against both, and their settings (`xml_path`, `collection_xml_path`, `playlist_name`). "Already owned?" and "In your library" are answered from the Library index instead ([#71](https://github.com/Fre0Grella/getsetmix/issues/71)). | The companion imports straight into `master.db`, and the server indexes every file it has, so the XML only duplicated both. The collection export had to be made by hand and went stale; the inbox grew forever; "In your library" was set once at ingest and never checked again. | Keeping the collection XML as an extra source for tracks that are in Rekordbox but not on the server: a second, stale truth for a case the companion's import already covers. Keeping the inbox XML for DJs without the companion: Setup installs the companion in both of its shapes, and without it adding the files by hand is no more work than reloading an XML. |
 
 The log starts on 2026-11-13. Earlier choices are described in
 [section 4](#4-solution-strategy).
@@ -329,7 +330,6 @@ The log starts on 2026-11-13. Earlier choices are described in
 |---|---|
 | **Library** | every audio file under the library root; on a server it is also the backup |
 | **Library root** | the folder downloads land in (`GSM_LIBRARY_ROOT`) |
-| **Inbox** | the playlist in the Rekordbox XML that holds tracks not yet imported |
 | **Companion** | `gsm-companion`, the Go program on the computer that runs Rekordbox |
 | **GetSetMix Setup** | the companion opened with no arguments: the installer window |
 | **Paired computer** | a computer whose companion holds a link token for a server |

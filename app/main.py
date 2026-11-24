@@ -16,10 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import (
-    __version__, genres, library, library_api, link, metadata, metrics, rekordbox, rules,
-    ytdl,
-)
+from . import __version__, genres, library, library_api, link, metadata, metrics, rules, ytdl
 from .config import (
     AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, TRASH_DAYS_MAX, ensure_dirs, settings,
 )
@@ -95,9 +92,6 @@ class BatchStart(BaseModel):
 
 class SettingsPatch(BaseModel):
     library_root: str | None = None
-    xml_path: str | None = None
-    collection_xml_path: str | None = None
-    playlist_name: str | None = None
     output_format: str | None = None
     concurrency: int | None = None
     filename_template: str | None = None
@@ -106,27 +100,63 @@ class SettingsPatch(BaseModel):
 
 
 class Purge(BaseModel):
-    scope: str  # "history" | "completed" | "inbox"
+    scope: str  # "history" | "completed"
 
 
-# ------------------------------------------------------ duplicate flagging
-def _dup_sources() -> list[tuple[str, str]]:
-    """(xml_path, label) pairs to test a song against: the inbox we write, plus
-    the user's full Rekordbox collection export when configured."""
-    sources = [(str(settings["xml_path"]), "the inbox")]
-    coll = str(settings.get("collection_xml_path") or "").strip()
-    if coll:
-        sources.append((coll, "your collection"))
-    return sources
+# ------------------------------------------- downloads and the Library index
+def _label(row: dict) -> str:
+    """How the UI names a Library file: "Artist – Title", else its file name."""
+    label = f'{row["artist"]} – {row["title"]}'.strip(" –")
+    return label or row["path"].rsplit("/", 1)[-1]
 
 
 async def _flag_duplicate(tid: str) -> None:
-    """Mark a staged track if it already exists in the inbox/collection XML."""
+    """Mark a staged track the Library already has (issue #71). The reason is
+    the matching file's label, which the UI words in the user's language."""
     track = db.get_track(tid)
     if not track or track["status"] != "staged":
         return
-    reason = await asyncio.to_thread(rekordbox.find_duplicate, track, _dup_sources())
-    db.update_track(tid, duplicate=1 if reason else 0, duplicate_reason=reason)
+    match = await asyncio.to_thread(library.current().same_song, track)
+    flag = {"duplicate": 1 if match else 0,
+            "duplicate_reason": _label(match) if match else "",
+            "duplicate_of": match["id"] if match else None}
+    if any(track.get(k) != v for k, v in flag.items()):  # no write, no new updated_at
+        db.update_track(tid, **flag)
+
+
+_checked_rev: int | None = None  # the Library rev the staged flags were last checked at
+
+
+async def _recheck_duplicates() -> None:
+    """Check every staged track again when the Library has changed since the
+    last check: a delete, a restore, a reconcile or a finished download can
+    each make a track owned, or no longer owned. One cheap read otherwise."""
+    global _checked_rev
+    rev = await asyncio.to_thread(library.current().rev)
+    if rev == _checked_rev:
+        return
+    for track in db.tracks_by_status("staged"):
+        await _flag_duplicate(track["id"])
+    _checked_rev = rev  # a change during the loop gets the next call
+
+
+def _with_library_state(tracks: list[dict]) -> list[dict]:
+    """Say where each finished download is in the Library now (issue #71):
+    `library_state` present, trashed or absent, and `library_id`. Both stay
+    None until the first index is complete, when "absent" would be a guess."""
+    for t in tracks:
+        t["library_state"] = t["library_id"] = None
+    done = [t for t in tracks if t["status"] == "ingested"]
+    lib = library.current()
+    if not done or not lib.indexed():
+        return tracks
+    found = lib.locate([(t.get("audio_id") or "", t.get("file_path") or "") for t in done])
+    for t, row in zip(done, found):
+        state = row["state"] if row else ""
+        kept = state in ("present", "trashed")
+        t["library_state"] = state if kept else "absent"
+        t["library_id"] = row["id"] if kept else None
+    return tracks
 
 
 # --------------------------------------------------- background meta fetch
@@ -204,8 +234,9 @@ async def _resolve_new(tid: str, url: str) -> None:
 
 @app.get("/api/tracks")
 async def list_tracks():
+    await _recheck_duplicates()
     return {
-        "tracks": db.list_tracks(),
+        "tracks": await asyncio.to_thread(_with_library_state, db.list_tracks()),
         "active_downloads": worker.active_downloads,
         "busy": worker.busy,
     }
@@ -283,6 +314,7 @@ async def retry_track(tid: str):
 async def start_batch(body: BatchStart):
     ids = body.ids or [t["id"] for t in db.tracks_by_status("staged")]
     if not body.force:
+        await _recheck_duplicates()  # the gate reads the flags: bring them up to date
         # Gate on duplicates: if any selected track already exists, ask the
         # user before downloading instead of silently making a numbered copy.
         dupes = [
@@ -333,11 +365,10 @@ async def cover_search(q: str):
 
 
 @app.get("/api/fs/list")
-async def fs_list(path: str = "", ext: str = ""):
-    """Server-side directory listing for the path-picker UI.
+async def fs_list(path: str = ""):
+    """Server-side directory listing for the folder picker (the library root).
 
-    Empty path lists drives on Windows and / on POSIX. `ext` (e.g. ".xml")
-    filters the files returned; directories are always included.
+    Empty path lists drives on Windows and / on POSIX. Only folders are listed.
     """
     import os
     import string
@@ -349,7 +380,7 @@ async def fs_list(path: str = "", ext: str = ""):
                     {"name": f"{d}:", "path": f"{d}:\\"}
                     for d in string.ascii_uppercase if Path(f"{d}:\\").exists()
                 ]
-                return {"path": "", "parent": None, "dirs": drives, "files": []}
+                return {"path": "", "parent": None, "dirs": drives}
             base = Path("/")
         else:
             base = Path(path).expanduser()
@@ -366,22 +397,20 @@ async def fs_list(path: str = "", ext: str = ""):
             raise HTTPException(403, "Permission denied")
         except OSError as exc:
             raise HTTPException(400, str(exc).splitlines()[0])
-        dirs, files = [], []
+        dirs = []
         for p in entries:
             if p.name.startswith("."):
                 continue
             try:
                 if p.is_dir():
                     dirs.append({"name": p.name, "path": str(p)})
-                elif not ext or p.suffix.lower() == ext.lower():
-                    files.append({"name": p.name, "path": str(p)})
             except OSError:
                 continue  # broken symlinks, unreadable entries
         if base.parent != base:
             parent = str(base.parent)
         else:
             parent = "" if os.name == "nt" else None  # drive root -> drive list
-        return {"path": str(base), "parent": parent, "dirs": dirs, "files": files}
+        return {"path": str(base), "parent": parent, "dirs": dirs}
 
     return await asyncio.to_thread(_list)
 
@@ -431,17 +460,7 @@ async def purge(body: Purge):
         return {"purged": db.purge_history(), "scope": "history"}
     if body.scope == "completed":
         return {"purged": db.purge_completed(), "scope": "completed"}
-    if body.scope == "inbox":
-        # Manual run of the same purge that fires automatically at batch start:
-        # drop inbox tracks already present in the full Rekordbox collection.
-        collection = str(settings.get("collection_xml_path") or "").strip()
-        if not collection:
-            raise HTTPException(400, "Set a Rekordbox collection XML path first")
-        removed = await asyncio.to_thread(
-            rekordbox.purge_imported, settings["xml_path"], collection
-        )
-        return {"purged": removed, "scope": "inbox"}
-    raise HTTPException(400, "scope must be 'history', 'completed' or 'inbox'")
+    raise HTTPException(400, "scope must be 'history' or 'completed'")
 
 
 # ------------------------------------------------------------ cleanup rules
@@ -555,8 +574,7 @@ async def on_startup():
     # Recover tracks stuck mid-download from a previous run.
     for t in db.tracks_by_status(*ACTIVE_STATUSES):
         db.update_track(t["id"], status="staged", progress=0)
-    log.info("GetSetMix ready — library=%s xml=%s",
-             settings["library_root"], settings["xml_path"])
+    log.info("GetSetMix ready — library=%s", settings["library_root"])
     for problem in await asyncio.to_thread(ytdl.problems):
         log.warning("%s", problem)
     library.start()  # index the library now, in the background, then every 5 minutes

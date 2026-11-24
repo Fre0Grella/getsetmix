@@ -40,7 +40,7 @@ import mutagen
 from mutagen.id3 import ID3
 from mutagen.mp4 import MP4Tags
 
-from . import audiohash, config, tagger, thumbs
+from . import audiohash, config, matching, tagger, thumbs
 from . import db as dbmod
 from .link import AUDIO_EXTS, served
 from .link import _skip as skipped  # the link's skip rules, shared on purpose
@@ -61,6 +61,9 @@ SORTS = {"added": "added_at", "artist": "artist COLLATE NOCASE",
          "title": "title COLLATE NOCASE", "genre": "genre COLLATE NOCASE"}
 SORT_COLUMNS = {"added": "added_at", "artist": "artist", "title": "title", "genre": "genre"}
 STATES = ("present", "trashed")
+# Which row speaks for a download when several share its audio id or path:
+# one the DJ can play, then one they can restore, then the tombstones.
+WHEREABOUTS = {"present": 0, "trashed": 1, "missing": 2, "gone": 3}
 TAG_FIELDS = ("title", "artist", "album", "genre", "comment")
 TRASH_DIR = ".trash"        # inside the root; the dot keeps it out of the walk and the link
 DAY = 24 * 3600
@@ -687,6 +690,120 @@ class Library:
             "indexed": meta.get("indexed") == "1",
             "indexing": dict(self.progress),
         }
+
+    def rev(self) -> int:
+        """The change number alone: cheap enough to ask on every poll."""
+        with self.db.transaction() as conn:
+            return int(self._meta(conn, "rev") or 0)
+
+    def indexed(self) -> bool:
+        with self.db.transaction() as conn:
+            return self._meta(conn, "indexed") is not None
+
+    # ------------------------------------------------- the downloads view
+    def locate(self, wanted: list[tuple[str, str]]) -> list[dict | None]:
+        """Where each finished download is now (issue #71): for every (audio
+        id, absolute file path) the row that speaks for it, or None.
+
+        By audio id first, which follows a move or a tag edit; by path when
+        the download has no audio id (one from before #71) or no row has it.
+        Of several rows, the one in WHEREABOUTS order wins: present, then
+        trashed (the latest), then missing, then gone.
+        """
+        root = os.path.abspath(self.root())
+        rels = {path: self._relative(root, path) for _, path in wanted if path}
+        with self.db.transaction() as conn:
+            by_id = self._best(conn, "audio_id", {aid for aid, _ in wanted if aid})
+            by_path = self._best(conn, "path", {r for r in rels.values() if r})
+        out: list[dict | None] = []
+        for aid, path in wanted:
+            row = by_id.get(aid) if aid else None
+            out.append(row or by_path.get(rels.get(path) or ""))
+        return out
+
+    @staticmethod
+    def _relative(root: str, path: str) -> str:
+        """A file's path in the index, without touching the disk; "" if outside the root."""
+        try:
+            rel = os.path.relpath(os.path.abspath(path), root)
+        except ValueError:  # another drive on Windows
+            return ""
+        rel = Path(rel).as_posix()
+        return "" if rel == "." or rel.startswith("../") or rel == ".." else rel
+
+    @staticmethod
+    def _best(conn: sqlite3.Connection, column: str, keys: set[str]) -> dict[str, dict]:
+        best: dict[str, dict] = {}
+        keys_list = sorted(keys)
+        for start in range(0, len(keys_list), 500):
+            chunk = keys_list[start:start + 500]
+            marks = ", ".join("?" for _ in chunk)
+            for r in conn.execute(f"SELECT id, state, {column} AS k FROM library_files "
+                                  f"WHERE {column} IN ({marks})", chunk):
+                row = {"id": r["id"], "state": r["state"]}
+                was = best.get(r["k"])
+                rank = (WHEREABOUTS.get(r["state"], 9), -r["id"])
+                if was is None or rank < (WHEREABOUTS.get(was["state"], 9), -was["id"]):
+                    best[r["k"]] = row
+        return best
+
+    def same_song(self, meta: dict) -> dict | None:
+        """The present Library file that is the song a staged download
+        describes (its title, artist and url), or None (issue #71).
+
+        The source URL wins: the worker records it on the row, and the tagger
+        writes it into the comment as "Source: <url>". Otherwise title and
+        artist match as token sets (app/matching.py). SQL narrows the index to
+        the rows that hold the URL or share a word with the title (and the
+        artist, when there is one); the rules decide among those.
+        """
+        cand = {"name": meta.get("title") or "", "artist": meta.get("artist") or "",
+                "url": matching.norm_url(meta.get("url") or "")}
+        title, artist = matching.tokens(cand["name"]), matching.tokens(cand["artist"])
+        if not cand["url"] and not title:
+            return None
+        rows = self._song_candidates(cand["url"], title, artist)
+        if cand["url"]:
+            for row in rows:
+                if cand["url"] in self._urls(row):
+                    return row
+        for row in rows:
+            if matching.same_song({**cand, "url": ""},
+                                  {"name": row["title"], "artist": row["artist"], "url": ""}):
+                return row
+        return None
+
+    @staticmethod
+    def _urls(row: dict) -> set[str]:
+        found = {matching.norm_url(row["source_url"]),
+                 matching.norm_url(matching.comment_source(row["comment"]))}
+        return found - {""}
+
+    def _song_candidates(self, url: str, title: frozenset[str],
+                         artist: frozenset[str]) -> list[dict]:
+        """Present rows that may be the song: a superset of the matches.
+
+        Every match holds the URL, or shares a title word (one token set
+        contains the other) and, when the download names an artist, an artist
+        word. Tokens are lowercase ASCII words, so each is a substring of the
+        folded `search` text and needs no LIKE escaping.
+        """
+        either, params = [], []
+        if url:
+            either.append("instr(lower(source_url), ?) > 0 OR instr(lower(comment), ?) > 0")
+            params += [url, url]
+        if title:
+            words = [" OR ".join("search LIKE ?" for _ in title)]
+            params += [f"%{t}%" for t in sorted(title)]
+            if artist:
+                words.append(" OR ".join("search LIKE ?" for _ in artist))
+                params += [f"%{t}%" for t in sorted(artist)]
+            either.append(" AND ".join(f"({w})" for w in words))
+        where = " OR ".join(f"({e})" for e in either)
+        with self.db.transaction() as conn:
+            return [dict(r) for r in conn.execute(
+                "SELECT id, path, title, artist, source_url, comment FROM library_files "
+                f"WHERE state = 'present' AND ({where}) ORDER BY id", params)]
 
     # -------------------------------------------------------------- link
     def link_listing(self, refresh: bool = False) -> dict | None:

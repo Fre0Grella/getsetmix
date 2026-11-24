@@ -49,7 +49,7 @@
 
   <main class="docs-body">
     <h1>Documentation</h1>
-    <p>GetSetMix is a single-container FastAPI service with a vanilla-JS UI. State lives in SQLite under the data directory; downloads land directly in your music library, and the Rekordbox companion adds them to your collection (or, without it, they are appended to a <code>rekordbox.xml</code>).</p>
+    <p>GetSetMix is a single-container FastAPI service with a vanilla-JS UI. State lives in SQLite under the data directory; downloads land directly in your music library, and the Rekordbox companion adds them to your collection.</p>
     <p class="note">Use GetSetMix only for content you have the rights to download.</p>
 
     <h2 id="setup">GetSetMix Setup</h2>
@@ -60,7 +60,7 @@
       <li><b>Just this computer.</b> Setup downloads the app together with ffmpeg and Deno (checked against pinned checksums) and adds a <i>GetSetMix</i> shortcut. GetSetMix opens in its own window and stops when you close it. Tracks go to the folder you choose (default <code>Music/GetSetMix</code>) and straight into Rekordbox.</li>
       <li><b>With my home server.</b> GetSetMix runs on the server all the time, so you can share tracks to it from your phone. This computer receives them in Rekordbox, and the server keeps the full collection.</li>
     </ul>
-    <p>Either way Setup ends by installing the <a href="https://github.com/Fre0Grella/getsetmix/blob/main/companion/README.md">Rekordbox companion</a>: open Rekordbox with the <i>Rekordbox (GetSetMix)</i> shortcut and new tracks are in the <b>GetSetMix</b> playlist, without any XML.</p>
+    <p>Either way Setup ends by installing the <a href="https://github.com/Fre0Grella/getsetmix/blob/main/companion/README.md">Rekordbox companion</a>: open Rekordbox with the <i>Rekordbox (GetSetMix)</i> shortcut and new tracks are in the <b>GetSetMix</b> playlist.</p>
 
     <h2 id="server">With a home server</h2>
     <ol>
@@ -88,7 +88,7 @@ volumes:
   getsetmix-data:</pre>
 <pre>docker compose -f deploy/docker-compose.yml up -d
 # open http://localhost:8765</pre>
-    <p>The image bundles ffmpeg and runs as a single process well under 1&nbsp;GB of RAM. <code>/data</code> holds the SQLite database, config, covers and the default XML; <code>/music</code> is your library root — files are written straight into it.</p>
+    <p>The image bundles ffmpeg and runs as a single process well under 1&nbsp;GB of RAM. <code>/data</code> holds the SQLite database, config and covers; <code>/music</code> is your library root — files are written straight into it.</p>
 
     <h2 id="kubernetes">Kubernetes</h2>
     <p>Plain manifests live in <code>deploy/k8s/getsetmix.yaml</code>: a namespace, a ConfigMap, PVCs for data and music, a Deployment with liveness/readiness probes and Prometheus scrape annotations, and a Service. An Ingress example is included commented out.</p>
@@ -110,24 +110,15 @@ python run_local.py --port 9000 --no-browser</pre>
 
     <h2 id="workflow">Daily workflow</h2>
     <ol>
-      <li><b>Paste link</b> — the URL on your clipboard is added. Playlists fan out into one editable row per entry; duplicates of URLs you've already ingested are flagged.</li>
+      <li><b>Paste link</b> — the URL on your clipboard is added. Playlists fan out into one editable row per entry. A track the Library already has (the same source link, or the same title and artist) is marked <b>Already owned?</b>; tap the mark to open that track, and <b>Download</b> asks before making a second copy.</li>
       <li>Rows resolve metadata in the background. Fix <b>title</b> and <b>artist</b> (both required), pick a <b>genre</b> from the DJ-oriented list, optionally set album. The camera button on the artwork opens cover search and upload.</li>
       <li><b>Download</b> starts the batch. The <b>×N</b> selector next to it overrides download parallelism for this batch only (the global default is 2). Edits lock once a track is queued.</li>
       <li>Watch per-track states and the batch bar. <b>Cancel download</b> stops in-flight tracks and returns them to staged. A failed track shows its error and a retry button — the rest of the batch continues.</li>
-      <li>When tracks show <b>Done</b>, refresh the rekordbox xml tree in Rekordbox and find them in the <b>Inbox</b> playlist.</li>
+      <li>When tracks show <b>In your library</b>, the companion brings them into Rekordbox. The label follows the Library: a track deleted there shows <b>In the trash</b>, with a Restore button, and one removed for good shows <b>Not in your library anymore</b>.</li>
     </ol>
 
     <h2 id="rekordbox">Rekordbox setup</h2>
-    <p>With GetSetMix Setup there is nothing to configure: the companion writes new tracks into the Rekordbox collection itself, in a <b>GetSetMix</b> playlist, each time you open Rekordbox with the <i>Rekordbox (GetSetMix)</i> shortcut (Rekordbox must be closed while its database is written). Without the companion, use the XML instead. One-time configuration in Rekordbox:</p>
-    <ol>
-      <li>Open <i>Preferences ▸ Advanced ▸ Database ▸ rekordbox xml</i> and point it at the XML path shown in GetSetMix settings (default <code>&lt;data&gt;/rekordbox/getsetmix.xml</code>).</li>
-      <li>In the sidebar, enable the <i>rekordbox xml</i> source (Preferences ▸ View ▸ Layout if hidden).</li>
-      <li>After each batch, right-click the xml tree and reload — new tracks appear in the configured playlist (default <b>Inbox</b>). Drag them into your collection from there.</li>
-    </ol>
-    <p class="note">Run the service where Rekordbox can see the same file paths the XML contains — e.g. sync the library folder with Nextcloud/Syncthing to your DJ machine, or mount it over SMB, keeping the same drive/path layout, or set the library root to a path that matches on both machines.</p>
-    <p>The writer is conservative: it appends with incrementing TrackIDs, writes atomically, and if the XML on disk is ever corrupt it backs it up as <code>*.corrupt.xml</code> and starts a fresh one rather than failing the batch.</p>
-    <h3>Keeping the inbox clean with your collection XML</h3>
-    <p>Export your full collection from Rekordbox (<i>File ▸ Export Collection in xml format</i>) and set its path as <b>Rekordbox collection XML</b> in Settings (or <code>GSM_COLLECTION_XML_PATH</code>). Before each batch, GetSetMix compares the inbox XML against the collection — matching by file location, with a title + artist fallback — and removes tracks you've already imported. The Inbox playlist then only ever lists songs still missing from your collection, instead of growing forever.</p>
+    <p>With GetSetMix Setup there is nothing to configure: the companion writes new tracks into the Rekordbox collection itself, in a <b>GetSetMix</b> playlist, each time you open Rekordbox with the <i>Rekordbox (GetSetMix)</i> shortcut (Rekordbox must be closed while its database is written). Without the companion, add the files from the library folder to Rekordbox yourself.</p>
 
     <h2 id="templates">Filename templates</h2>
     <p>Set the template in Settings or via <code>GSM_FILENAME_TEMPLATE</code>. Available tokens:</p>
@@ -146,11 +137,8 @@ python run_local.py --port 9000 --no-browser</pre>
     <p>Everything is editable from the gear icon and persisted to <code>&lt;data&gt;/config.json</code>. Environment variables override on boot:</p>
     <table>
       <tr><th>Variable</th><th>Default</th><th>Purpose</th></tr>
-      <tr><td><code>GSM_DATA_DIR</code></td><td><code>./data</code> (<code>/data</code> in Docker)</td><td>SQLite DB, config, covers, default XML location</td></tr>
+      <tr><td><code>GSM_DATA_DIR</code></td><td><code>./data</code> (<code>/data</code> in Docker)</td><td>SQLite DB, config, covers</td></tr>
       <tr><td><code>GSM_LIBRARY_ROOT</code></td><td><code>./music</code> (<code>/music</code>)</td><td>Downloads land directly here</td></tr>
-      <tr><td><code>GSM_XML_PATH</code></td><td><code>&lt;data&gt;/rekordbox/getsetmix.xml</code></td><td>Inbox XML path (new downloads)</td></tr>
-      <tr><td><code>GSM_COLLECTION_XML_PATH</code></td><td><i>unset</i></td><td>Full Rekordbox collection XML — enables the inbox purge</td></tr>
-      <tr><td><code>GSM_PLAYLIST_NAME</code></td><td><code>Inbox</code></td><td>Target playlist inside the XML</td></tr>
       <tr><td><code>GSM_OUTPUT_FORMAT</code></td><td><code>mp3</code></td><td><code>mp3</code> (320&nbsp;kbps) or <code>flac</code> — global only</td></tr>
       <tr><td><code>GSM_CONCURRENCY</code></td><td><code>2</code></td><td>Global parallel-download default (1–8)</td></tr>
       <tr><td><code>GSM_FILENAME_TEMPLATE</code></td><td><code>{artist} - {title}</code></td><td>See filename templates</td></tr>
@@ -171,7 +159,7 @@ curl "http://host:8765/metrics?token=sekret"   # for Prometheus scrape_configs</
     <table>
       <tr><th>Endpoint</th><th>Purpose</th></tr>
       <tr><td><code>POST /api/tracks {url}</code></td><td>Add a URL; playlists fan out. Returns created ids and a duplicate flag.</td></tr>
-      <tr><td><code>GET /api/tracks</code></td><td>All rows plus active download count and busy flag.</td></tr>
+      <tr><td><code>GET /api/tracks</code></td><td>All rows plus active download count and busy flag. A finished row has <code>library_state</code> (<code>present</code>, <code>trashed</code> or <code>absent</code>) and <code>library_id</code>; a staged one has <code>duplicate</code>, <code>duplicate_reason</code> (the matching Library track) and <code>duplicate_of</code>.</td></tr>
       <tr><td><code>PATCH /api/tracks/{id}</code></td><td>Edit metadata — only while staged or after an error (409 once queued).</td></tr>
       <tr><td><code>DELETE /api/tracks/{id}</code></td><td>Remove a row.</td></tr>
       <tr><td><code>POST /api/tracks/{id}/cover</code> · <code>GET …/cover</code></td><td>Upload / fetch the cover override.</td></tr>

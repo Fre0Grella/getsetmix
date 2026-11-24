@@ -104,22 +104,37 @@ def test_metrics_format(client):
     assert "{}" not in text  # no invalid empty label sets
 
 
-def test_settings_collection_xml_roundtrip(client, tmp_path):
-    p = str(tmp_path / "collection.xml")
-    r = client.put("/api/settings", json={"collection_xml_path": p})
+def test_old_xml_settings_are_ignored(tmp_path, monkeypatch):
+    # A config.json from before the XML features went (2026-11-24) still loads.
+    import json
+
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "config.json").write_text(json.dumps({
+        "xml_path": "/old/getsetmix.xml", "collection_xml_path": "/old/c.xml",
+        "playlist_name": "Inbox", "concurrency": 3,
+    }), "utf-8")
+    monkeypatch.setenv("GSM_DATA_DIR", str(data))
+    monkeypatch.setenv("GSM_XML_PATH", "/old/env.xml")
+    import app.config
+    importlib.reload(app.config)
+    s = app.config.settings.data
+    assert s["concurrency"] == 3
+    assert not {"xml_path", "collection_xml_path", "playlist_name"} & set(s)
+
+
+def test_settings_put_ignores_old_xml_fields(client):
+    r = client.put("/api/settings", json={"xml_path": "/x.xml", "concurrency": 4})
     assert r.status_code == 200
-    assert client.get("/api/settings").json()["collection_xml_path"] == p
-    r = client.put("/api/settings", json={"collection_xml_path": ""})
-    assert r.json()["collection_xml_path"] == ""  # clearing disables the purge
+    assert "xml_path" not in r.json() and r.json()["concurrency"] == 4
 
 
 def test_fs_list(client, tmp_path):
     (tmp_path / "sub").mkdir()
     (tmp_path / "a.xml").write_text("<x/>")
-    (tmp_path / "b.txt").write_text("hi")
-    body = client.get("/api/fs/list", params={"path": str(tmp_path), "ext": ".xml"}).json()
+    body = client.get("/api/fs/list", params={"path": str(tmp_path)}).json()
     assert "sub" in [d["name"] for d in body["dirs"]]
-    assert [f["name"] for f in body["files"]] == ["a.xml"]  # ext filter applied
+    assert "files" not in body  # the folder picker lists folders only
     assert body["parent"]
 
 
@@ -127,42 +142,19 @@ def test_batch_start_gates_on_duplicate(client):
     import app.main as m
     tid = m.db.create_track(
         "https://x/y", status="staged", title="Dup", artist="A",
-        duplicate=1, duplicate_reason="already in the inbox",
+        duplicate=1, duplicate_reason="A – Dup", duplicate_of=7,
     )
+    m._checked_rev = m.library.current().rev()  # the Library has not changed
     # Default (force=false) must not download; it asks for confirmation.
     body = client.post("/api/batch/start", json={"ids": [tid]}).json()
     assert body["needs_confirm"] is True
     assert body["queued"] == []
     assert body["duplicates"][0]["id"] == tid
-    assert body["duplicates"][0]["reason"] == "already in the inbox"
+    assert body["duplicates"][0]["reason"] == "A – Dup"
 
 
-def test_purge_inbox_requires_collection_xml(client):
-    # Without a collection XML configured, manual inbox clean is a 400.
-    r = client.post("/api/purge", json={"scope": "inbox"})
-    assert r.status_code == 400
-
-
-def test_purge_inbox_scope(client, tmp_path):
-    import xml.etree.ElementTree as ET
-
-    from app.rekordbox import add_track
-    inbox = str(tmp_path / "data" / "rekordbox" / "getsetmix.xml")
-    audio = tmp_path / "a.mp3"
-    audio.write_bytes(b"\xff\xfb\x90\x00" + b"\x00" * 64)
-    add_track(inbox, {"title": "Dup", "artist": "A"}, str(audio), "Inbox")
-
-    coll = tmp_path / "collection.xml"
-    root = ET.Element("DJ_PLAYLISTS", {"Version": "1.0.0"})
-    c = ET.SubElement(root, "COLLECTION", {"Entries": "1"})
-    ET.SubElement(c, "TRACK", {"TrackID": "1", "Name": "Dup", "Artist": "A",
-                               "Location": "file://localhost/elsewhere/dup.mp3"})
-    ET.ElementTree(root).write(coll, encoding="UTF-8", xml_declaration=True)
-
-    client.put("/api/settings", json={"xml_path": inbox, "collection_xml_path": str(coll)})
-    r = client.post("/api/purge", json={"scope": "inbox"})
-    assert r.status_code == 200
-    assert r.json() == {"purged": 1, "scope": "inbox"}
+def test_purge_inbox_scope_is_gone(client):
+    assert client.post("/api/purge", json={"scope": "inbox"}).status_code == 400
 
 
 def test_auth_blocks_api(auth_client):

@@ -238,6 +238,7 @@ button { touch-action: manipulation; }
   padding: 2px 8px; border-radius: 999px; cursor: help;
   color: var(--warn); background: color-mix(in oklch, var(--warn) 14%, transparent);
 }
+button.dup { border: 0; font-family: inherit; line-height: inherit; cursor: pointer; }
 
 /* State: a dot and a word, then the action that moves the track on. */
 .state { grid-area: state; display: flex; align-items: center; gap: 2px; min-width: 0; justify-content: flex-end; justify-self: end; }
@@ -257,6 +258,9 @@ button { touch-action: manipulation; }
 .st-active .state-label::before { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
 .st-done .state-label { color: var(--ok); }
 .st-done .state-label::before { background: var(--ok); }
+.st-trash .state-label { color: var(--warn); }
+.st-trash .state-label::before { background: var(--warn); }
+.st-gone .state-label { color: var(--text-3); }
 .st-error .state-label { color: var(--danger); cursor: help; }
 .st-error .state-label::before { background: var(--danger); }
 @keyframes pulse { 50% { opacity: .3; } }
@@ -493,7 +497,6 @@ body:has(.track .f:focus) .dock { display: none; }
 }
 .picker-row:last-child { border-bottom: 0; }
 .picker-row:hover { background: var(--hover); }
-.picker-row.file { color: var(--text-2); }
 .picker-row svg { width: 18px; height: 18px; flex: none; color: var(--text-3); }
 
 .cover-search-row { display: flex; gap: 8px; }
