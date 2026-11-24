@@ -1,6 +1,27 @@
 # CHANGELOG
 
 
+## v1.14.0 (2026-11-24)
+
+### Features
+
+- **library**: The full view ([#64](https://github.com/Fre0Grella/getsetmix/pull/64),
+  [`003c025`](https://github.com/Fre0Grella/getsetmix/commit/003c02580133b3dd3d41d54f832ebd50a240fd65))
+
+A virtualised list in pages of 200, genre and folder filters with counts, sorts, row covers loaded
+  lazily, a preview player with range requests, cover replacement, and markers for shared audio and
+  read-only files. On a phone the search sits under the thumb.
+
+Covers are served only as image types the app can trust, so a picture in a file's tags cannot run
+  script in the app.
+
+Closes #40
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.13.0 (2026-11-24)
 
 ### Features
