@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/atomicfile"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 )
 
@@ -288,11 +289,7 @@ func (s *State) Save(dir string) error {
 			return err
 		}
 	}
-	tmp := filepath.Join(dir, stateFile+".tmp")
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, filepath.Join(dir, stateFile))
+	return atomicfile.WriteFile(filepath.Join(dir, stateFile), append(data, '\n'), 0o644)
 }
 
 func keepV1(dir string) error {

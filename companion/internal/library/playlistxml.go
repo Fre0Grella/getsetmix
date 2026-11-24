@@ -6,6 +6,8 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/atomicfile"
 )
 
 // Rekordbox mirrors every playlist into masterPlaylists6.xml next to
@@ -33,11 +35,7 @@ func SyncPlaylistXML(path string, pl Playlist) error {
 	if bytes.Equal(out, data) {
 		return nil
 	}
-	tmp := path + ".gsm-tmp"
-	if err := os.WriteFile(tmp, out, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return atomicfile.WriteFile(path, out, 0o644)
 }
 
 func updatePlaylistXML(data []byte, pl Playlist) ([]byte, error) {

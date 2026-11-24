@@ -14,13 +14,12 @@ from __future__ import annotations
 
 import io
 import logging
-import os
 import threading
 from pathlib import Path
 
 from PIL import Image, ImageOps
 
-from . import config, tagger
+from . import atomic, config, tagger
 
 log = logging.getLogger("getsetmix.thumbs")
 
@@ -50,7 +49,8 @@ def make_thumb(data: bytes) -> bytes | None:
             if width * height > min(MAX_PIXELS, Image.MAX_IMAGE_PIXELS or MAX_PIXELS):
                 return None
             side = min(THUMB_PX, width, height)
-            turn = _FLIP.get(im.getexif().get(0x0112))
+            orientation = im.getexif().get(0x0112)
+            turn = _FLIP.get(orientation) if isinstance(orientation, int) else None
             if im.format == "JPEG":
                 im.draft("RGB", (side, side))  # decode at 1/2, 1/4 or 1/8 where it fits
             im.load()
@@ -112,14 +112,13 @@ def get(fid: int, rev: int, path: str | Path) -> bytes | None:
 def _keep(target: Path, thumb: bytes, fid: int) -> None:
     """Write the thumbnail atomically and remove the older ones of the file. A
     disk that cannot be written to only costs the cache, not the answer."""
-    part = target.with_name(f".{target.name}.{os.getpid()}.{threading.get_ident()}.part")
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        part.write_bytes(thumb)
-        os.replace(part, target)
+        # unique: two server processes may make the same thumbnail at once
+        with atomic.replacing(target, unique=True) as part:
+            part.write_bytes(thumb)
     except OSError:
         log.warning("thumbs: could not keep %s", target.name, exc_info=True)
-        part.unlink(missing_ok=True)
         return
     drop(fid, keep=target)
 

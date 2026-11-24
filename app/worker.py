@@ -11,14 +11,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import shutil
 import threading
 import time
 from pathlib import Path
 
-from . import audiohash, library, tagger, ytdl
-from .config import DATA_DIR, settings
+from . import atomic, audiohash, library, tagger, ytdl
+from .config import DATA_DIR, clamp_concurrency, settings
 from .db import db, now_iso
 from .naming import render_filename, unique_path
 
@@ -34,13 +33,7 @@ class Worker:
         self._queue: asyncio.Queue[str] = asyncio.Queue()
         self._cancel = threading.Event()
         self._runners: list[asyncio.Task] = []
-        self._target_runners = 0
         self.active_downloads = 0
-        self._loop: asyncio.AbstractEventLoop | None = None
-
-    # ----------------------------------------------------------- lifecycle
-    def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
-        self._loop = loop
 
     @property
     def busy(self) -> bool:
@@ -63,8 +56,7 @@ class Worker:
             self._queue.put_nowait(tid)
             queued.append(tid)
 
-        n = max(1, min(8, concurrency or settings["concurrency"]))
-        self._target_runners = n
+        n = clamp_concurrency(concurrency or settings["concurrency"])
         self._runners = [r for r in self._runners if not r.done()]
         while len(self._runners) < n:
             self._runners.append(asyncio.create_task(self._runner()))
@@ -192,17 +184,16 @@ class Worker:
 
     def _place_in_library(self, track: dict, audio: Path) -> Path:
         # Download directly into the configured library root (no inbox folder).
-        library = Path(settings["library_root"])
-        library.mkdir(parents=True, exist_ok=True)
+        root = Path(settings["library_root"])
+        root.mkdir(parents=True, exist_ok=True)
         stem = render_filename(settings["filename_template"], track)
-        final, collided = unique_path(library, stem, audio.suffix.lower())
+        final, collided = unique_path(root, stem, audio.suffix.lower())
         if collided:
             log.warning("filename collision for %r, saved as %s", stem, final.name)
         # Land under a hidden name and rename: a computer downloading from
         # /api/link never sees half a file, even when the move is a copy.
-        partial = final.with_name(f".{final.name}.part")
-        shutil.move(str(audio), partial)
-        os.replace(partial, final)
+        with atomic.replacing(final) as part:
+            shutil.move(str(audio), part)
         return final
 
     def _index(self, track: dict, final: Path) -> str:

@@ -12,17 +12,16 @@ import os
 import secrets
 from pathlib import Path
 
-from .config import DATA_DIR
+from .auth import bearer_token
+from .config import DATA_DIR, LINK_TOKEN
 
 AUDIO_EXTS = {".mp3", ".flac", ".m4a", ".aac", ".aif", ".aiff", ".wav", ".ogg", ".opus"}
 TOKENS_FILE = DATA_DIR / "link-tokens"
 
 
 def tokens() -> list[str]:
-    found = []
-    env = os.environ.get("GSM_LINK_TOKEN", "").strip()
-    if env:
-        found.append(env)
+    """GSM_LINK_TOKEN, if set, and every token in TOKENS_FILE, read now."""
+    found = [LINK_TOKEN] if LINK_TOKEN else []
     try:
         lines = TOKENS_FILE.read_text("utf-8").splitlines()
     except OSError:
@@ -33,10 +32,9 @@ def tokens() -> list[str]:
 
 
 def authorized(header: str) -> bool:
-    scheme, _, supplied = header.partition(" ")
-    if scheme.lower() != "bearer" or not supplied.strip():
+    supplied = bearer_token(header)
+    if not supplied:
         return False
-    supplied = supplied.strip()
     # compare against every token, without stopping early
     return any([secrets.compare_digest(supplied, t) for t in tokens()])
 

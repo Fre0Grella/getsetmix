@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 from pathlib import Path
 
@@ -107,6 +108,79 @@ def test_the_audio_id_survives_an_index_failure(env, monkeypatch):
     track = app.db.db.get_track(tid)
     assert track["status"] == "ingested"
     assert track["audio_id"] == audiohash.audio_id(track["file_path"])
+
+
+async def _run_batch(worker, ids, concurrency=None) -> list[str]:
+    """Queue `ids` as the API does and wait until the batch is done."""
+    queued = await worker.start_batch(ids, concurrency)
+    while worker.busy:
+        await asyncio.sleep(0.01)
+    return queued
+
+
+def test_a_failed_download_marks_its_track_error_and_the_batch_goes_on(env, monkeypatch):
+    app, tid, music = env
+    db = app.db.db
+    db.update_track(tid, status="staged")
+    gone = db.create_track("https://example.test/gone", status="staged", title="Gone",
+                           artist="Nobody", source="Example")
+
+    def download(self, track, tmpdir):
+        if track["url"].endswith("/gone"):
+            raise RuntimeError("ERROR: HTTP Error 404: Not Found")
+        return _fake_download(tmpdir)
+
+    monkeypatch.setattr(app.worker.Worker, "_download", download)
+    queued = asyncio.run(_run_batch(app.worker.worker, [gone, tid], concurrency=1))
+
+    assert queued == [gone, tid]
+    assert db.get_track(gone)["status"] == "error"
+    assert "404" in db.get_track(gone)["error"]
+    assert db.get_track(tid)["status"] == "ingested"  # the one after it still ran
+    assert db.counter("errors_source:Example") == 1
+
+
+def test_placing_a_download_never_overwrites_a_file_already_there(env):
+    app, tid, music = env
+    music.mkdir(parents=True)
+    taken = music / "Some Artist - Night Drive.mp3"
+    taken.write_bytes(b"the DJ's own copy")
+
+    app.worker.worker._process(tid)
+
+    assert taken.read_bytes() == b"the DJ's own copy"
+    final = Path(app.db.db.get_track(tid)["file_path"])
+    assert final.name == "Some Artist - Night Drive (2).mp3"
+    assert _title(final) == "Night Drive"
+    assert sorted(p.name for p in music.iterdir()) == [
+        "Some Artist - Night Drive (2).mp3", "Some Artist - Night Drive.mp3"]  # no .part left
+
+
+def test_a_track_without_title_or_artist_is_not_queued(env):
+    app, tid, music = env
+    db = app.db.db
+    nameless = db.create_track("https://example.test/y", status="staged", title="Untitled")
+
+    queued = asyncio.run(_run_batch(app.worker.worker, [nameless]))
+
+    assert queued == []
+    track = db.get_track(nameless)
+    assert track["status"] == "fetch_error"
+    assert track["error"] == "Title and artist are required"
+
+
+def test_cancelling_a_batch_puts_its_queued_tracks_back_to_staged(env):
+    app, tid, music = env
+    db = app.db.db
+    db.update_track(tid, status="staged")
+    other = db.create_track("https://example.test/z", status="staged", title="Z", artist="A")
+
+    async def start_then_cancel():
+        await app.worker.worker.start_batch([tid, other])
+        return await app.worker.worker.cancel_batch()  # before any runner took one
+
+    assert asyncio.run(start_then_cancel()) == 2
+    assert [db.get_track(t)["status"] for t in (tid, other)] == ["staged", "staged"]
 
 
 def test_tagging_failure_leaves_nothing_in_the_library(env, monkeypatch):

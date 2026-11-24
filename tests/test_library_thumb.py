@@ -9,7 +9,7 @@ from mutagen.id3 import APIC, ID3
 from PIL import Image
 from test_library_api import _client, listing, rescan
 
-from app import tagger, thumbs
+from app import atomic, tagger, thumbs
 
 YEAR = "private, max-age=31536000, immutable"
 
@@ -172,7 +172,7 @@ def test_a_disk_that_cannot_be_written_still_answers(api, music, tmp_path, monke
     def refuse(src, dst):
         raise PermissionError(13, "read only")
 
-    monkeypatch.setattr(thumbs.os, "replace", refuse)
+    monkeypatch.setattr(atomic.os, "replace", refuse)
     r = get_thumb(api, item)
     assert r.status_code == 200 and tagger.image_type(r.content) == "image/jpeg"
     assert stored(tmp_path) == []  # no thumbnail, and no half-written file either

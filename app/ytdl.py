@@ -77,7 +77,9 @@ def base_opts(extra: dict | None = None) -> dict[str, Any]:
 
 
 def ydl(extra: dict | None = None) -> yt_dlp.YoutubeDL:
-    return yt_dlp.YoutubeDL(base_opts(extra))
+    # The options are a plain dict; the yt-dlp stubs type them as a TypedDict
+    # of every option it knows, which no dict built at run time matches.
+    return yt_dlp.YoutubeDL(base_opts(extra))  # pyright: ignore[reportArgumentType]
 
 
 def problems() -> list[str]:

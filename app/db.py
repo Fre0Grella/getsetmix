@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import time
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from .config import DATA_DIR
 
@@ -94,8 +95,14 @@ EDITABLE_STATUSES = ("staged", "fetch_error", "error")
 ACTIVE_STATUSES = ("queued", "downloading", "tagging")
 
 
+def iso(ts: float) -> str:
+    """A Unix time as every stored timestamp is written: UTC, to the second
+    ("2026-11-24T10:00:00+00:00"), so they sort and compare as text."""
+    return datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds")
+
+
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return iso(time.time())
 
 
 class Database:
@@ -233,7 +240,7 @@ class Database:
 
     # --------------------------------------------------------------- stats
     def downloaded_since(self, days: int) -> int:
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+        cutoff = iso(time.time() - days * 86400)
         rows = self._query(
             "SELECT COUNT(*) AS n FROM tracks WHERE status = 'ingested' AND downloaded_at >= ?",
             (cutoff,),

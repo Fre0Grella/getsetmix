@@ -300,7 +300,7 @@ func cmdLaunch(home string, logger *log.Logger) error {
 		}
 	}
 	if inst.Exe == "" {
-		return errors.New("Rekordbox not found; set rekordbox_exe in companion.json")
+		return errors.New("no Rekordbox found; set rekordbox_exe in companion.json")
 	}
 	return rekordbox.Launch(inst.Exe)
 }
