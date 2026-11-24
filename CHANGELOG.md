@@ -1,6 +1,24 @@
 # CHANGELOG
 
 
+## v1.16.0 (2026-11-24)
+
+### Features
+
+- Check downloads against the library ([#73](https://github.com/Fre0Grella/getsetmix/pull/73),
+  [`411b157`](https://github.com/Fre0Grella/getsetmix/commit/411b157b28c2124afe4a70e1c057aa4fd2dea285))
+
+Drops the Rekordbox XML features (inbox XML, collection purge, XML duplicate check and their
+  settings). Finished downloads show where they are in the Library now (present, trash, gone);
+  Already owned? matches the Library index by source URL or title and artist.
+
+Closes #71
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.15.2 (2026-11-24)
 
 ### Bug Fixes
