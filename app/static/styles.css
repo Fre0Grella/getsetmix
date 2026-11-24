@@ -443,7 +443,7 @@ body:has(.track .f:focus) .dock { display: none; }
 /* A yes/no question: short, above any other modal, buttons thumb-wide on phones. */
 .modal--confirm { z-index: 60; }
 .modal--confirm .modal-body { padding-top: 18px; }
-.modal--confirm .modal-body p { margin: 0; line-height: 1.45; overflow-wrap: anywhere; }
+.modal--confirm .modal-body p { margin: 0; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-line; }
 .modal--confirm .modal-foot .btn { flex: 1; }
 
 .set-group { display: flex; flex-direction: column; gap: 2px; padding-bottom: 6px; }
