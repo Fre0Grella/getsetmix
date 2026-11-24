@@ -244,6 +244,7 @@ Everything is editable in the UI (settings icon) and persisted to `<data>/config
 | `GSM_CONCURRENCY` | `2` | Global parallel-download default |
 | `GSM_FILENAME_TEMPLATE` | `{artist} - {title}` | Tokens: `{title} {artist} {album} {source} {id} {genre}` |
 | `GSM_LANGUAGE` | `en` | `en` or `it` |
+| `GSM_TRASH_DAYS` | `30` | Days a track deleted in the Library stays in the trash (`<library>/.trash/`); `0` keeps it until the trash is emptied by hand |
 | `GSM_AUTH_TOKEN` | *(unset)* | Static token auth (`X-Auth-Token`, `Authorization: Bearer`, or `?token=`) |
 | `GSM_BASIC_USER` / `GSM_BASIC_PASS` | *(unset)* | HTTP Basic Auth alternative |
 

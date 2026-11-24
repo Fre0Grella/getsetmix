@@ -28,7 +28,7 @@ type State struct {
 	Version int                  // 1 or 2: what Save writes
 	Tracks  map[string]Track     // audio id -> the track this computer holds
 	Legacy  map[string]time.Time // server path -> when fetched, for tracks known by path only
-	Removed map[string]time.Time // audio id -> when its tombstone was handled
+	Removed map[string]Tombstone // audio id -> the tombstone handled (removed.go)
 	// Skipped counts, by extension, the files of the last listing that
 	// Rekordbox cannot import and so were not downloaded.
 	Skipped map[string]int
@@ -63,7 +63,7 @@ func (s *State) init() {
 		s.Legacy = map[string]time.Time{}
 	}
 	if s.Removed == nil {
-		s.Removed = map[string]time.Time{}
+		s.Removed = map[string]Tombstone{}
 	}
 }
 
@@ -172,7 +172,7 @@ type stateV2 struct {
 	Version int                  `json:"version"`
 	Tracks  map[string]Track     `json:"tracks"`
 	Legacy  map[string]time.Time `json:"legacy"`
-	Removed map[string]time.Time `json:"removed"`
+	Removed map[string]Tombstone `json:"removed"`
 	Skipped map[string]int       `json:"skipped,omitempty"`
 }
 
