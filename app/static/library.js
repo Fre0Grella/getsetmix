@@ -2,7 +2,7 @@
    list with covers, genre and folder filters and sorts, the detail sheet that
    edits one track (tags, cover, a preview player), and the trash (delete with
    an Undo toast, Restore, Empty trash). Loaded after app.js and uses its
-   helpers: api(), esc(), fmtDur(), toast(), authHeaders(), genrePicks, narrow,
+   helpers: api(), request(), esc(), fmtDur(), toast(), authHeaders(), genrePicks, narrow,
    coverSink, doCoverSearch(), T, STR. */
 "use strict";
 
@@ -531,7 +531,7 @@ async function coverLoad(key) {
   const [id, rev] = key.split(":");
   let res;
   try {
-    res = await fetch(`/api/library/${id}/cover?size=thumb&v=${rev}`, { headers: authHeaders() });
+    res = await request(`/api/library/${id}/cover?size=thumb&v=${rev}`);
   } catch {
     return;                         // a dropped connection: asked again when the row next appears
   }
@@ -635,7 +635,7 @@ async function sheetCover(item) {
   $("#libCoverBtn").textContent = item.has_cover ? T.libChangeCover : T.libAddCover;
   if (!item.has_cover) return;
   try {
-    const res = await fetch(`/api/library/${item.id}/cover?v=${item.content_rev}`, { headers: authHeaders() });
+    const res = await request(`/api/library/${item.id}/cover?v=${item.content_rev}`);
     if (!res.ok) throw new Error(String(res.status));
     const url = URL.createObjectURL(await res.blob());
     if (seq !== Sheet.coverSeq) { URL.revokeObjectURL(url); return; }
@@ -768,9 +768,9 @@ async function saveSheet() {
   audioStop(); // the write moves the audio inside the file: a playing preview would go wrong
   const item = Sheet.item;
   try {
-    const res = await fetch(`/api/library/${item.id}`, {
+    const res = await request(`/api/library/${item.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...changes, expect }),
     });
     const body = await res.json().catch(() => ({}));
@@ -780,7 +780,6 @@ async function saveSheet() {
       return;
     }
     if (res.status === 423) { toast(T.libInUse); audioArm(item); return; }
-    if (res.status === 401) { await api(`/api/library/${item.id}`); return; } // asks for the token
     if (!res.ok) { toast(body.detail || res.statusText); audioArm(item); return; }
     libSaved(body);
     sheet.classList.add("hidden");
@@ -827,9 +826,9 @@ async function saveCover(body, isUpload) {
   Sheet.saving = true;
   audioStop(); // the write moves the audio inside the file
   try {
-    const res = await fetch(`/api/library/${item.id}/cover`, {
+    const res = await request(`/api/library/${item.id}/cover`, {
       method: "POST",
-      headers: isUpload ? authHeaders() : { "Content-Type": "application/json", ...authHeaders() },
+      headers: isUpload ? {} : { "Content-Type": "application/json" },
       body: isUpload ? body : JSON.stringify(body),
     });
     const out = await res.json().catch(() => ({}));

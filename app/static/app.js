@@ -3,6 +3,7 @@
 
 const STR = {
   it: {
+    offline: "Il server non risponde",
     paste: "Aggiungi", download: "Scarica", cancel: "Ferma",
     urlPh: "Incolla il link di una traccia o playlist",
     settings: "Impostazioni", save: "Salva", close: "Chiudi", search: "Cerca",
@@ -40,7 +41,9 @@ const STR = {
     duplicate: "Questo link è già stato scaricato",
     dupBadge: "Già presente?",
     dupOf: (t) => `Già nella libreria: “${t}”. Tocca per aprirlo.`,
-    dupConfirm: n => `${n} brano/i sembra già nella tua libreria. Scaricarli comunque?\n\n(OK = scarica comunque · Annulla = salta i duplicati)`,
+    dupConfirm: n => (n === 1 ? "1 brano sembra già nella tua libreria. Scaricarlo comunque?"
+      : `${n} brani sembrano già nella tua libreria. Scaricarli comunque?`),
+    dupAnyway: "Scarica comunque", dupSkip: "Salta i duplicati",
     batchOf: (d, t) => `${d} di ${t}`,
     needMeta: "Servono titolo e artista",
     purged: n => `Eliminati ${n} elementi`, saved: "Impostazioni salvate",
@@ -48,6 +51,7 @@ const STR = {
     coverSet: "Copertina aggiornata",
   },
   en: {
+    offline: "The server does not answer",
     paste: "Add", download: "Download", cancel: "Stop",
     urlPh: "Paste a track or playlist link",
     settings: "Settings", save: "Save", close: "Close", search: "Search",
@@ -85,7 +89,9 @@ const STR = {
     duplicate: "This link was downloaded before",
     dupBadge: "Already owned?",
     dupOf: (t) => `Already in your library: “${t}”. Tap to open it.`,
-    dupConfirm: n => `${n} track(s) look like they're already in your library. Download them anyway?\n\n(OK = download anyway · Cancel = skip the duplicates)`,
+    dupConfirm: n => (n === 1 ? "1 track looks like it's already in your library. Download it anyway?"
+      : `${n} tracks look like they're already in your library. Download them anyway?`),
+    dupAnyway: "Download anyway", dupSkip: "Skip the duplicates",
     batchOf: (d, t) => `${d} of ${t}`,
     needMeta: "Title and artist are required",
     purged: n => `Removed ${n} items`, saved: "Settings saved",
@@ -123,23 +129,41 @@ function authHeaders() {
   return tok ? { "X-Auth-Token": tok } : {};
 }
 
-async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    ...opts,
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) },
-  });
-  if (res.status === 401) {
+// Every request goes through here: it adds the token and, on a 401, asks
+// for it and tries again. One question at a time, shared by the requests
+// that fail together (the covers of a screenful of rows); a dismissed
+// question is not asked again until the page reloads, so polling never
+// turns into a stream of prompts. The Response is the caller's, any status
+// but 401; api() below is the JSON shortcut.
+let tokenAsked = null;
+async function request(path, opts = {}) {
+  const send = () => fetch(path, { ...opts, headers: { ...authHeaders(), ...(opts.headers || {}) } });
+  const res = await send();
+  if (res.status !== 401) return res;
+  const asking = tokenAsked ??= Promise.resolve().then(() => {
     const tok = prompt(T.tokenPrompt);
-    if (tok) { localStorage.setItem("gsm_token", tok); return api(path, opts); }
-    throw new Error("unauthorized");
-  }
-  if (!res.ok) {
-    let detail = res.statusText;
-    try { detail = (await res.json()).detail || detail; } catch { /* noop */ }
-    const err = new Error(detail);
-    err.status = res.status;
-    throw err;
-  }
+    if (tok) localStorage.setItem("gsm_token", tok);
+    return Boolean(tok);
+  });
+  if (!(await asking)) throw new Error("unauthorized");
+  if (tokenAsked === asking) tokenAsked = null; // answered: a later 401 may ask again
+  return send();
+}
+
+// The message of a failed response: the server's `detail`, else its status text.
+async function errorOf(res) {
+  let detail = res.statusText;
+  try { detail = (await res.json()).detail || detail; } catch { /* noop */ }
+  const err = new Error(detail);
+  err.status = res.status;
+  return err;
+}
+
+async function api(path, opts = {}) {
+  const res = await request(path, {
+    ...opts, headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+  });
+  if (!res.ok) throw await errorOf(res);
   if (res.status === 204) return null;
   return res.json();
 }
@@ -431,10 +455,11 @@ async function poll() {
       return nt;
     });
     render();
-    $("#healthDot").classList.remove("bad");
+    health.offline = false;
   } catch {
-    $("#healthDot").classList.add("bad");
+    health.offline = true;
   }
+  showHealth();
   const fetching = tracks.some((t) => t.status === "fetching");
   schedulePoll(busy || fetching ? 1200 : 4000);
 }
@@ -460,9 +485,19 @@ async function refreshEngine() {
     const banner = $("#engineBanner");
     banner.textContent = problems.join(" ");
     banner.classList.toggle("hidden", !problems.length);
-    $("#healthDot").classList.toggle("bad", problems.length > 0);
-    $("#healthDot").title = problems.length ? problems.join("\n") : "healthy";
+    health.engine = problems;
+    showHealth();
   } catch { /* noop */ }
+}
+
+// The dot answers two questions, kept apart so one never clears the other:
+// is the server reachable (every poll), and is the download engine sound
+// (once, at load). Red while either is wrong.
+const health = { offline: false, engine: [] };
+function showHealth() {
+  const problems = [...(health.offline ? [T.offline] : []), ...health.engine];
+  $("#healthDot").classList.toggle("bad", problems.length > 0);
+  $("#healthDot").title = problems.length ? problems.join("\n") : "healthy";
 }
 
 // ---------------------------------------------------------------- actions
@@ -547,7 +582,9 @@ async function startBatch(ids = null, force = false) {
     if (res.needs_confirm) {
       const list = res.duplicates
         .map((d) => `• ${d.artist ? d.artist + " – " : ""}${d.title}`).join("\n");
-      if (confirm(`${T.dupConfirm(res.duplicates.length)}\n\n${list}`)) {
+      // the app's own dialog; anything but yes (Cancel, Escape, the backdrop)
+      // skips the duplicates and downloads the rest, as the browser's did
+      if (await askConfirm(`${T.dupConfirm(res.duplicates.length)}\n\n${list}`, T.dupAnyway, T.dupSkip)) {
         return startBatch(ids, true);                       // download anyway
       }
       const dupIds = new Set(res.duplicates.map((d) => d.id));
@@ -710,10 +747,8 @@ $("#coverFile").addEventListener("change", async (e) => {
   const fd = new FormData();
   fd.append("file", file);
   try {
-    const res = await fetch(`/api/tracks/${coverTrackId}/cover`, {
-      method: "POST", body: fd, headers: authHeaders(),
-    });
-    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const res = await request(`/api/tracks/${coverTrackId}/cover`, { method: "POST", body: fd });
+    if (!res.ok) throw await errorOf(res);
     $("#coverModal").classList.add("hidden");
     toast(T.coverSet);
     schedulePoll(150);
