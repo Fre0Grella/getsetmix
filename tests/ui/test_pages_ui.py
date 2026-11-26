@@ -36,6 +36,10 @@ def test_the_italian_downloads_and_library_screens_use_italian_words(open_tab, d
     expect(state(tab, "d-trashed")).to_contain_text("Nel cestino")
     expect(state(tab, "d-gone")).to_contain_text("Non è più nella libreria")
 
+    # what a screen reader says is Italian too
+    expect(tab.page.locator("#settingsModal .modal-close")).to_have_attribute("aria-label", "Chiudi")
+    expect(tab.page.locator("#coverQuery")).to_have_attribute("aria-label", "Cerca")
+
     tab.page.locator('[data-view="library"]').click()
     midnight = tab.page.locator(".lib-row", has_text="Midnight Drive")
     midnight.locator('[data-act="delete"]').click()

@@ -1,7 +1,7 @@
 /* What every screen shares: the DOM shortcut, escaping and formatting,
    requests (the token and its prompt), the toast and the app's yes/no
    question, and the little state two screens read. */
-import { T } from "./i18n.js";
+import { serverError, T } from "./i18n.js";
 
 export const $ = (sel) => document.querySelector(sel);
 
@@ -46,6 +46,7 @@ export async function request(path, opts = {}) {
 export async function errorOf(res) {
   let detail = res.statusText;
   try { detail = (await res.json()).detail || detail; } catch { /* noop */ }
+  detail = serverError(detail);
   const err = new Error(detail);
   err.status = res.status;
   return err;

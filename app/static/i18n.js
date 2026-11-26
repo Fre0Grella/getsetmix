@@ -5,9 +5,9 @@
 export const STR = {
   it: {
     offline: "Il server non risponde",
-    paste: "Aggiungi", download: "Scarica", cancel: "Ferma",
+    paste: "Aggiungi", download: "Scarica", stop: "Ferma",
     urlPh: "Incolla il link di una traccia o playlist",
-    settings: "Impostazioni", save: "Salva", close: "Chiudi", search: "Cerca",
+    settings: "Impostazioni", save: "Salva", close: "Chiudi", search: "Cerca", link: "Link",
     secDownloads: "Download", secLibrary: "Libreria",
     secInterface: "Interfaccia", secMaintenance: "Manutenzione",
     outputFormat: "Formato", concurrency: "Download paralleli",
@@ -18,7 +18,7 @@ export const STR = {
     pickerTitle: "Scegli un percorso",
     language: "Lingua", coverTitle: "Copertina", uploadCover: "Carica un'immagine",
     purgeCompleted: "Togli le righe finite", purgeHistory: "Dimentica i link",
-    colTrack: "Traccia", colAlbum: "Album", colGenre: "Genere", colTime: "Durata", colStatus: "Stato",
+    colTrack: "Traccia", album: "Album", genre: "Genere", colTime: "Durata", colStatus: "Stato",
     emptyTitle: "La cassa è ancora vuota",
     emptyHint: "Incolla qui sotto un link di YouTube o SoundCloud. Una playlist diventa una riga per traccia.",
     footSource: "Codice sorgente",
@@ -42,8 +42,8 @@ export const STR = {
     duplicate: "Questo link è già stato scaricato",
     dupBadge: "Già presente?",
     dupOf: (t) => `Già nella libreria: “${t}”. Tocca per aprirlo.`,
-    dupConfirm: n => (n === 1 ? "1 brano sembra già nella tua libreria. Scaricarlo comunque?"
-      : `${n} brani sembrano già nella tua libreria. Scaricarli comunque?`),
+    dupConfirm: (n) => plural(n, "1 brano sembra già nella tua libreria. Scaricarlo comunque?",
+      "{n} brani sembrano già nella tua libreria. Scaricarli comunque?"),
     dupAnyway: "Scarica comunque", dupSkip: "Salta i duplicati",
     batchOf: (d, t) => `${d} di ${t}`,
     needMeta: "Servono titolo e artista",
@@ -53,9 +53,9 @@ export const STR = {
   },
   en: {
     offline: "The server does not answer",
-    paste: "Add", download: "Download", cancel: "Stop",
+    paste: "Add", download: "Download", stop: "Stop",
     urlPh: "Paste a track or playlist link",
-    settings: "Settings", save: "Save", close: "Close", search: "Search",
+    settings: "Settings", save: "Save", close: "Close", search: "Search", link: "Link",
     secDownloads: "Downloads", secLibrary: "Library",
     secInterface: "Interface", secMaintenance: "Housekeeping",
     outputFormat: "Format", concurrency: "Parallel downloads",
@@ -66,7 +66,7 @@ export const STR = {
     pickerTitle: "Choose a path",
     language: "Language", coverTitle: "Cover art", uploadCover: "Upload an image",
     purgeCompleted: "Clear finished rows", purgeHistory: "Forget link history",
-    colTrack: "Track", colAlbum: "Album", colGenre: "Genre", colTime: "Time", colStatus: "Status",
+    colTrack: "Track", album: "Album", genre: "Genre", colTime: "Time", colStatus: "Status",
     emptyTitle: "Nothing in the crate yet",
     emptyHint: "Paste a YouTube or SoundCloud link below. A playlist becomes one row per track.",
     footSource: "Source code",
@@ -90,8 +90,8 @@ export const STR = {
     duplicate: "This link was downloaded before",
     dupBadge: "Already owned?",
     dupOf: (t) => `Already in your library: “${t}”. Tap to open it.`,
-    dupConfirm: n => (n === 1 ? "1 track looks like it's already in your library. Download it anyway?"
-      : `${n} tracks look like they're already in your library. Download them anyway?`),
+    dupConfirm: (n) => plural(n, "1 track looks like it's already in your library. Download it anyway?",
+      "{n} tracks look like they're already in your library. Download them anyway?"),
     dupAnyway: "Download anyway", dupSkip: "Skip the duplicates",
     batchOf: (d, t) => `${d} of ${t}`,
     needMeta: "Title and artist are required",
@@ -103,6 +103,67 @@ export const STR = {
 
 export let lang = "en";
 export let T = STR[lang];
+
+// The server writes its errors in English. These say them in Italian; a
+// message not listed stays English. Each pattern matches one message of
+// app/*.py, and tests/test_ui_words.py fails when a message has none.
+const SERVER_ERRORS_IT = [
+  [/^no such track$/, "Brano non trovato"],
+  [/^Track not found$/, "Brano non trovato"],
+  [/^no such file$/, "File non trovato"],
+  [/^the file is not on disk$/, "Il file non è sul disco"],
+  [/^this track has no cover$/, "Questo brano non ha una copertina"],
+  [/^No uploaded cover$/, "Nessuna copertina caricata"],
+  [/^the track was removed from the library$/, "Il brano è stato tolto dalla libreria"],
+  [/^the track was purged from the trash$/, "Il brano è stato cancellato dal cestino"],
+  [/^the track is not in the trash$/, "Il brano non è nel cestino"],
+  [/^the track is already deleted$/, "Il brano è già eliminato"],
+  [/^the file is no longer in the trash$/, "Il file non è più nel cestino"],
+  [/^the file is in the trash$/, "Il file è nel cestino"],
+  [/^the file is no longer in the library$/, "Il file non è più nella libreria"],
+  [/^(.+) is read-only in this version$/, "$1: in questa versione è in sola lettura"],
+  [/^the file is in use by another program: close it there \(or unload it from the deck\) and try again$/,
+    "Il file è aperto in un altro programma: chiudilo (o toglilo dal deck) e riprova"],
+  [/^another file has taken this track's place: (.+)$/, "Un altro file ha preso il posto di questo brano: $1"],
+  [/^a damaged file cannot be edited$/, "Un file danneggiato non si può modificare"],
+  [/^the image is larger than 10 MB$/, "L'immagine supera i 10 MB"],
+  [/^the cover must be a JPEG, PNG or WebP image$/, "La copertina deve essere un'immagine JPEG, PNG o WebP"],
+  [/^the address must start with http:\/\/ or https:\/\/$/, "L'indirizzo deve iniziare con http:// o https://"],
+  [/^could not download an image from that address$/, "Non è stato possibile scaricare un'immagine da quell'indirizzo"],
+  [/^year must be an integer from (\d+) to (\d+), or null$/, "L'anno deve essere un numero da $1 a $2, o vuoto"],
+  [/^Cover search failed: (.+)$/, "Ricerca copertina non riuscita: $1"],
+  [/^Track is locked while downloading$/, "Il brano è bloccato durante il download"],
+  [/^Cannot remove a track while it downloads$/, "Non si può rimuovere un brano mentre si scarica"],
+  [/^Only failed tracks can be retried$/, "Si possono riprovare solo i brani non riusciti"],
+  [/^Not a valid URL$/, "Non è un indirizzo valido"],
+  [/^Not a directory$/, "Non è una cartella"],
+  [/^Permission denied$/, "Permesso negato"],
+  [/^output_format must be 'mp3' or 'flac'$/, "Il formato deve essere mp3 o flac"],
+  [/^language must be 'it' or 'en'$/, "La lingua deve essere it o en"],
+  [/^concurrency must be between (\d+) and (\d+)$/, "I download in parallelo devono essere da $1 a $2"],
+  [/^trash_days must be between 0 and (\d+)$/, "I giorni nel cestino devono essere da 0 a $1"],
+  [/^filename_template cannot be empty$/, "Il modello del nome file non può essere vuoto"],
+];
+
+// A server error in the current language (English: as the server wrote it).
+export function serverError(detail) {
+  if (lang !== "it" || !detail) return detail;
+  for (const [pattern, text] of SERVER_ERRORS_IT) {
+    if (pattern.test(detail)) return detail.replace(pattern, text);
+  }
+  return detail;
+}
+
+// A number as the current language writes it (1,234 / 1.234).
+export function num(n) {
+  return n.toLocaleString(lang);
+}
+
+// One of the two forms of a counted phrase, its {n} written with num():
+// plural(n, "1 track", "{n} tracks").
+export function plural(n, one, other) {
+  return (n === 1 ? one : other).replaceAll("{n}", num(n));
+}
 
 // Switch language; an unknown one falls back to English.
 export function setLang(next) {

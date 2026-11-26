@@ -69,6 +69,11 @@ function applyLang(next) {
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
     el.placeholder = T[el.dataset.i18nPh];
   });
+  // labels a screen reader speaks: translated like the visible words
+  document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+    const v = T[el.dataset.i18nAria];
+    if (typeof v === "string") el.setAttribute("aria-label", v);
+  });
   $("#btnSettings").title = T.settings;
   $("#btnSettings").setAttribute("aria-label", T.settings);
   rowCache.clear(); // rows embed translated labels
@@ -170,8 +175,8 @@ function rowHtml(t) {
         ${dup ? `<button type="button" class="dup badge badge--warn" data-act="dup-open" title="${esc(T.dupOf(t.duplicate_reason))}">${T.dupBadge}</button>` : ""}
       </div>
     </div>
-    <div class="c-album" data-label="${T.colAlbum}">${field("album", "f-album", T.albumPh)}</div>
-    <div class="c-genre" data-label="${T.colGenre}">${field("genre", "f-genre", T.genrePh, 'list="genres"')}</div>
+    <div class="c-album" data-label="${T.album}">${field("album", "f-album", T.albumPh)}</div>
+    <div class="c-genre" data-label="${T.genre}">${field("genre", "f-genre", T.genrePh, 'list="genres"')}</div>
     <span class="dur">${fmtDur(t.duration)}</span>
     ${chips}
     ${stateHtml(t)}
@@ -501,7 +506,7 @@ list.addEventListener("click", async (e) => {
 // first like the Library's own Restore. The texts are library.js's (lib*).
 async function restoreDownload(t) {
   if (!t?.library_id) return;
-  if (!(await askConfirm(T.libRestoreAsk(t.title), T.libRestore, T.libCancel))) return;
+  if (!(await askConfirm(T.libRestoreAsk(t.title), T.libRestore, T.cancel))) return;
   try {
     await api(`/api/library/${t.library_id}/restore`, { method: "POST" });
     toast(T.libRestored(t.title));
