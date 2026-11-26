@@ -6,7 +6,7 @@
   "duplication_percent": {
     "python": 0,
     "javascript": 0,
-    "go": 0.27
+    "go": 0.26
   },
   "coverage_percent_floor": 93,
   "staticcheck": 0

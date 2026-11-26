@@ -17,18 +17,18 @@ import (
 
 	"github.com/dhowden/tag"
 
-	"github.com/Fre0Grella/getsetmix/companion/internal/library"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 // Extensions Rekordbox imports, mapped to its FileType codes.
 var Extensions = map[string]int{
-	".mp3":  library.FileMP3,
-	".m4a":  library.FileM4A,
-	".aac":  library.FileM4A,
-	".flac": library.FileFLAC,
-	".wav":  library.FileWAV,
-	".aif":  library.FileAIFF,
-	".aiff": library.FileAIFF,
+	".mp3":  track.FileMP3,
+	".m4a":  track.FileM4A,
+	".aac":  track.FileM4A,
+	".flac": track.FileFLAC,
+	".wav":  track.FileWAV,
+	".aif":  track.FileAIFF,
+	".aiff": track.FileAIFF,
 }
 
 // Supported reports whether Rekordbox can import a file with this name.
@@ -46,23 +46,23 @@ type stream struct {
 	alac       bool
 }
 
-// Probe builds the library.Track for the file at path.
-func Probe(path string) (library.Track, error) {
+// Probe builds the track.Track for the file at path.
+func Probe(path string) (track.Track, error) {
 	fileType, ok := Extensions[strings.ToLower(filepath.Ext(path))]
 	if !ok {
-		return library.Track{}, fmt.Errorf("unsupported file type %q", filepath.Ext(path))
+		return track.Track{}, fmt.Errorf("unsupported file type %q", filepath.Ext(path))
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		return library.Track{}, err
+		return track.Track{}, err
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
-		return library.Track{}, err
+		return track.Track{}, err
 	}
 
-	t := library.Track{Path: path, FileType: fileType, FileSize: info.Size()}
+	t := track.Track{Path: path, FileType: fileType, FileSize: info.Size()}
 	t.FileID, _ = fileID(f)
 
 	if m, err := tag.ReadFrom(f); err == nil {
@@ -77,18 +77,18 @@ func Probe(path string) (library.Track, error) {
 	}
 	var s stream
 	switch fileType {
-	case library.FileMP3:
+	case track.FileMP3:
 		s, err = probeMP3(f, info.Size())
-	case library.FileFLAC:
+	case track.FileFLAC:
 		s, err = probeFLAC(f)
-	case library.FileWAV:
+	case track.FileWAV:
 		s, err = probeWAV(f)
-	case library.FileAIFF:
+	case track.FileAIFF:
 		s, err = probeAIFF(f)
-	case library.FileM4A:
+	case track.FileM4A:
 		s, err = probeMP4(f, info.Size())
 		if s.alac {
-			t.FileType = library.FileALAC
+			t.FileType = track.FileALAC
 		}
 	}
 	if err != nil {
@@ -107,27 +107,27 @@ func Probe(path string) (library.Track, error) {
 
 // ReadTags reads the six tag fields GetSetMix edits, read the way Probe reads
 // them for an import. A file with no tags at all is an error.
-func ReadTags(path string) (library.Tags, error) {
+func ReadTags(path string) (track.Tags, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return library.Tags{}, err
+		return track.Tags{}, err
 	}
 	defer f.Close()
 	m, err := tag.ReadFrom(f)
 	if err != nil {
-		return library.Tags{}, err
+		return track.Tags{}, err
 	}
 	return tagsOf(m), nil
 }
 
 // TagsOf is the six tag fields of a probed track.
-func TagsOf(t library.Track) library.Tags {
-	return library.Tags{Title: t.Title, Artist: t.Artist, Album: t.Album, Genre: t.Genre,
+func TagsOf(t track.Track) track.Tags {
+	return track.Tags{Title: t.Title, Artist: t.Artist, Album: t.Album, Genre: t.Genre,
 		Year: t.Year, Comment: t.Comment}
 }
 
-func tagsOf(m tag.Metadata) library.Tags {
-	return library.Tags{
+func tagsOf(m tag.Metadata) track.Tags {
+	return track.Tags{
 		Title:   clean(m.Title()),
 		Artist:  clean(m.Artist()),
 		Album:   clean(m.Album()),

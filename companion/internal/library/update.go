@@ -6,65 +6,28 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
-// Tags are the six tag fields GetSetMix edits on the server
-// (docs/design/library.md, 3.6), as a file holds them.
-type Tags struct {
-	Title   string `json:"title"`
-	Artist  string `json:"artist"`
-	Album   string `json:"album"`
-	Genre   string `json:"genre"`
-	Year    int    `json:"year,omitempty"`
-	Comment string `json:"comment"`
-}
+// Tags are the six tag fields GetSetMix edits: track.Tags.
+type Tags = track.Tags
 
 // The six fields, by the names Changed reports.
 const (
-	FieldTitle   = "title"
-	FieldArtist  = "artist"
-	FieldAlbum   = "album"
-	FieldGenre   = "genre"
-	FieldYear    = "year"
-	FieldComment = "comment"
+	FieldTitle   = track.FieldTitle
+	FieldArtist  = track.FieldArtist
+	FieldAlbum   = track.FieldAlbum
+	FieldGenre   = track.FieldGenre
+	FieldYear    = track.FieldYear
+	FieldComment = track.FieldComment
 )
 
-// AllFields is every field, for a change with nothing to compare against.
-var AllFields = []string{FieldTitle, FieldArtist, FieldAlbum, FieldGenre, FieldYear, FieldComment}
+// AllFields is every field: track.AllFields.
+var AllFields = track.AllFields
 
-// Changed lists the fields whose values differ between was and now, in
-// AllFields order. A nil was means nothing is known to compare with: every
-// field counts as changed.
-func Changed(was *Tags, now Tags) []string {
-	if was == nil {
-		return append([]string(nil), AllFields...)
-	}
-	var out []string
-	for _, f := range AllFields {
-		if was.value(f) != now.value(f) {
-			out = append(out, f)
-		}
-	}
-	return out
-}
-
-func (t Tags) value(field string) string {
-	switch field {
-	case FieldTitle:
-		return t.Title
-	case FieldArtist:
-		return t.Artist
-	case FieldAlbum:
-		return t.Album
-	case FieldGenre:
-		return t.Genre
-	case FieldYear:
-		return strconv.Itoa(t.Year)
-	case FieldComment:
-		return t.Comment
-	}
-	return ""
-}
+// Changed lists the fields whose values differ: track.Changed.
+func Changed(was *Tags, now Tags) []string { return track.Changed(was, now) }
 
 // Change is a track already in the collection whose file was replaced by a
 // newer copy from the server.

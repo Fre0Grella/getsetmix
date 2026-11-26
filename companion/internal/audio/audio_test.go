@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Fre0Grella/getsetmix/companion/internal/library"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 func write(t *testing.T, name string, data []byte) string {
@@ -66,7 +66,7 @@ func TestProbeMP3CBR(t *testing.T) {
 		t.Errorf("tags: %+v", tr)
 	}
 	// 200 frames * 1152 samples / 44100 Hz = 5.22 s
-	if tr.Length != 5 || tr.BitRate != 320 || tr.SampleRate != 44100 || tr.FileType != library.FileMP3 {
+	if tr.Length != 5 || tr.BitRate != 320 || tr.SampleRate != 44100 || tr.FileType != track.FileMP3 {
 		t.Errorf("stream: length=%d bitrate=%d rate=%d type=%d", tr.Length, tr.BitRate, tr.SampleRate, tr.FileType)
 	}
 	if tr.FileID == 0 {
@@ -163,7 +163,7 @@ func TestProbeAIFF(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tr.Length != 10 || tr.SampleRate != 44100 || tr.BitRate != 1411 || tr.FileType != library.FileAIFF {
+	if tr.Length != 10 || tr.SampleRate != 44100 || tr.BitRate != 1411 || tr.FileType != track.FileAIFF {
 		t.Errorf("aiff: %+v", tr)
 	}
 }

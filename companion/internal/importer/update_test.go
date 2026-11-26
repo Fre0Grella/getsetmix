@@ -17,12 +17,13 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track/tracktest"
 )
 
 var (
-	onServerBefore = librarytest.Tags{Title: "Night Drive", Artist: "Some Artist", Album: "Nights",
+	onServerBefore = tracktest.Tags{Title: "Night Drive", Artist: "Some Artist", Album: "Nights",
 		Genre: "House", Comment: "Source: https://example.test | via GetSetMix"}
-	onServerAfter = librarytest.Tags{Title: "Night Drive", Artist: "Some Artist", Album: "Nights",
+	onServerAfter = tracktest.Tags{Title: "Night Drive", Artist: "Some Artist", Album: "Nights",
 		Genre: "Tech House", Year: "2019", Comment: "warm-up"}
 )
 
@@ -82,10 +83,10 @@ func newFetchedTrack(t *testing.T) *fetchedTrack {
 
 // place writes the track with tags, replacing the file by a rename as fetch
 // does, so it gets a new filesystem id.
-func (ft *fetchedTrack) place(t *testing.T, tags librarytest.Tags, mtime time.Time) {
+func (ft *fetchedTrack) place(t *testing.T, tags tracktest.Tags, mtime time.Time) {
 	t.Helper()
 	tmp := ft.path + ".part"
-	if err := os.WriteFile(tmp, librarytest.MP3(7, tags), 0o644); err != nil {
+	if err := os.WriteFile(tmp, tracktest.MP3(7, tags), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	os.Chtimes(tmp, mtime, mtime)
@@ -411,7 +412,7 @@ func TestAChangeWithoutAFetchedTrackIsLeftAlone(t *testing.T) {
 	if _, err := e.im.Sync(false); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(path, librarytest.MP3(3, onServerAfter), 0o644)
+	os.WriteFile(path, tracktest.MP3(3, onServerAfter), 0o644)
 	old := time.Now().Add(-time.Minute)
 	os.Chtimes(path, old, old)
 	dbPath := filepath.Join(e.rbDir, "master.db")

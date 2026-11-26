@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
-	"github.com/Fre0Grella/getsetmix/companion/internal/library"
-	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track/tracktest"
 )
 
 // idOf is the audio id of body saved under name.
@@ -28,9 +28,9 @@ func idOf(t *testing.T, name, body string) string {
 }
 
 var (
-	before = librarytest.Tags{Title: "Night Drive", Artist: "Some Artist", Genre: "House",
+	before = tracktest.Tags{Title: "Night Drive", Artist: "Some Artist", Genre: "House",
 		Comment: "Source: https://example.test | via GetSetMix"}
-	after = librarytest.Tags{Title: "Night Drive", Artist: "Some Artist", Genre: "Tech House",
+	after = tracktest.Tags{Title: "Night Drive", Artist: "Some Artist", Genre: "Tech House",
 		Year: "2019", Comment: "Source: https://example.test | via GetSetMix"}
 )
 
@@ -38,7 +38,7 @@ var (
 // downloaded again over the local copy, and the tags seen before are kept for
 // the importer (docs/design/library.md, 4.6).
 func TestATrackChangedOnTheServerIsFetchedAgain(t *testing.T) {
-	v1, v2 := string(librarytest.MP3(1, before)), string(librarytest.MP3(1, after))
+	v1, v2 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v1)
 	if id != idOf(t, "a.mp3", v2) || !strings.HasPrefix(id, "a1_") {
 		t.Fatal("a tag edit must keep the audio id")
@@ -50,7 +50,7 @@ func TestATrackChangedOnTheServerIsFetchedAgain(t *testing.T) {
 	if rep := run(t, c, state); len(rep.Downloaded) != 1 {
 		t.Fatalf("first fetch %+v", rep)
 	}
-	seen := library.Tags{Title: "Night Drive", Artist: "Some Artist", Genre: "House",
+	seen := track.Tags{Title: "Night Drive", Artist: "Some Artist", Genre: "House",
 		Comment: "Source: https://example.test | via GetSetMix"}
 	if got := state.Tracks[id].Tags; got == nil || *got != seen {
 		t.Fatalf("tags remembered on the first fetch: %+v", got)
@@ -84,7 +84,7 @@ func TestATrackChangedOnTheServerIsFetchedAgain(t *testing.T) {
 
 // A newer copy whose audio is not the listed id replaces nothing.
 func TestARefreshWithOtherAudioIsRefused(t *testing.T) {
-	v1 := string(librarytest.MP3(1, before))
+	v1 := string(tracktest.MP3(1, before))
 	id := idOf(t, "a.mp3", v1)
 	s := &server{files: map[string]string{"a.mp3": v1}}
 	s.listing = Listing{Protocol: 2, Rev: 5, Files: []File{file("a.mp3", v1, id, 5)}}
@@ -92,7 +92,7 @@ func TestARefreshWithOtherAudioIsRefused(t *testing.T) {
 	state := NewState()
 	run(t, c, state)
 
-	other := string(librarytest.MP3(2, after))
+	other := string(tracktest.MP3(2, after))
 	s.files["a.mp3"] = other
 	s.listing = Listing{Protocol: 2, Rev: 9, Files: []File{file("a.mp3", other, id, 9)}}
 	rep := run(t, c, state)
@@ -113,7 +113,7 @@ func TestARefreshWithOtherAudioIsRefused(t *testing.T) {
 // A track deleted on this computer stays deleted when the server changes it:
 // the new rev is recorded and nothing is downloaded.
 func TestAChangedTrackDeletedHereIsNotFetchedAgain(t *testing.T) {
-	v1, v2 := string(librarytest.MP3(1, before)), string(librarytest.MP3(1, after))
+	v1, v2 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v1)
 	s := &server{files: map[string]string{"a.mp3": v1}}
 	s.listing = Listing{Protocol: 2, Rev: 5, Files: []File{file("a.mp3", v1, id, 5)}}
@@ -144,7 +144,7 @@ func TestAChangedTrackDeletedHereIsNotFetchedAgain(t *testing.T) {
 // A track the server moved and then changed is refreshed where this computer
 // keeps it, under the path it was first fetched as.
 func TestARefreshLandsAtTheLocalPath(t *testing.T) {
-	v1, v2 := string(librarytest.MP3(1, before)), string(librarytest.MP3(1, after))
+	v1, v2 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v1)
 	s := &server{files: map[string]string{"a.mp3": v1}}
 	s.listing = Listing{Protocol: 2, Rev: 5, Files: []File{file("a.mp3", v1, id, 5)}}
@@ -169,7 +169,7 @@ func TestARefreshLandsAtTheLocalPath(t *testing.T) {
 // A track fetched before tags were remembered gets the tags of its local
 // copy, read before the newer copy replaces it.
 func TestTagsOfAnOldFetchAreReadBeforeTheRefresh(t *testing.T) {
-	v1, v2 := string(librarytest.MP3(1, before)), string(librarytest.MP3(1, after))
+	v1, v2 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v1)
 	s := &server{files: map[string]string{"a.mp3": v2}}
 	s.listing = Listing{Protocol: 2, Rev: 9, Files: []File{file("a.mp3", v2, id, 9)}}
@@ -190,7 +190,7 @@ func TestTagsOfAnOldFetchAreReadBeforeTheRefresh(t *testing.T) {
 // Two edits before the importer runs: the tags to compare with stay those of
 // the copy Rekordbox has, not of the copy in between.
 func TestASecondRefreshKeepsTheBase(t *testing.T) {
-	v2, v3 := string(librarytest.MP3(1, before)), string(librarytest.MP3(1, after))
+	v2, v3 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v2)
 	s := &server{files: map[string]string{"a.mp3": v3}}
 	s.listing = Listing{Protocol: 2, Rev: 12, Files: []File{file("a.mp3", v3, id, 12)}}
@@ -210,7 +210,7 @@ func TestASecondRefreshKeepsTheBase(t *testing.T) {
 // for the file, and a tombstoned track never counts as waiting.
 func TestStaleNamesTheNewestTrackOfAPathAndSkipsTombstones(t *testing.T) {
 	folder := t.TempDir()
-	key := func(p string) string { return library.PathKey(filepath.Join(folder, p)) }
+	key := func(p string) string { return track.PathKey(filepath.Join(folder, p)) }
 	state := NewState()
 	state.Tracks["a1_old"] = Track{Path: "a.mp3", Rev: 3, Pending: true}
 	state.Tracks["a1_new"] = Track{Path: "a.mp3", Rev: 8}
@@ -225,7 +225,7 @@ func TestStaleNamesTheNewestTrackOfAPathAndSkipsTombstones(t *testing.T) {
 
 // A track removed on the server is not fetched again, whatever its rev was.
 func TestATombstonedTrackIsNotFetchedAgain(t *testing.T) {
-	v1, v2 := string(librarytest.MP3(1, before)), string(librarytest.MP3(1, after))
+	v1, v2 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v1)
 	s := &server{files: map[string]string{"a.mp3": v1}}
 	s.listing = Listing{Protocol: 2, Rev: 5, Files: []File{file("a.mp3", v1, id, 5)}}

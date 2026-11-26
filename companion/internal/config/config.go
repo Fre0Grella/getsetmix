@@ -82,9 +82,9 @@ func (c Config) Save(dir string) error {
 // deleted instead of being re-imported on the next run.
 type State struct {
 	Baseline time.Time          `json:"baseline"`
-	Seen     map[string]Handled `json:"seen"` // library.PathKey -> how it was when handled
+	Seen     map[string]Handled `json:"seen"` // track.PathKey -> how it was when handled
 	// Removed holds the tracks the importer listed in the "removed on server"
-	// playlist, by library.PathKey, so none is listed twice and a restore
+	// playlist, by track.PathKey, so none is listed twice and a restore
 	// can take it out again (docs/design/library.md, 4.6).
 	Removed map[string]Listed `json:"removed,omitempty"`
 }

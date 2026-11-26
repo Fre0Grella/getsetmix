@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/atomicfile"
-	"github.com/Fre0Grella/getsetmix/companion/internal/library"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 const (
@@ -50,14 +50,14 @@ type Track struct {
 	// it until the importer has written the changes to Rekordbox. Nil when not
 	// known (a track fetched before tags were remembered, or a file without
 	// tags).
-	Tags *library.Tags `json:"tags,omitempty"`
+	Tags *track.Tags `json:"tags,omitempty"`
 	// Pending is set when fetch put a newer copy in place, until the importer
 	// has brought the Rekordbox row in line with it.
 	Pending bool `json:"pending,omitempty"`
 }
 
 // Stale names the local files whose newer copy Rekordbox does not have yet:
-// library.PathKey -> audio id. A track with a tombstone is left out, since the
+// track.PathKey -> audio id. A track with a tombstone is left out, since the
 // server no longer has it. When a server path was replaced by other audio,
 // Empty reports whether the state knows no track at all: nothing fetched,
 // nothing removed. Setup seeds only an empty state, never one in use.
@@ -73,7 +73,7 @@ func (s *State) Stale(folder string) map[string]string {
 		if err != nil {
 			continue
 		}
-		key := library.PathKey(p)
+		key := track.PathKey(p)
 		cur, seen := newest[key]
 		if !seen || t.Rev > s.Tracks[cur].Rev || (t.Rev == s.Tracks[cur].Rev && id > cur) {
 			newest[key] = id
@@ -90,7 +90,7 @@ func (s *State) Stale(folder string) map[string]string {
 
 // Remember notes the tags this computer has seen for the track with audio id;
 // whatever was waiting for the importer has been handled.
-func (s *State) Remember(id string, tags library.Tags) {
+func (s *State) Remember(id string, tags track.Tags) {
 	if t, ok := s.Tracks[id]; ok {
 		t.Tags, t.Pending = &tags, false
 		s.Tracks[id] = t

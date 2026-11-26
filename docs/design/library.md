@@ -1041,8 +1041,9 @@ acted on.
 
 #### 4.6.1 The companion's view of server changes (consolidation)
 
-**Status: draft**, 2026-11-24, for the maintainer's approval. Nothing here
-is built. It changes how the companion's code is arranged, not what it does.
+**Status: approved** on 2026-11-24 (see the decisions below); slice 1 of
+the build plan is built. It changes how the companion's code is arranged,
+not what it does.
 It is numbered under 4.6 so that 4.7 and 4.8 keep their numbers: the code
 cites "4.7" for local mode.
 
@@ -1350,6 +1351,10 @@ and the existing tests pass unchanged in what they assert.
 1. **Pure `track` package.** Move `Track`, `Tags`, `Changed`, `PathKey`,
    `Local`, the file type codes and the link listing types. Keep aliases in
    `library` and `fetch`. Add the import-rule test. No behaviour change.
+   **Built:** the listing's removed entry is `track.Tombstone`; the MP3
+   builder for tests moved from `librarytest` to a pure `track/tracktest`,
+   so `fetch` tests without SQLCipher too. The test is
+   `internal/layers`; the ledger and the state-file rule join it in slice 3.
 2. **One row lookup in `library`.** Use it in `KnownPaths`, `Import`,
    `MarkRemoved` and `Update`. Add the duplicate-path test. Behaviour
    changes only for a path with two live rows.
