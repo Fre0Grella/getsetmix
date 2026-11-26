@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 // Server is where tracks come from: written by the setup when it pairs this
@@ -46,38 +47,13 @@ type Server struct {
 	DeleteRemovedFiles bool `json:"delete_removed_files,omitempty"`
 }
 
-// File is one track the server offers.
-type File struct {
-	Path  string `json:"path"` // library-relative, "/"-separated
-	Size  int64  `json:"size"`
-	MTime int64  `json:"mtime"`
-	// Protocol 2 (docs/design/library.md, 3.5); empty from an older server.
-	ID  string `json:"id,omitempty"`  // the audio id
-	Rev int64  `json:"rev,omitempty"` // change number of the last change of its bytes
-}
-
-// Removed is a tombstone in a protocol 2 listing: a track trashed in
-// GetSetMix ("deleted") or that vanished from the server's disk ("missing").
-type Removed struct {
-	ID     string `json:"id"`
-	Path   string `json:"path"`
-	At     string `json:"at"`
-	Reason string `json:"reason"`
-}
-
-// Listing is the server's answer to /api/link/files.
-type Listing struct {
-	Version string `json:"version"`
-	// Protocol is 2 or more from a server that lists audio ids; an older
-	// server leaves it out (protocol 1), and tracks are then known by path.
-	Protocol int       `json:"protocol,omitempty"`
-	Rev      int64     `json:"rev,omitempty"`
-	Files    []File    `json:"files"`
-	Removed  []Removed `json:"removed,omitempty"`
-}
-
-// ByID reports whether the listing identifies tracks by audio id.
-func (l Listing) ByID() bool { return l.Protocol >= 2 }
+// The listing types live in track (docs/design/library.md, 4.6.1); these
+// names stay while callers move.
+type (
+	File    = track.File      // one track the server offers
+	Removed = track.Tombstone // a tombstone in a protocol 2 listing
+	Listing = track.Listing   // the server's answer to /api/link/files
+)
 
 // Report says what a fetch did.
 type Report struct {
@@ -155,14 +131,9 @@ func (c *Client) List(ctx context.Context) (Listing, error) {
 	return l, err
 }
 
-// Local maps a server path onto this computer, refusing anything that would
-// land outside the folder.
+// Local maps a server path onto this computer: track.Local.
 func Local(folder, serverPath string) (string, error) {
-	clean := path.Clean("/" + serverPath)[1:]
-	if clean == "" || clean != serverPath || strings.Contains(serverPath, "\\") {
-		return "", fmt.Errorf("unsafe path %q", serverPath)
-	}
-	return filepath.Join(folder, filepath.FromSlash(clean)), nil
+	return track.Local(folder, serverPath)
 }
 
 // download fetches f into dest through dest.part. With checkID, the audio id

@@ -10,37 +10,23 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
-// FileType codes of djmdContent.FileType.
+// FileType codes of djmdContent.FileType, now in track; kept here while
+// callers move (docs/design/library.md, 4.6.1).
 const (
-	FileMP3  = 1
-	FileM4A  = 4
-	FileFLAC = 5
-	FileALAC = 6
-	FileWAV  = 11
-	FileAIFF = 12
+	FileMP3  = track.FileMP3
+	FileM4A  = track.FileM4A
+	FileFLAC = track.FileFLAC
+	FileALAC = track.FileALAC
+	FileWAV  = track.FileWAV
+	FileAIFF = track.FileAIFF
 )
 
-// Track is one audio file to add to the collection.
-type Track struct {
-	Path    string // absolute path on this machine
-	Title   string
-	Artist  string
-	Album   string
-	Genre   string
-	Comment string
-	Year    int
-	TrackNo int
-
-	FileType   int
-	FileSize   int64
-	FileID     uint64 // filesystem identity: NTFS file ID / inode, as Rekordbox stores it
-	Length     int    // seconds
-	BitRate    int    // kbps
-	BitDepth   int
-	SampleRate int
-}
+// Track is one audio file to add to the collection: track.Track.
+type Track = track.Track
 
 // Playlist identifies the playlist new tracks are appended to.
 type Playlist struct {

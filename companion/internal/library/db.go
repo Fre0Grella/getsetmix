@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 	_ "github.com/mutecomm/go-sqlcipher/v4" // registers the "sqlite3" driver
-	"golang.org/x/text/unicode/norm"
 )
 
 // Key is the SQLCipher passphrase of every Rekordbox 6/7 master.db.
@@ -83,11 +83,9 @@ func (d *DB) QuickCheck() error {
 	return nil
 }
 
-// PathKey normalises a file path for identity comparisons: forward slashes,
-// NFC (macOS hands out decomposed names), case-folded (both NTFS and APFS
-// are case-insensitive by default).
+// PathKey normalises a file path for identity comparisons: track.PathKey.
 func PathKey(p string) string {
-	return strings.ToLower(norm.NFC.String(filepath.ToSlash(p)))
+	return track.PathKey(p)
 }
 
 // FolderPath is the form Rekordbox stores in djmdContent.FolderPath: the

@@ -318,6 +318,11 @@ that way.
   tested and reused alone. They import neither `db`, `config`, the Library,
   the worker nor the routes.
 - **The UI** talks to the app only through the API.
+- **The companion** (decision 10): `track` holds the track types and imports
+  nothing else of the companion. `track`, `audio`, `scan`, `fetch` and
+  `config` never reach `library`, the SQLCipher package, even from their
+  tests; only `importer`, `setup` and the command write `master.db`
+  ([design 4.6.1](design/library.md#461-the-companions-view-of-server-changes-consolidation)).
 - **One definition per thing:** search before writing a helper, a constant
   or an allowed value; extend the one that exists.
 
@@ -328,6 +333,7 @@ ceiling in the same change. A ceiling is never raised.
 | Rule | Check | In CI |
 |---|---|---|
 | The layers above, and the pure modules | import-linter contracts | yes |
+| The companion's layers | Go test `companion/internal/layers` (`go list -deps`) | yes |
 | One definition per thing | duplication percentage per part (jscpd), capped; the rest in review | yes, and review |
 | Lint and style | ruff with the project's own rule set, findings capped | yes |
 | Types | pyright over `app/`, errors capped | yes |

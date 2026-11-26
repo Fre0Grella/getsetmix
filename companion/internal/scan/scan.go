@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
-	"github.com/Fre0Grella/getsetmix/companion/internal/library"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 // SettleTime is how long a file must go unmodified before it counts as
@@ -22,7 +22,7 @@ const SettleTime = 10 * time.Second
 // File is an audio file found in a watched folder.
 type File struct {
 	Path    string
-	Key     string // library.PathKey(Path)
+	Key     string // track.PathKey(Path)
 	ModTime time.Time
 	Size    int64
 }
@@ -59,7 +59,7 @@ func Folders(folders []string, now time.Time) (Result, error) {
 			if err != nil || info.Size() == 0 {
 				return nil
 			}
-			key := library.PathKey(path)
+			key := track.PathKey(path)
 			if seen[key] {
 				return nil
 			}

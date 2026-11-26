@@ -1,4 +1,6 @@
-package librarytest
+// Package tracktest builds audio files for tests. It is pure, like track:
+// no database driver, so the packages that read files test without SQLCipher.
+package tracktest
 
 import "bytes"
 
