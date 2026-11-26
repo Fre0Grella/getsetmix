@@ -13,9 +13,9 @@ on:
   push:
     branches: [main]
     tags: ["companion-v*"]
-    paths: ["companion/**", "testdata/audiohash/**", "app/static/assets/icon.png", "LICENSE", "THIRD-PARTY-NOTICES.md", ".github/workflows/companion.yml", "ratchets.json", "scripts/ratchet.py"]
+    paths: ["companion/**", "testdata/audiohash/**", "app/static/assets/icon.png", "app/static/styles.css", "LICENSE", "THIRD-PARTY-NOTICES.md", ".github/workflows/companion.yml", "ratchets.json", "scripts/ratchet.py"]
   pull_request:
-    paths: ["companion/**", "testdata/audiohash/**", "app/static/assets/icon.png", "LICENSE", "THIRD-PARTY-NOTICES.md", ".github/workflows/companion.yml", "ratchets.json", "scripts/ratchet.py"]
+    paths: ["companion/**", "testdata/audiohash/**", "app/static/assets/icon.png", "app/static/styles.css", "LICENSE", "THIRD-PARTY-NOTICES.md", ".github/workflows/companion.yml", "ratchets.json", "scripts/ratchet.py"]
   workflow_dispatch:
 
 permissions:

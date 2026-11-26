@@ -478,7 +478,7 @@ screens.local = {
       ${rekordboxRow()}
       ${folderField("folder", T("saveIn"), choice.pc.folder)}
       <div class="field"><label for="playlist">${esc(T("playlist"))}</label>
-        <input class="input" id="playlist" value="${esc(choice.pc.playlist)}" style="max-width:280px" />
+        <input class="input w-280" id="playlist" value="${esc(choice.pc.playlist)}" />
         <div class="hint">${esc(T("playlistHint"))}</div></div>
       <p class="small">${esc(T("sizeNote"))}</p>`;
   },
@@ -520,13 +520,13 @@ screens.connect = {
         <li><div><strong>${esc(T("how2"))}</strong>
           <div class="cmd"><code id="cmd">${esc(cmd)}</code>
             <button type="button" id="copy">${I.copy}<span>${esc(T("copy"))}</span></button></div>
-          <p style="margin-top:8px">${T("how2d")}</p></div></li>
+          <p class="mt-8">${T("how2d")}</p></div></li>
         <li><div><strong>${esc(T("how3"))}</strong>
           <div class="waiting" id="wait"><span class="pulse"></span><span id="waitText">${esc(T("waiting"))}</span></div></div></li>
       </ol>
       ${others}
       <details class="more" id="whatRuns"><summary>${esc(T("whatRuns"))}</summary><pre id="script"></pre></details>
-      ${S.os === "windows" ? `<p class="small" style="margin-top:18px">${esc(T("firewall"))}</p>` : ""}`;
+      ${S.os === "windows" ? `<p class="small mt-18">${esc(T("firewall"))}</p>` : ""}`;
   },
   bar() {
     return bar(`<button class="btn btn-quiet" id="back">${esc(T("back"))}</button>`,
@@ -605,7 +605,7 @@ screens.server = {
       body = `
         <div class="note">${I.info}<div><p><strong>${esc(T("existingTitle"))}</strong> <span class="mono">${esc(f.existing.where)}</span></p>
           <p>${esc(T("existingBody"))}</p>
-          <p class="muted" style="margin-top:10px">${esc(T("existingWill"))}</p>
+          <p class="muted mt-10">${esc(T("existingWill"))}</p>
           <ul>${will.filter(Boolean).map((w) => `<li>${esc(w)}</li>`).join("")}</ul></div></div>
         ${toggleRow("autoUpdate", T("autoUpdate"), T(k8s ? "autoUpdateK8s" : "autoUpdateDocker"), c.autoUpdate)}`;
     } else {
@@ -623,7 +623,7 @@ screens.server = {
     const ownAddress = f.existing && (!f.existing.port || f.existing.host);
     const ts = ownAddress ? "" : f.tailscale
       ? toggleRow("tailscale", T("tailscale"), T("tailscaleD", "https://" + f.tailscale), c.tailscale)
-      : `<div class="note warn" style="margin-top:20px">${I.lock}<div><p>${esc(T("noTailscale"))}</p>
+      : `<div class="note warn mt-20">${I.lock}<div><p>${esc(T("noTailscale"))}</p>
           <p><button class="btn btn-text" type="button" id="getTs">${esc(T("getTailscale"))}</button></p></div></div>`;
     return `<h1>${esc(T("serverInstallTitle", f.hostname))}</h1>${factsRow}${body}${ts}`;
   },
@@ -670,7 +670,7 @@ screens.computer = {
       <h1>${esc(T("computerTitle"))}</h1>
       <p class="lede">${esc(T("computerLede"))}</p>
       ${rekordboxRow()}
-      <div class="choices" role="radiogroup" style="margin-bottom:24px">
+      <div class="choices mb-24" role="radiogroup">
         ${deliveryChoice("download", T("deliveryDownload"), T("deliveryDownloadD"), !synced)}
         ${deliveryChoice("synced", T("deliverySynced"), T("deliverySyncedD"), synced)}
       </div>
@@ -678,7 +678,7 @@ screens.computer = {
       ${!synced && existing ? `<label class="check"><input type="checkbox" id="copyExisting" ${p.copyExisting ? "checked" : ""}/>
         <span>${esc(T("copyExistingAll"))}</span></label>` : ""}
       <div class="field"><label for="playlist">${esc(T("playlist"))}</label>
-        <input class="input" id="playlist" value="${esc(p.playlist)}" style="max-width:280px" />
+        <input class="input w-280" id="playlist" value="${esc(p.playlist)}" />
         <div class="hint">${esc(T("playlistHint"))}</div></div>`;
   },
   bar() {
@@ -740,7 +740,7 @@ function taskRow(st, label, extra = "") {
   if (st.code) sub = `<div class="sub">${esc(T("c_" + st.code))}</div>`;
   if (st.status === "running" && st.progress > 0) sub += `<div class="meter"><i style="width:${Math.round(st.progress * 100)}%"></i></div>`;
   const detail = st.detail && (st.status === "fail" || st.status === "warn")
-    ? `<details class="more" style="margin-top:6px"><summary>${esc(T("details"))}</summary><pre>${esc(st.detail)}</pre></details>` : "";
+    ? `<details class="more mt-6"><summary>${esc(T("details"))}</summary><pre>${esc(st.detail)}</pre></details>` : "";
   return `<li class="task" data-s="${esc(st.status)}"><span class="i">${icon}</span><div class="t">${esc(label)}${sub}${detail}${extra}</div></li>`;
 }
 
@@ -762,18 +762,18 @@ screens.install = {
         const st = { id: "reach", status: sv.urlState === "ok" ? "ok" : sv.urlState === "need" ? "warn" : "running" };
         let ask = "";
         if (sv.urlState === "need") {
-          ask = `<div class="ask"><p class="muted" style="margin:0">${esc(T("reachAsk"))}</p>
+          ask = `<div class="ask"><p class="muted m-0">${esc(T("reachAsk"))}</p>
             <div class="path-row"><input class="input" id="url" placeholder="${esc(T("reachPlaceholder"))}" value="${esc(($("#url") || {}).value || "")}"/>
             <button class="btn btn-primary" id="tryUrl">${esc(T("reachTry"))}</button></div>
             <p class="error" id="urlErr" ${sv.urlError ? "" : "hidden"}>${esc(sv.urlError || "")}</p></div>`;
         }
         rows.push(taskRow(st, T("reach"), ask));
       }
-      if (sv.state === "failed") { failed = true; rows.push(`<li class="note bad" style="margin-top:12px">${I.warn}<p>${esc(T("serverFailed"))}</p></li>`); }
+      if (sv.state === "failed") { failed = true; rows.push(`<li class="note bad mt-12">${I.warn}<p>${esc(T("serverFailed"))}</p></li>`); }
       groups.push(`<section class="group"><h2>${esc(T("onServer", S.pair.facts ? S.pair.facts.hostname : "server"))}</h2><ul class="tasks">${rows.join("")}</ul></section>`);
     }
     const pcRows = S.local.steps.map((st) => taskRow(st, stepLabel(st.id, "pc")));
-    if (S.local.state === "failed") { failed = true; pcRows.push(`<li class="note bad" style="margin-top:12px">${I.warn}<p>${esc(T("pcFailed"))}</p></li>`); }
+    if (S.local.state === "failed") { failed = true; pcRows.push(`<li class="note bad mt-12">${I.warn}<p>${esc(T("pcFailed"))}</p></li>`); }
     groups.push(`<section class="group"><h2>${esc(T("onComputer"))}</h2><ul class="tasks">${pcRows.join("")}</ul></section>`);
 
     // Keep a half-typed address across refreshes.
@@ -810,15 +810,15 @@ screens.done = {
     const sv = S.server;
     const phone = sv.https
       ? `<div class="phone"><div class="qr"><img src="/api/qr" alt="" /></div>
-          <div><h2 style="margin-top:0">${esc(T("phoneTitle"))}</h2><ol><li>${T("phone1")}</li><li>${T("phone2")}</li><li>${T("phone3")}</li></ol></div></div>`
+          <div><h2 class="mt-0">${esc(T("phoneTitle"))}</h2><ol><li>${T("phone1")}</li><li>${T("phone2")}</li><li>${T("phone3")}</li></ol></div></div>`
       : `<div class="phone"><div class="qr"><img src="/api/qr" alt="" /></div>
-          <div><h2 style="margin-top:0">${esc(T("phoneTitle"))}</h2><p class="muted">${esc(T("phoneHttp"))}</p></div></div>`;
+          <div><h2 class="mt-0">${esc(T("phoneTitle"))}</h2><p class="muted">${esc(T("phoneHttp"))}</p></div></div>`;
     const pcLines = [];
     pcLines.push(rb ? T("rbLauncher") : esc(T("rbNone")));
     pcLines.push(esc(T(choice.pc.delivery === "synced" ? "rbSynced" : "rbScheduled", folder)));
     return `
       <h1>${esc(T("doneTitle"))}</h1>
-      <div class="hero-url" style="margin-top:24px"><div><div class="label">${esc(T("yourGsm"))}</div>
+      <div class="hero-url mt-24"><div><div class="label">${esc(T("yourGsm"))}</div>
         <a href="#" id="srv">${esc(sv.url)}</a></div>
         <button class="btn btn-quiet" id="openSrv">${esc(T("open"))}</button></div>
       ${phone}

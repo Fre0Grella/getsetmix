@@ -1,32 +1,16 @@
 /* GetSetMix Setup
    One window, a rail of steps on the left and one question at a time on the
-   right. Same tokens as the app: the logo's "mix" blue as the only accent,
-   neutrals leaning toward its navy, light or dark with the system.        */
+   right. The colours are the app's (tokens.css, generated from it); here
+   are only what is the window's own: the rail, the washes, the code block
+   and its fonts. Light or dark with the system.                          */
 
 :root {
   color-scheme: light;
-  --bg:        oklch(0.975 0.004 260);
-  --surface:   oklch(0.995 0.002 260);
   --rail:      oklch(0.955 0.006 260);
-  --hover:     oklch(0.945 0.007 260);
-  --field:     oklch(0.995 0.002 260);
-  --line:      oklch(0.89 0.008 260);
-  --line-soft: oklch(0.925 0.006 260);
-  --text:      oklch(0.22 0.025 262);
-  --text-2:    oklch(0.45 0.02 262);
-  --text-3:    oklch(0.58 0.015 262);
-  --accent:    oklch(0.55 0.19 259);
-  --accent-hi: oklch(0.50 0.19 259);
-  --on-accent: oklch(0.99 0.005 259);
-  --accent-wash: oklch(0.55 0.19 259 / 0.08);
-  --ok:        oklch(0.56 0.13 165);
-  --warn:      oklch(0.60 0.14 70);
   --warn-wash: oklch(0.80 0.12 80 / 0.16);
-  --danger:    oklch(0.55 0.19 25);
   --danger-wash: oklch(0.60 0.18 25 / 0.08);
   --code-bg:   oklch(0.21 0.02 262);
   --code-text: oklch(0.93 0.01 262);
-  --shadow:    0 1px 2px oklch(0.2 0.02 262 / 0.05), 0 8px 24px -12px oklch(0.2 0.02 262 / 0.16);
   --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --mono: "Cascadia Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -37,27 +21,10 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg:        oklch(0.17 0.008 262);
-    --surface:   oklch(0.205 0.010 262);
     --rail:      oklch(0.15 0.008 262);
-    --hover:     oklch(0.235 0.012 262);
-    --field:     oklch(0.215 0.012 262);
-    --line:      oklch(0.31 0.012 262);
-    --line-soft: oklch(0.25 0.010 262);
-    --text:      oklch(0.94 0.006 262);
-    --text-2:    oklch(0.75 0.012 262);
-    --text-3:    oklch(0.60 0.014 262);
-    --accent:    oklch(0.68 0.16 259);
-    --accent-hi: oklch(0.74 0.15 259);
-    --on-accent: oklch(0.18 0.03 262);
-    --accent-wash: oklch(0.68 0.16 259 / 0.12);
-    --ok:        oklch(0.76 0.13 165);
-    --warn:      oklch(0.80 0.13 75);
     --warn-wash: oklch(0.80 0.13 75 / 0.10);
-    --danger:    oklch(0.70 0.16 25);
     --danger-wash: oklch(0.70 0.16 25 / 0.10);
     --code-bg:   oklch(0.13 0.01 262);
-    --shadow:    0 1px 2px oklch(0 0 0 / 0.3), 0 12px 32px -12px oklch(0 0 0 / 0.5);
   }
 }
 
@@ -378,3 +345,9 @@ details.more pre {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Spacing for one-off places in the screens (setup.js), instead of inline styles.
+   !important keeps the precedence an inline style had over every rule. */
+.mt-0 { margin-top: 0 !important; } .mt-6 { margin-top: 6px !important; } .mt-8 { margin-top: 8px !important; } .mt-10 { margin-top: 10px !important; }
+.mt-12 { margin-top: 12px !important; } .mt-18 { margin-top: 18px !important; } .mt-20 { margin-top: 20px !important; } .mt-24 { margin-top: 24px !important; }
+.m-0 { margin: 0 !important; } .mb-24 { margin-bottom: 24px !important; } .w-280 { max-width: 280px !important; }

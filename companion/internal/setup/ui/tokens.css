@@ -1,0 +1,46 @@
+/* The colours the Setup window shares with the app, copied from
+   app/static/styles.css by `go generate ./internal/setup`. Do not edit:
+   TestTokensMatchTheApp fails when this copy and the app differ. */
+:root {
+  --bg: oklch(0.975 0.004 260);
+  --surface: oklch(0.995 0.002 260);
+  --hover: oklch(0.95 0.006 260);
+  --field: oklch(0.94 0.008 260);
+  --line: oklch(0.90 0.008 260);
+  --line-soft: oklch(0.93 0.006 260);
+  --text: oklch(0.22 0.025 262);
+  --text-2: oklch(0.45 0.02 262);
+  --text-3: oklch(0.58 0.015 262);
+  --accent: oklch(0.55 0.19 259);
+  --accent-hi: oklch(0.50 0.19 259);
+  --on-accent: oklch(0.99 0.005 259);
+  --accent-wash: oklch(0.55 0.19 259 / 0.09);
+  --ok: oklch(0.56 0.13 165);
+  --warn: oklch(0.60 0.14 70);
+  --danger: oklch(0.55 0.19 25);
+  --scrim: oklch(0.25 0.02 262 / 0.35);
+  --shadow: 0 1px 2px oklch(0.2 0.02 262 / 0.06), 0 12px 32px -12px oklch(0.2 0.02 262 / 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: oklch(0.17 0.008 262);
+    --surface: oklch(0.20 0.010 262);
+    --hover: oklch(0.235 0.012 262);
+    --field: oklch(0.255 0.014 262);
+    --line: oklch(0.31 0.012 262);
+    --line-soft: oklch(0.245 0.010 262);
+    --text: oklch(0.94 0.006 262);
+    --text-2: oklch(0.75 0.012 262);
+    --text-3: oklch(0.60 0.014 262);
+    --accent: oklch(0.68 0.16 259);
+    --accent-hi: oklch(0.74 0.15 259);
+    --on-accent: oklch(0.18 0.03 262);
+    --accent-wash: oklch(0.68 0.16 259 / 0.13);
+    --ok: oklch(0.76 0.13 165);
+    --warn: oklch(0.80 0.13 75);
+    --danger: oklch(0.70 0.16 25);
+    --scrim: oklch(0.08 0.01 262 / 0.6);
+    --shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 16px 40px -12px oklch(0 0 0 / 0.55);
+  }
+}

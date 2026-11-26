@@ -36,6 +36,7 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/serverscript"
 )
 
+//go:generate go test -run TestTokensMatchTheApp -update .
 //go:embed ui
 var uiFiles embed.FS
 
