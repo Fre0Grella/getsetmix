@@ -1,6 +1,26 @@
 # CHANGELOG
 
 
+## v1.16.7 (2026-11-26)
+
+### Bug Fixes
+
+- **ui**: Translate errors, labels, plurals ([#86](https://github.com/Fre0Grella/getsetmix/pull/86),
+  [`12a1c79`](https://github.com/Fre0Grella/getsetmix/commit/12a1c79e26944739bb7d1cfd8a2ab674d2ab77b8))
+
+The words items of #83: - server errors are English; i18n.js now says them in Italian
+  (SERVER_ERRORS_IT, patterns for the ones built from parts), and tests/test_ui_words.py fails when
+  a message app/*.py can raise has no pattern, or a pattern matches no message any more; -
+  screen-reader labels (close, search, link, sort, folder, ...) are translated through
+  data-i18n-aria, like placeholders; - plural(n, one, other) and num(n) replace ten inline switches
+  and the hand-written toLocaleString calls; - one key per phrase: changeCover, album and genre were
+  each defined twice; `cancel` (which said "Stop") is `stop`, and libCancel is `cancel`.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.16.6 (2026-11-26)
 
 ### Bug Fixes
