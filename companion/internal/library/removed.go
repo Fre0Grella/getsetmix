@@ -39,7 +39,7 @@ func (d *DB) MarkRemoved(add, drop []string, now time.Time) (RemovedResult, erro
 	if err := w.loadContext(); err != nil {
 		return res, err
 	}
-	ids, err := contentIDs(tx)
+	ids, err := rowsByPath(tx, w.deviceID)
 	if err != nil {
 		return res, err
 	}
@@ -119,29 +119,6 @@ func (d *DB) MarkRemoved(add, drop []string, now time.Time) (RemovedResult, erro
 	}
 	res.Playlist = Playlist{ID: plID, Created: created, UpdatedAt: now}
 	return res, nil
-}
-
-// contentIDs maps the PathKey of every track in the collection to its ID.
-// When Rekordbox holds two live rows for one file, the oldest one speaks for
-// it, the same row for every write (an update, the removed playlist).
-func contentIDs(tx *sql.Tx) (map[string]string, error) {
-	rows, err := tx.Query(`SELECT ID, FolderPath FROM djmdContent
-		WHERE rb_local_deleted = 0 AND FolderPath IS NOT NULL ORDER BY created_at, ID`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	ids := map[string]string{}
-	for rows.Next() {
-		var id, p string
-		if err := rows.Scan(&id, &p); err != nil {
-			return nil, err
-		}
-		if _, dup := ids[PathKey(p)]; !dup {
-			ids[PathKey(p)] = id
-		}
-	}
-	return ids, rows.Err()
 }
 
 // findPlaylist is the ID of the root playlist called name, or "" when there

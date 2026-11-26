@@ -58,20 +58,10 @@ func (d *DB) Import(tracks []Track, playlistName string, now time.Time) (Result,
 		return res, err
 	}
 
-	known := map[string]bool{}
-	rows, err := tx.Query("SELECT FolderPath FROM djmdContent WHERE rb_local_deleted = 0 AND FolderPath IS NOT NULL")
+	known, err := knownPaths(tx)
 	if err != nil {
 		return res, err
 	}
-	for rows.Next() {
-		var p string
-		if err := rows.Scan(&p); err != nil {
-			rows.Close()
-			return res, err
-		}
-		known[PathKey(p)] = true
-	}
-	rows.Close()
 
 	var added []string // content IDs, in import order
 	for _, t := range tracks {
@@ -138,14 +128,7 @@ func (w *writer) loadContext() error {
 		return fmt.Errorf("reading localUpdateCount: %w", err)
 	}
 
-	// The local device: djmdProperty names it; fall back to the device most
-	// tracks belong to (there can be others, e.g. a USB stick's).
-	_ = w.tx.QueryRow("SELECT DeviceID FROM djmdProperty LIMIT 1").Scan(&w.deviceID)
-	if w.deviceID == "" {
-		_ = w.tx.QueryRow(`SELECT DeviceID FROM djmdContent WHERE DeviceID IS NOT NULL
-			GROUP BY DeviceID ORDER BY count(*) DESC LIMIT 1`).Scan(&w.deviceID)
-	}
-	if w.deviceID == "" {
+	if w.deviceID = localDevice(w.tx); w.deviceID == "" {
 		return errors.New("cannot tell which device is this computer (djmdDevice)")
 	}
 	if err := w.tx.QueryRow("SELECT MasterDBID FROM djmdDevice WHERE ID = ?", w.deviceID).

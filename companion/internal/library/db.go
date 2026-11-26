@@ -96,21 +96,7 @@ func FolderPath(p string) string {
 
 // KnownPaths returns the PathKey of every track in the collection.
 func (d *DB) KnownPaths() (map[string]bool, error) {
-	rows, err := d.sql.Query(
-		"SELECT FolderPath FROM djmdContent WHERE rb_local_deleted = 0 AND FolderPath IS NOT NULL")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	known := map[string]bool{}
-	for rows.Next() {
-		var p string
-		if err := rows.Scan(&p); err != nil {
-			return nil, err
-		}
-		known[PathKey(p)] = true
-	}
-	return known, rows.Err()
+	return knownPaths(d.sql)
 }
 
 // TrackCount is the number of tracks in the collection.

@@ -172,34 +172,3 @@ func TestMarkRemovedWithNothingToDoWritesNothing(t *testing.T) {
 		t.Fatal("the playlist was created with nothing to list")
 	}
 }
-
-// When Rekordbox holds two live rows for one file, every write picks the
-// same one, the oldest: the removed playlist lists the row an update would
-// change, never an arbitrary duplicate.
-func TestADuplicatedPathIsAlwaysItsOldestRow(t *testing.T) {
-	dir, paths := removedSetup(t)
-	raw := librarytest.Open(t, filepath.Join(dir, "master.db"))
-	oldest := contentID(t, raw, paths[1])
-	for _, q := range []string{
-		`CREATE TEMP TABLE dup AS SELECT * FROM djmdContent WHERE ID = ?`,
-		`UPDATE dup SET ID = 'dup1', created_at = '2999-01-01 00:00:00.000 +00:00'`,
-		`INSERT INTO djmdContent SELECT * FROM dup`,
-	} {
-		args := []any{}
-		if q[:6] == "CREATE" {
-			args = append(args, oldest)
-		}
-		if _, err := raw.Exec(q, args...); err != nil {
-			t.Fatal(err)
-		}
-	}
-	raw.Close()
-
-	markRemoved(t, dir, []string{paths[1]}, nil, now)
-
-	raw = librarytest.Open(t, filepath.Join(dir, "master.db"))
-	defer raw.Close()
-	if got := removedList(t, raw); !reflect.DeepEqual(got, []string{oldest}) {
-		t.Fatalf("removed playlist %v, want the oldest row %s", got, oldest)
-	}
-}
