@@ -1,6 +1,36 @@
 # CHANGELOG
 
 
+## v1.16.6 (2026-11-26)
+
+### Bug Fixes
+
+- **setup**: Take the app's colours ([#85](https://github.com/Fre0Grella/getsetmix/pull/85),
+  [`6d364f1`](https://github.com/Fre0Grella/getsetmix/commit/6d364f19641a36e3ed0ed0dd793b47844db64409))
+
+The Setup window took 21 of the app's colour tokens as its own copy, and five had drifted.
+  tokens.css is now generated from the app's palette and a Go test fails when the copy and the app
+  disagree; setup.css keeps only its own rail, wash, code colours and fonts. The 15 inline styles in
+  setup.js are classes.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+### Documentation
+
+- **design**: The companion's sync ledger ([#78](https://github.com/Fre0Grella/getsetmix/pull/78),
+  [`40dc7d0`](https://github.com/Fre0Grella/getsetmix/commit/40dc7d0b8efc8f7c61641532dd69431062a44d81))
+
+docs/design/library.md 4.6.1, approved: a pure track package, one ledger that owns fetched.json and
+  state.json, sync.lock (30 s wait), the oldest row of this computer's DeviceID, the removed records
+  kept as they are. Decision 10 in docs/architecture.md.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.16.5 (2026-11-24)
 
 ### Bug Fixes
