@@ -1,6 +1,30 @@
 # CHANGELOG
 
 
+## v1.21.0 (2026-11-27)
+
+### Features
+
+- **library**: Rule sets and a cleanup tab
+  ([`5760e65`](https://github.com/Fre0Grella/getsetmix/commit/5760e6506ec754d489744a309db4849f87e419b5))
+
+Batch editing, slice 4.
+
+- Rules run as steps of an edit beside field operations; a rule's warnings join its change. - Rule
+  sets: the built-in Standard cleanup, seeded from the catalogue and never changed or removed;
+  saving, renaming, reordering and deleting your own (/api/library/rulesets). A preview can name a
+  set with ruleset_id. - PATCH /api/library/edits/{id} leaves tracks or single changes out of a
+  preview and puts them back; counts and resend follow. - UI: a Cleanup tab (cleanup.js) to pick a
+  set, switch rules off, set their parameters and reorder them; the preview grouped by track with
+  the changed part marked, checkboxes per track and change, and filters for warnings and fields.
+
+Closes #49
+
+Claude-Session: https://claude.ai/code/session_01P6dL1ubJcR7rkeStcK3oqS
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.20.0 (2026-11-27)
 
 ### Features
