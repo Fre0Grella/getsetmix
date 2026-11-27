@@ -5,9 +5,9 @@
    follows the progress. Files that failed can be tried again; a file changed
    meanwhile is left alone and said so. *Undo* writes the old values back,
    from the panel or from the History (slice 3). Loaded by app.js. */
-import { $, api, errorOf, esc, libRules, request, toast } from "./core.js";
+import { $, api, errorOf, esc, libRules, narrow, request, toast } from "./core.js";
 import { lang, num, plural, serverError, STR, T } from "./i18n.js";
-import { cleanupOpen, cleanupSetId, cleanupSteps } from "./cleanup.js";
+import { cleanupOpen, cleanupSetId, cleanupSteps, quickSets } from "./cleanup.js";
 import { addSelAction, libChanged, libView, selectedIds } from "./library.js";
 
 const SKIP_IT = {
@@ -29,6 +29,8 @@ Object.assign(STR.en, {
   edCover: "Cover", edCoverOps: { leave: "Leave as it is", set_cover: "New image", clear_cover: "Remove" },
   edCoverPick: "Image for the cover", edCoverNeeded: "Choose an image for the cover.",
   edCoverNew: "new image", edCoverNone: "no cover", edCoverHad: "its cover",
+  edStep: { 1: "1 of 3 · What", 2: "2 of 3 · Check", 3: "3 of 3 · Apply" },
+  edQuickTitle: "Clean up with a rule set", edOrField: "Or change fields", edBack: "Back",
   edAll: "All", edWarned: "With a warning", edKeepTrack: "Keep this track in the edit",
   edKeepChange: "Keep this change",
   edResend: (t, mb) => `${plural(t, "Each paired computer downloads 1 track again", "Each paired computer downloads {n} tracks again")} (${mb} MB).`,
@@ -69,6 +71,8 @@ Object.assign(STR.it, {
   edCover: "Copertina", edCoverOps: { leave: "Lascia com'è", set_cover: "Nuova immagine", clear_cover: "Togli" },
   edCoverPick: "Immagine per la copertina", edCoverNeeded: "Scegli un'immagine per la copertina.",
   edCoverNew: "nuova immagine", edCoverNone: "nessuna copertina", edCoverHad: "la sua copertina",
+  edStep: { 1: "1 di 3 · Cosa", 2: "2 di 3 · Controlla", 3: "3 di 3 · Applica" },
+  edQuickTitle: "Pulisci con un insieme di regole", edOrField: "Oppure cambia dei campi", edBack: "Indietro",
   edAll: "Tutte", edWarned: "Con un avviso", edKeepTrack: "Tieni questo brano nella modifica",
   edKeepChange: "Tieni questa modifica",
   edResend: (t, mb) => `${plural(t, "Ogni computer abbinato riscarica 1 brano", "Ogni computer abbinato riscarica {n} brani")} (${mb} MB).`,
@@ -108,7 +112,15 @@ const FIELD_OPS = { title: ["set", "prepend", "append", "replace"], artist: ["se
   album: ["set", "clear", "prepend", "append", "replace"], genre: ["set", "clear", "prepend", "append", "replace"],
   year: ["set", "clear"], comment: ["set", "clear", "prepend", "append", "replace"] };
 const Ed = { ids: [], view: null, edit: null, timer: null, busy: false, tab: "fields",
-  items: [], filter: "all" };
+  items: [], filter: "all", phone: false };
+
+// On a phone the panel is a sheet in three steps (design 4.3): 1 what to
+// change, 2 the cards to check, 3 the apply. The desktop shows it all at once.
+function edStep(n) {
+  modal.dataset.step = String(n);
+  $("#edStep").textContent = T.edStep[n];
+  modal.querySelector(".modal-body").scrollTop = 0;
+}
 
 function edReset() {
   clearTimeout(Ed.timer);
@@ -175,9 +187,27 @@ function edOpen() {
   edScopeTexts();
   edRows();
   edTab("fields");
+  Ed.phone = narrow.matches;
+  modal.classList.toggle("ed-phone", Ed.phone);
+  edStep(1);
   modal.classList.remove("hidden");
-  $("#edFields .ed-op").focus();
+  if (Ed.phone) edQuick();
+  else $("#edFields .ed-op").focus();
 }
+
+// Step 1 on a phone: every rule set, one tap each, its rules named under it.
+async function edQuick() {
+  try {
+    const sets = await quickSets();
+    $("#edQuickSets").innerHTML = sets.map((s) => `<button type="button" class="ed-quick-set" data-set="${s.id}">
+      <strong>${esc(s.name)}</strong><small>${esc(s.rules.join(" · "))}</small></button>`).join("");
+  } catch (err) { toast(err.message); }
+}
+$("#edQuickSets").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-set]");
+  if (btn) edPreview({ ruleset_id: Number(btn.dataset.set) });
+});
+$("#edBack").addEventListener("click", () => { edReset(); edStep(1); });
 function edScopeTexts() {
   $("#edScopeIds").textContent = T.edScopeIds(Ed.ids.length);
   $("#edScopeAll").textContent = T.edScopeAll(Ed.view ? Ed.view.total : 0);
@@ -227,33 +257,41 @@ $("#edForm").addEventListener("submit", async (e) => {
   const steps = cleanup ? cleanupSteps() : edSteps();
   if (!steps.length) { toast(cleanup ? T.edNoRules : T.edPickOne); return; }
   if (steps.some((s) => Number.isNaN(s.value))) { toast(T.libBadYear(...(libRules.year || [1000, 9999]))); return; }
-  const all = $('#edScope input[value="filter"]').checked && !$("#edScope").classList.contains("hidden");
   const pic = steps.find((s) => s.op === "set_cover");
   if (pic && !pic.file) { toast(T.edCoverNeeded); return; }
-  Ed.busy = true;
-  edReset();
-  try {
-    if (pic) {
+  if (pic) {
+    try {
       const form = new FormData();
       form.append("file", pic.file);
       const res = await request("/api/library/edits/covers", { method: "POST", body: form });
       if (!res.ok) throw await errorOf(res);
       pic.source = (await res.json()).source;
       delete pic.file;
-    }
+    } catch (err) { toast(err.message); return; }
+  }
+  await edPreview({ steps, ...(cleanup && cleanupSetId() ? { ruleset_id: cleanupSetId() } : {}) });
+});
+
+// Make the preview: the selection (or the whole view) and the steps or set.
+async function edPreview(what) {
+  if (Ed.busy) return;
+  const all = $('#edScope input[value="filter"]').checked && !$("#edScope").classList.contains("hidden");
+  Ed.busy = true;
+  edReset();
+  try {
     const edit = await api("/api/library/edits", {
       method: "POST",
-      body: JSON.stringify({ selection: all ? { filter: Ed.view.filter } : { ids: Ed.ids }, steps,
-        ...(cleanup && cleanupSetId() ? { ruleset_id: cleanupSetId() } : {}) }),
+      body: JSON.stringify({ selection: all ? { filter: Ed.view.filter } : { ids: Ed.ids }, ...what }),
     });
     Ed.edit = edit;
+    if (Ed.phone) edStep(2);
     await edShow(edit);
   } catch (err) {
     toast(err.message);
   } finally {
     Ed.busy = false;
   }
-});
+}
 
 function edSummary(edit) {
   const c = edit.counts;
@@ -298,14 +336,33 @@ function edFilters(edit) {
     `<button type="button" class="chip" data-filter="${esc(k)}" aria-pressed="${k === Ed.filter}">${esc(label)}</button>`).join("") : "";
 }
 
+// What a change shows: its field, before and after (cover: in words), and why not.
+function edShown(c) {
+  const label = T[FIELD_LABEL[c.field]] || c.field;
+  const warn = c.warnings.filter((w) => T.edWarn[w]).map((w) => T.edWarn[w]);
+  const why = c.error ? serverError(c.error) : warn.join(" · ");
+  const [was, now] = c.field === "cover"
+    ? [esc(c.old ? T.edCoverHad : T.edCoverNone), esc(c.new ? T.edCoverNew : T.edCoverNone)]
+    : edDiff(c.old, c.new);
+  return { label, why, was, now };
+}
+
 function edRender() {
   const open = Ed.edit && Ed.edit.state === "preview";
   const shown = Ed.items.filter((c) => Ed.filter === "all" || (Ed.filter === "warn" ? c.warnings.length
     : c.field === Ed.filter.slice(6)));
-  const groups = [];
+  let groups = [];
   for (const c of shown) {
     if (!groups.length || groups[groups.length - 1].id !== c.file_id) groups.push({ id: c.file_id, path: c.path, items: [] });
     groups[groups.length - 1].items.push(c);
+  }
+  if (Ed.phone) {
+    // The cards: tracks with warnings first; once written, only what failed.
+    if (!open) groups = groups.filter((g) => g.items.some((c) => c.state === "failed" || c.state === "conflict"));
+    const warned = (g) => (g.items.some((c) => c.warnings.length) ? 0 : 1);
+    groups.sort((x, y) => warned(x) - warned(y));
+    $("#edList").innerHTML = groups.map((g) => edCard(g, open)).join("");
+    return;
   }
   const html = groups.map((g) => {
     const name = g.path.slice(g.path.lastIndexOf("/") + 1);
@@ -315,12 +372,7 @@ function edRender() {
     return `<div class="ed-track">
       <label class="ed-file" title="${esc(g.path)}">${box}<span>${esc(name)}</span></label>
       ${g.items.map((c) => {
-    const label = T[FIELD_LABEL[c.field]] || c.field;
-    const warn = c.warnings.filter((w) => T.edWarn[w]).map((w) => T.edWarn[w]);
-    const why = c.error ? serverError(c.error) : warn.join(" · ");
-    const [was, now] = c.field === "cover"
-      ? [esc(c.old ? T.edCoverHad : T.edCoverNone), esc(c.new ? T.edCoverNew : T.edCoverNone)]
-      : edDiff(c.old, c.new);
+    const { label, why, was, now } = edShown(c);
     const cbox = open && c.state !== "blocked"
       ? `<input type="checkbox" data-change="${c.change_id}" aria-label="${esc(T.edKeepChange)}"${c.state === "pending" ? " checked" : ""} />` : "<span></span>";
     return `<div class="ed-row" data-state="${esc(c.state)}">${cbox}<span class="ed-change">${esc(label)}: <span class="ed-old">${was}</span> → <span class="ed-new">${now}</span></span><span class="ed-state">${esc(T.edState[c.state] || "")}</span>${why ? `<span class="ed-why">${esc(why)}</span>` : ""}</div>`;
@@ -331,6 +383,22 @@ function edRender() {
   $("#edList").innerHTML = html.join("") + (more > 0 ? `<p class="ed-more">${esc(T.edMore(more))}</p>` : "");
 }
 
+function edCard(g, open) {
+  const name = g.path.slice(g.path.lastIndexOf("/") + 1);
+  const kept = g.items.some((c) => c.state === "pending");
+  const can = open && g.items.some((c) => c.state === "pending" || c.state === "excluded");
+  const sw = can ? `<label class="ed-switch"><input type="checkbox" role="switch" data-file="${g.id}" aria-label="${esc(T.edKeepTrack)}"${kept ? " checked" : ""} /><span></span></label>` : "";
+  return `<section class="ed-card" data-file="${g.id}">
+    <header class="ed-card-head"><span class="ed-card-name" title="${esc(g.path)}">${esc(name)}</span>${sw}</header>
+    ${g.items.map((c) => {
+    const { label, why, was, now } = edShown(c);
+    const live = open && c.state !== "blocked";
+    return `<button type="button" class="ed-card-change" data-change="${c.change_id}" data-state="${esc(c.state)}" aria-pressed="${c.state !== "excluded" && c.state !== "blocked"}"${live ? "" : " disabled"}>
+      <span class="ed-card-field">${esc(label)}</span><span class="ed-card-was">${was}</span><span class="ed-card-now">${now}</span>${why ? `<span class="ed-why">${esc(why)}</span>` : ""}</button>`;
+  }).join("")}
+  </section>`;
+}
+
 $("#edFilter").addEventListener("click", (e) => {
   const chip = e.target.closest("[data-filter]");
   if (!chip) return;
@@ -339,23 +407,33 @@ $("#edFilter").addEventListener("click", (e) => {
   edRender();
 });
 
-// Leaving out a track or a change, or putting it back, before Apply.
-$("#edList").addEventListener("change", async (e) => {
-  const box = e.target;
+// Leaving out a track or a change, or putting it back, before Apply: a
+// checkbox or a switch, or a tap on a change's card.
+async function edKeep(what, keep) {
   const edit = Ed.edit;
-  if (!edit || edit.state !== "preview" || !(box.dataset.file || box.dataset.change)) return;
-  const what = box.dataset.file ? { files: [Number(box.dataset.file)] } : { changes: [Number(box.dataset.change)] };
+  if (!edit || edit.state !== "preview") return false;
   try {
     Ed.edit = await api(`/api/library/edits/${edit.id}`, {
-      method: "PATCH", body: JSON.stringify({ [box.checked ? "include" : "exclude"]: what }),
+      method: "PATCH", body: JSON.stringify({ [keep ? "include" : "exclude"]: what }),
     });
     edSummary(Ed.edit);
     edButton(Ed.edit);
     await edList(Ed.edit);
+    return true;
   } catch (err) {
     toast(err.message);
-    box.checked = !box.checked;
+    return false;
   }
+}
+$("#edList").addEventListener("change", async (e) => {
+  const box = e.target;
+  if (box.matches("button") || !(box.dataset.file || box.dataset.change)) return;
+  const what = box.dataset.file ? { files: [Number(box.dataset.file)] } : { changes: [Number(box.dataset.change)] };
+  if (!(await edKeep(what, box.checked))) box.checked = !box.checked;
+});
+$("#edList").addEventListener("click", (e) => {
+  const card = e.target.closest("button.ed-card-change");
+  if (card && !card.disabled) edKeep({ changes: [Number(card.dataset.change)] }, card.getAttribute("aria-pressed") !== "true");
 });
 
 // The Apply button names the numbers; after an apply it offers to retry failures.
@@ -418,6 +496,7 @@ async function edFollow(id) {
     return;
   }
   edResult(edit);
+  edSummary(edit);   // the resend note was about the preview
   await edList(edit);
   edButton(edit);
   libChanged();
@@ -431,6 +510,7 @@ $("#edApply").addEventListener("click", async () => {
   Ed.busy = true;
   try {
     Ed.edit = await api(`/api/library/edits/${edit.id}/apply`, { method: "POST" });
+    if (Ed.phone) edStep(3);
     btn.classList.add("hidden");
     $("#edResult").classList.add("hidden");
     edProgress(Ed.edit);
@@ -550,6 +630,8 @@ new MutationObserver(() => {
   if (!histModal.classList.contains("hidden")) edHistory();
   if (modal.classList.contains("hidden")) return;
   $("#edTitle").textContent = T.edTitle(Ed.ids.length);
+  $("#edStep").textContent = T.edStep[modal.dataset.step || 1];
+  if (Ed.phone && modal.dataset.step === "1") edQuick();
   edScopeTexts();
   edRowTexts();
   if (Ed.edit) { edSummary(Ed.edit); edButton(Ed.edit); edList(Ed.edit).catch(() => {}); }

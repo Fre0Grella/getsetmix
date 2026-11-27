@@ -319,3 +319,63 @@ def test_a_new_cover_for_the_selection_and_its_undo(open_tab, server, tmp_path):
     # A row may ask for its thumbnail just as undo removes the cover: that 404
     # is the "no cover" answer the list expects. Any other error still fails.
     assert [e for e in tab.errors if "404" not in e] == []
+
+
+# ------------------------------------------------- the phone sheet (#52)
+def test_on_a_phone_the_edit_is_three_steps_over_hundreds_of_changes(open_tab, server):
+    for n in range(150):
+        server.music.mp3(f"Bulk/{n:03}.mp3", seed=100 + n, title=f"Track {n}", artist="Nova", genre="House")
+    server.http.post("/api/library/rescan")
+    server.wait_for_index(len(TRACKS) + 150)
+    tab = open_tab("/#library", PHONE)
+    long_press(tab, "Track 149")   # the newest, so on screen
+    bar(tab).locator('[data-bulk="edit"]').click()
+    expect(tab.page.locator("#edStep")).to_have_text("1 of 3 · What")
+    expect(tab.page.locator(".ed-quick-set")).to_have_count(1)
+    expect(tab.page.locator(".ed-tabs")).to_be_hidden()
+    tab.page.locator('#edScope input[value="filter"]').check()
+    set_field(tab, "genre", "set", "Tech House")
+    set_field(tab, "album", "set", "Bulk")
+    tab.page.locator("#edPreviewBtn").click()
+
+    expect(tab.page.locator("#edStep")).to_have_text("2 of 3 · Check")
+    total = len(TRACKS) + 150
+    expect(tab.page.locator("#edCounts")).to_have_text(f"{2 * total} changes on {total} tracks")
+    expect(tab.page.locator(".ed-card")).to_have_count(total)
+    assert tab.page.evaluate("document.documentElement.scrollWidth") <= PHONE["width"]
+    # leave one track out with its switch, and one change of another with a tap
+    first = tab.page.locator(".ed-card").nth(0)
+    first.locator('input[role="switch"]').uncheck()
+    expect(first.locator(".ed-card-change").first).to_have_attribute("aria-pressed", "false")
+    second = tab.page.locator(".ed-card").nth(1)
+    second.locator(".ed-card-change").first.click()
+    expect(second.locator(".ed-card-change").first).to_have_attribute("aria-pressed", "false")
+    apply = tab.page.locator("#edApply")
+    expect(apply).to_have_text(f"Change {2 * total - 3} tags on {total - 1} tracks")
+    apply.click()
+
+    expect(tab.page.locator("#edStep")).to_have_text("3 of 3 · Apply")
+    expect(tab.page.locator("#edResult")).to_have_text(f"Written to {total - 1} files.", timeout=60_000)
+    expect(tab.page.locator(".ed-card")).to_have_count(0)    # nothing failed
+    expect(tab.page.locator("#edUndo")).to_be_visible()
+    # the first track left out whole, and the second without its album (its first change)
+    assert sum(1 for i in server.items() if i["album"] == "Bulk") == total - 2
+    assert tab.errors == []
+
+
+def test_back_returns_to_the_first_step_and_rule_names_speak_italian(open_tab, server):
+    assert server.http.put("/api/settings", json={"language": "it"}).status_code == 200
+    tab = open_tab("/#library", PHONE)
+    expect(tab.page.locator("html")).to_have_attribute("lang", "it")
+    long_press(tab, "Midnight Drive")
+    bar(tab).locator('[data-bulk="edit"]').click()
+    expect(tab.page.locator("#edStep")).to_have_text("1 di 3 · Cosa")
+    quick = tab.page.locator(".ed-quick-set")
+    expect(quick).to_contain_text("Pulizia standard")
+    expect(quick).to_contain_text("Togli il testo promozionale")
+    quick.click()   # one tap: the set's preview
+    expect(tab.page.locator("#edStep")).to_have_text("2 di 3 · Controlla")
+    tab.page.locator("#edBack").click()
+    expect(tab.page.locator("#edStep")).to_have_text("1 di 3 · Cosa")
+    expect(quick).to_be_visible()
+    assert tab.errors == []

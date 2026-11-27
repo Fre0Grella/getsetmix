@@ -13,6 +13,7 @@ Object.assign(STR.en, {
   edSetName: "Name of the new set", edSetSaved: "Rule set saved", edSetDeleted: "Rule set removed",
   edSetDeleteAsk: (n) => `Remove the rule set “${n}”?`, edSetBuiltin: "Built in: save a copy to change it.",
   edUp: "Move up", edDown: "Move down", edSettings: "Settings", edNoRules: "Switch on at least one rule.",
+  edBuiltinName: { "Standard cleanup": "Standard cleanup" },
   edParam: { underscores: "Underscores are spaces", phrases: "Phrases to remove", when: "When",
     spelling: "Spelling", to: "Into", labels: "Mix names to remove", mix_words: "Mix words",
     from: "Separators to replace", keep: "Keep as they are", scope: "Which values",
@@ -24,6 +25,7 @@ Object.assign(STR.it, {
   edSetName: "Nome del nuovo insieme", edSetSaved: "Insieme di regole salvato", edSetDeleted: "Insieme di regole eliminato",
   edSetDeleteAsk: (n) => `Eliminare l'insieme di regole “${n}”?`, edSetBuiltin: "Predefinito: salvane una copia per cambiarlo.",
   edUp: "Sposta su", edDown: "Sposta giù", edSettings: "Impostazioni", edNoRules: "Attiva almeno una regola.",
+  edBuiltinName: { "Standard cleanup": "Pulizia standard" },
   edParam: { underscores: "I trattini bassi sono spazi", phrases: "Frasi da togliere", when: "Quando",
     spelling: "Grafia", to: "In", labels: "Nomi di mix da togliere", mix_words: "Parole dei mix",
     from: "Separatori da sostituire", keep: "Lascia come sono", scope: "Quali valori",
@@ -42,14 +44,29 @@ export function cleanupSteps() {
 }
 export const cleanupSetId = () => (C.set ? C.set.id : null);
 
+async function loadCatalogue() {
+  if (C.catalogue) return;
+  C.catalogue = await api("/api/library/rules");
+  C.byId = Object.fromEntries(C.catalogue.rules.map((r) => [r.id, r]));
+}
+
 export async function cleanupOpen() {
   try {
-    if (!C.catalogue) {
-      C.catalogue = await api("/api/library/rules");
-      C.byId = Object.fromEntries(C.catalogue.rules.map((r) => [r.id, r]));
-    }
+    await loadCatalogue();
     await loadSets(C.set ? C.set.id : null);
   } catch (err) { toast(err.message); }
+}
+
+// A set's name as shown: a built-in set speaks the UI's language.
+export const setName = (s) => (s.builtin && T.edBuiltinName[s.name]) || s.name;
+
+// The rule sets for one tap (the phone's first step): each with its rules'
+// names, in the UI's language, from the catalogue.
+export async function quickSets() {
+  await loadCatalogue();
+  const sets = await api("/api/library/rulesets");
+  return sets.map((s) => ({ id: s.id, name: setName(s),
+    rules: s.steps.filter((x) => x.rule && C.byId[x.rule]).map((x) => say(C.byId[x.rule].name)) }));
 }
 
 async function loadSets(id) {
@@ -100,7 +117,7 @@ function ruleHtml(r, i) {
 
 function render() {
   $("#edSet").innerHTML = C.sets.map((s) =>
-    `<option value="${s.id}"${C.set && s.id === C.set.id ? " selected" : ""}>${esc(s.name)}</option>`).join("");
+    `<option value="${s.id}"${C.set && s.id === C.set.id ? " selected" : ""}>${esc(setName(s))}</option>`).join("");
   const builtin = !C.set || C.set.builtin;
   $("#edSetSave").classList.toggle("hidden", builtin);
   $("#edSetDelete").classList.toggle("hidden", builtin);
@@ -180,7 +197,7 @@ $("#edSetNewSave").addEventListener("click", async () => {
 });
 $("#edSetDelete").addEventListener("click", async () => {
   if (!C.set || C.set.builtin) return;
-  if (!(await askConfirm(T.edSetDeleteAsk(C.set.name), T.edSetDelete, T.cancel, { danger: true }))) return;
+  if (!(await askConfirm(T.edSetDeleteAsk(setName(C.set)), T.edSetDelete, T.cancel, { danger: true }))) return;
   try {
     await api(`/api/library/rulesets/${C.set.id}`, { method: "DELETE" });
     toast(T.edSetDeleted);
