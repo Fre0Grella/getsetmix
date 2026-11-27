@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 import logging
 import mimetypes
@@ -21,12 +22,28 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import (
-    __version__, genres, library, library_api, link, matching, metadata, metrics, outbound, rules, tagger,
+    __version__,
+    genres,
+    library,
+    library_api,
+    link,
+    matching,
+    metadata,
+    metrics,
+    outbound,
+    rules,
+    tagger,
     ytdl,
 )
 from .auth import bearer_token
 from .config import (
-    AUTH_TOKEN, BASIC_PASS, BASIC_USER, DATA_DIR, ensure_dirs, patch_problem, settings,
+    AUTH_TOKEN,
+    BASIC_PASS,
+    BASIC_USER,
+    DATA_DIR,
+    ensure_dirs,
+    patch_problem,
+    settings,
 )
 from .db import ACTIVE_STATUSES, EDITABLE_STATUSES, db
 from .worker import worker
@@ -85,11 +102,25 @@ async def auth_middleware(request: Request, call_next):
             )
             if not secrets.compare_digest(supplied or "", AUTH_TOKEN):
                 return JSONResponse({"detail": "unauthorized"}, status_code=401)
-        elif BASIC_USER and BASIC_PASS:
-            if not _basic_ok(request.headers.get("authorization", "")):
-                return Response(status_code=401,
-                                headers={"WWW-Authenticate": 'Basic realm="GetSetMix"'})
+        elif BASIC_USER and BASIC_PASS and not _basic_ok(request.headers.get("authorization", "")):
+            return Response(status_code=401,
+                            headers={"WWW-Authenticate": 'Basic realm="GetSetMix"'})
     return await call_next(request)
+
+
+# The page and its scripts are checked again on every load (a cheap 304 when
+# nothing changed), so an update shows at once instead of whenever the
+# browser's own guess at freshness runs out. Covers keep their own caching.
+UI_PATHS = ("/", "/share", "/sw.js", "/manifest.webmanifest")
+
+
+@app.middleware("http")
+async def revalidate_ui(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if (path in UI_PATHS or path.startswith("/static/")) and "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 # ------------------------------------------------------------------ models
@@ -172,7 +203,7 @@ def _with_library_state(tracks: list[dict]) -> list[dict]:
     if not done or not lib.indexed():
         return tracks
     found = lib.locate([(t.get("audio_id") or "", t.get("file_path") or "") for t in done])
-    for t, row in zip(done, found):
+    for t, row in zip(done, found, strict=True):
         if row is not None and row["state"] in ("present", "trashed"):
             t["library_state"], t["library_id"] = row["state"], row["id"]
         else:
@@ -330,10 +361,10 @@ async def get_cover(tid: str):
     """The uploaded cover, with the type its bytes say (never what a client
     claimed: an SVG served from this origin could run script)."""
     track = _track_or_404(tid)
-    try:
-        data = Path(track["cover_path"]).read_bytes() if track.get("cover_path") else b""
-    except OSError:
-        data = b""
+    data = b""
+    if track.get("cover_path"):
+        with contextlib.suppress(OSError):
+            data = await asyncio.to_thread(Path(track["cover_path"]).read_bytes)
     mime = tagger.image_type(data)
     if mime is None:
         raise HTTPException(404, "No uploaded cover")
@@ -392,7 +423,8 @@ async def cover_search(q: str):
                 out.append({
                     "thumb": item.get("artworkUrl100"),
                     "full": art,
-                    "label": f"{item.get('artistName', '')} – {item.get('trackName') or item.get('collectionName', '')}",
+                    "label": f"{item.get('artistName', '')} – "
+                             f"{item.get('trackName') or item.get('collectionName', '')}",
                 })
         return out
 
@@ -442,10 +474,9 @@ def _folder_listing(path: str) -> dict:
         raise HTTPException(403, "Permission denied") from None
     except OSError as exc:
         raise HTTPException(400, str(exc).splitlines()[0]) from exc
-    if base.parent != base:
-        parent = str(base.parent)
-    else:
-        parent = "" if os.name == "nt" else None  # drive root -> drive list
+    parent = str(base.parent) if base.parent != base else None
+    if parent is None and os.name == "nt":
+        parent = ""  # drive root -> drive list
     return {"path": str(base), "parent": parent, "dirs": dirs}
 
 
