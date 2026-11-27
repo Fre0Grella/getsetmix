@@ -1042,7 +1042,7 @@ acted on.
 #### 4.6.1 The companion's view of server changes (consolidation)
 
 **Status: approved** on 2026-11-24 (see the decisions below); slices 1 to 3
-of the build plan are built. It changes how the companion's code is arranged,
+of the build plan are built, and the first half of slice 4. It changes how the companion's code is arranged,
 not what it does.
 It is numbered under 4.6 so that 4.7 and 4.8 keep their numbers: the code
 cites "4.7" for local mode.
@@ -1393,6 +1393,17 @@ and the existing tests pass unchanged in what they assert.
    record calls. Remove `importer.removals`, `fetch.State.Stale`, the key
    handling in `loadFetched` and the re-keying at the end of `Sync`. The
    golden migration tests come in this slice.
+   **Built in two parts.** *4a, the importer's side:* `ledger.WorkFor`
+   answers `Changed`, `Removed` and `Restored` as `Item`s (audio id, local
+   path, key, and the tags last seen for a changed one); `Unhandled`,
+   `Handled`, `Listed`, `Unlisted` and `Applied` are the record calls, and
+   `NewSynced` is Baseline's fresh state. `importer.removals`,
+   `Fetched.Stale` and the re-keying are gone: the importer maps the
+   library's results back by the paths it gave. The golden files are in
+   `internal/ledger/testdata`, checked with a frozen copy of the decoder.
+   They pin one old answer: a tombstone in its first form (the time alone)
+   names no path, so it lists nothing, and a track listed for it counts as
+   restored. *4b, the fetch side:* `Plan` and its record calls.
 5. **Clean-up.** Remove the aliases. Bring the `fetch` and `config` package
    comments, and 4.6 above, in line with the code.
 

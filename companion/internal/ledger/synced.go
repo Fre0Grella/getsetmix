@@ -81,17 +81,6 @@ func (s *Synced) save(dir string) error {
 	return atomicfile.WriteJSON(filepath.Join(dir, syncedFile), s)
 }
 
-// Mark records files as handled, as they are now.
-func (s *Synced) Mark(now time.Time, files ...scan.File) {
-	for _, f := range files {
-		h := Handled{At: now, Size: f.Size}
-		if !f.ModTime.IsZero() {
-			h.MTime = f.ModTime.UnixNano()
-		}
-		s.Seen[f.Key] = h
-	}
-}
-
 // Widen gives every handled file of files that lacks them the size and time
 // it has now, keeping when it was handled; nothing else changes. Reports
 // whether anything was widened.

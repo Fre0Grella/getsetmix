@@ -67,66 +67,60 @@ type Report struct {
 // quickCheck is the integrity check after a write; tests replace it.
 var quickCheck = (*library.DB).QuickCheck
 
-// fetched is what the importer needs from fetched.json to update rows: the
-// tracks whose newer copy fetch put in place and Rekordbox does not have yet.
+// fetched is fetched.json held under fetch.lock, for a sync that updates
+// rows: the tracks whose newer copy fetch put in place and Rekordbox does not
+// have yet are in its work.
 type fetched struct {
 	state *ledger.Fetched
-	stale map[string]string       // library.PathKey -> audio id
-	seen  map[string]library.Tags // library.PathKey -> the tags that file holds now
 	lock  *ledger.FetchLock
+	seen  map[string]library.Tags // path key -> the tags that file holds now
 }
 
-// loadFetched takes fetch.lock and reads fetched.json again when a file in
-// ready waits for its row to be updated, as snap (the sync's first look)
-// tells. It returns nil when none does (the common case: no lock is taken),
-// when no server is paired, or while a fetch runs (the changed tracks then
-// wait for the next sync).
-func (im *Importer) loadFetched(ready []scan.File, snap *ledger.Fetched) (*fetched, error) {
-	if snap == nil {
-		return nil, nil
+// work is what the sync does about the server's tracks (ledger.WorkFor),
+// from the sync's one look at fetched.json. When a file in ready waits for
+// its row to be updated, it takes fetch.lock and asks again on a fresh read,
+// since a fetch may have finished meanwhile; held is then that read, under
+// the lock. While a fetch runs the changed tracks wait for the next sync: the
+// work then has none. Without a paired server there is no work.
+func (im *Importer) work(ready []scan.File, state *ledger.Synced) (ledger.Work, *fetched, error) {
+	if im.Config.Server == nil || im.Config.Server.Folder == "" {
+		return ledger.WorkFor(nil, state, ""), nil, nil
 	}
-	stale := snap.Stale(im.Config.Server.Folder)
-	if !slices.ContainsFunc(ready, func(f scan.File) bool { return stale[f.Key] != "" }) {
-		return nil, nil
+	folder := im.Config.Server.Folder
+	snap, err := ledger.ReadFetched(im.Home)
+	if err != nil {
+		return ledger.Work{}, nil, err
+	}
+	w := ledger.WorkFor(snap, state, folder)
+	if !slices.ContainsFunc(ready, func(f scan.File) bool { _, ok := w.Changed[f.Key]; return ok }) {
+		return w, nil, nil
 	}
 	lock, err := ledger.LockFetch(im.Home)
 	if errors.Is(err, ledger.ErrFetchRunning) {
 		im.Log.Printf("a fetch is running: changed tracks are updated in Rekordbox on the next sync")
-		return nil, nil
+		w.Changed = nil
+		return w, nil, nil
 	}
 	if err != nil {
-		return nil, err
+		return ledger.Work{}, nil, err
 	}
-	// Read again: a fetch may have finished between the first read and the lock.
-	state, err := lock.Load()
+	fresh, err := lock.Load()
 	if err != nil {
 		lock.Unlock()
-		return nil, err
+		return ledger.Work{}, nil, err
 	}
-	return &fetched{state: state, stale: state.Stale(im.Config.Server.Folder),
-		seen: map[string]library.Tags{}, lock: lock}, nil
-}
-
-// snapshot is fetched.json as the sync first sees it; nil without a paired
-// server.
-func (im *Importer) snapshot() (*ledger.Fetched, error) {
-	if im.Config.Server == nil || im.Config.Server.Folder == "" {
-		return nil, nil
-	}
-	return ledger.ReadFetched(im.Home)
+	return ledger.WorkFor(fresh, state, folder),
+		&fetched{state: fresh, lock: lock, seen: map[string]library.Tags{}}, nil
 }
 
 // Split sorts the ready files into what a sync acts on: pending ones were
 // never handled; changed ones were, and fetch has since put a newer copy
-// from the server in their place (stale: PathKey -> audio id, as
-// fetch.State.Stale gives it; nil when none). `status` counts with it too.
-func Split(ready []scan.File, state *ledger.Synced, stale map[string]string) (pending, changed []scan.File) {
+// from the server in their place (w.Changed). `status` counts with it too.
+func Split(ready []scan.File, state *ledger.Synced, w ledger.Work) (pending, changed []scan.File) {
+	pending = state.Unhandled(ready)
 	for _, f := range ready {
-		_, done := state.Seen[f.Key]
-		switch {
-		case !done:
-			pending = append(pending, f)
-		case stale[f.Key] != "":
+		_, waits := w.Changed[f.Key]
+		if _, done := state.Seen[f.Key]; done && waits {
 			changed = append(changed, f)
 		}
 	}
@@ -184,29 +178,23 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 	// its place: only then are the fields that changed on the server known.
 	// Changes in folders a sync client fills come with local mode
 	// (docs/design/library.md, 4.7) and are left alone here.
-	// One look at fetched.json for the whole sync; read again only under
-	// fetch.lock, for the changed tracks.
-	snap, err := im.snapshot()
+	work, known, err := im.work(found.Ready, state)
 	if err != nil {
 		return rep, err
 	}
-	known, err := im.loadFetched(found.Ready, snap)
-	if err != nil {
-		return rep, err
-	}
-	var stale map[string]string
 	if known != nil {
 		defer known.lock.Unlock()
-		stale, snap = known.stale, known.state
 	}
-	pending, changed := Split(found.Ready, state, stale)
-	byKey := map[string]scan.File{}
+	pending, changed := Split(found.Ready, state, work)
+	// The library names its results by the paths it was given, so they lead
+	// back to the scanned files without building a key again.
+	byPath := map[string]scan.File{}
 	for _, f := range append(slices.Clone(pending), changed...) {
-		byKey[f.Key] = f
+		byPath[f.Path] = f
 	}
 	rep.New = len(pending)
 	rep.Changed = len(changed)
-	marks := im.removals(state, snap)
+	marks := marksOf(work)
 	if len(pending) == 0 && len(changed) == 0 && marks.empty() {
 		return rep, nil
 	}
@@ -221,7 +209,7 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 	var tracks []library.Track
 	var updates []library.Change
 	if len(pending) > 0 || len(changed) > 0 {
-		if tracks, updates, err = im.prepare(pending, changed, known, &rep); err != nil {
+		if tracks, updates, err = im.prepare(pending, changed, work, known, &rep); err != nil {
 			return rep, err
 		}
 	}
@@ -242,21 +230,22 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 	}
 
 	for _, p := range slices.Concat(rep.Imported, rep.Already, rep.Updated, rep.NoRow) {
-		key := library.PathKey(p)
-		f, ok := byKey[key]
-		if !ok {
-			f = scan.File{Path: p, Key: key}
+		f, ok := byPath[p]
+		if !ok { // the library answers with the paths it was given; never expected
+			im.Log.Printf("warning: %s was not among the scanned files; it is looked at again next sync", p)
+			continue
 		}
-		state.Mark(now, f)
+		state.Handled(now, f)
 	}
-	marks.record(state, now)
+	state.Listed(now, work.Removed...)
+	state.Unlisted(work.Restored...)
 	var fetchedErr error
 	if known != nil && len(known.seen) > 0 {
 		// The tags of the files as they are now are the ones seen from here on.
 		for _, p := range slices.Concat(rep.Imported, rep.Updated, rep.NoRow) {
-			key := library.PathKey(p)
+			key := byPath[p].Key
 			if tags, ok := known.seen[key]; ok {
-				known.state.Remember(known.stale[key], tags)
+				known.state.Applied(work.Changed[key], tags)
 			}
 		}
 		fetchedErr = known.lock.Save(known.state)
@@ -267,7 +256,7 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 // prepare drops files the collection already has and probes the rest, and
 // works out what to write for each changed file: the fields that changed on
 // the server since this computer last saw them.
-func (im *Importer) prepare(pending, changed []scan.File, ft *fetched,
+func (im *Importer) prepare(pending, changed []scan.File, work ledger.Work, ft *fetched,
 	rep *Report) ([]library.Track, []library.Change, error) {
 	// Read-write mode although we only read: Rekordbox is known to be closed,
 	// and only a writable connection checkpoints and removes the WAL file on
@@ -283,7 +272,7 @@ func (im *Importer) prepare(pending, changed []scan.File, ft *fetched,
 	}
 	var tracks []library.Track
 	for _, f := range pending {
-		stale := ft != nil && ft.stale[f.Key] != ""
+		_, stale := work.Changed[f.Key]
 		if inCollection[f.Key] {
 			if stale { // not handled yet, but its row is older than the file
 				changed = append(changed, f)
@@ -322,7 +311,7 @@ func (im *Importer) prepare(pending, changed []scan.File, ft *fetched,
 		// Only the fields that changed on the server are written, so an edit
 		// made in Rekordbox to another field is kept; where both changed the
 		// same field, the server's value wins.
-		was := ft.state.Tracks[ft.stale[f.Key]].Tags
+		was := work.Changed[f.Key].Was
 		updates = append(updates, library.Change{Path: f.Path, Tags: tags,
 			Fields: library.Changed(was, tags), FileSize: t.FileSize, FileID: t.FileID})
 	}

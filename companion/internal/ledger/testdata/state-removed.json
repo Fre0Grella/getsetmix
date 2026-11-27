@@ -1,0 +1,10 @@
+{
+  "baseline": "2026-10-01T18:00:00Z",
+  "seen": {
+    "c:/music/house/a.mp3": {"at": "2026-10-03T18:00:00Z", "size": 1234, "mtime": 1700000000000000000}
+  },
+  "removed": {
+    "c:/music/house/gone.mp3": {"path": "C:/Music/House/gone.mp3", "at": "2026-11-13T08:00:00Z"},
+    "c:/music/house/back.mp3": {"path": "C:/Music/House/back.mp3", "at": "2026-11-13T08:00:00Z"}
+  }
+}
