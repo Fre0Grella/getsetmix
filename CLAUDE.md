@@ -19,12 +19,15 @@ helper or a layer. Module designs live in `docs/design/`.
 
 ## Commits and PR titles
 
-CI rejects these, so check them by counting in the shell before every
-`git commit`, `gh pr create` and `gh pr merge --subject`:
+`commitlint.config.mjs` holds the rules; CI checks every commit and the PR
+title with it, and the commit-msg hook (`.pre-commit-config.yaml`) checks
+each commit locally:
 
-- The squash headline, `"<PR title> (#<number>)"`, is at most 50
-  characters. Before the PR exists, count with the next number
-  (issues and PRs share numbers: `gh api "repos/Fre0Grella/getsetmix/issues?state=all&per_page=1" -q '.[0].number'` + 1):
-  `t="fix(ui): the title"; echo $(( ${#t} + 6 ))`.
+- The headline is at most 50 characters, not counting the ` (#NN)` a
+  squash merge adds. The same for PR titles and `gh pr merge --subject`.
 - The subject starts lowercase after `type(scope): `.
 - Body and footer lines are at most 100 characters; wrap at 72.
+
+A PR title is not a commit, so no hook sees it: check it before every
+`gh pr create`, `gh pr edit --title` and `gh pr merge --subject` with
+`echo "fix(ui): the title" | commitlint`.
