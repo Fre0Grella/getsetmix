@@ -1041,8 +1041,8 @@ acted on.
 
 #### 4.6.1 The companion's view of server changes (consolidation)
 
-**Status: approved** on 2026-11-24 (see the decisions below); slice 1 of
-the build plan is built. It changes how the companion's code is arranged,
+**Status: approved** on 2026-11-24 (see the decisions below); slices 1 and 2
+of the build plan are built. It changes how the companion's code is arranged,
 not what it does.
 It is numbered under 4.6 so that 4.7 and 4.8 keep their numbers: the code
 cites "4.7" for local mode.
@@ -1335,7 +1335,12 @@ The five questions of the draft, decided by the maintainer as recommended:
    (built in [#77](https://github.com/Fre0Grella/getsetmix/pull/77)), and
    the lookup is limited to this computer's `DeviceID`: a duplicate row is
    usually a leftover, and writing to it could touch a row Rekordbox does
-   not use.
+   not use. **Refined while building slice 2** (maintainer, 2026-11-27):
+   this computer's oldest row is *preferred*; when it has no row for a
+   file, the oldest row of any device is still written, as before, so a
+   library whose rows carry another device's ID keeps its updates. "Is the
+   file already in Rekordbox?" looks at every device's rows, or such a
+   library would be imported a second time.
 3. **Names**: `track` and `ledger`.
 4. **The two `removed` records** stay as they are, joined inside the
    ledger. No format change; revisit only if the join causes trouble.
@@ -1358,6 +1363,10 @@ and the existing tests pass unchanged in what they assert.
 2. **One row lookup in `library`.** Use it in `KnownPaths`, `Import`,
    `MarkRemoved` and `Update`. Add the duplicate-path test. Behaviour
    changes only for a path with two live rows.
+   **Built:** `rowsByPath` in `library/rows.go`, with `localDevice` (the
+   device detection `Import` had) and `knownPaths`. Since #77 `Update` and
+   `MarkRemoved` already took the oldest row; what changes is the device
+   preference of decision 2.
 3. **`ledger` with today's formats.** Move `fetch.State`, `config.State`,
    their load, save and lock, and the migrations into it. Move
    `fetch.Server` to `config.Server`. Every reader and writer goes through

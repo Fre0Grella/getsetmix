@@ -66,7 +66,7 @@ func (d *DB) Update(changes []Change, now time.Time) (UpdateResult, error) {
 		return res, fmt.Errorf("reading localUpdateCount: %w", err)
 	}
 
-	ids, err := contentIDs(tx)
+	ids, err := rowsByPath(tx, localDevice(tx))
 	if err != nil {
 		return res, err
 	}
