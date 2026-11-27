@@ -1,15 +1,48 @@
-# Local guard rails — install once after cloning:
+# Local guard rails: the fast checks CI runs, before a commit or a push
+# instead of after a CI round. Install once after cloning:
 #   pip install pre-commit
-#   pre-commit install --hook-type commit-msg --hook-type pre-commit
+#   npm install -g @commitlint/cli@19.8.1 @commitlint/config-conventional@19.8.1
+#   pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
 #
-# This rejects non-Conventional-Commit messages at author time (same rule the
-# CI commitlint job and semantic-release enforce) and runs ruff before commit.
+# commit-msg: commitlint with CI's config (commitlint.config.mjs): the
+#   Conventional Commit format, a lowercase subject, a headline within 50
+#   characters (the " (#NN)" of a squash merge not counted), body lines
+#   within 100. Check a PR title the same way before opening the PR:
+#   echo "fix(ui): the title" | commitlint
+# pre-commit: ruff on Python, gofmt on Go.
+# pre-push: go vet and the staticcheck ratchet, when the companion changed.
+# The tests stay in CI (three systems) and in the session's own runs.
 repos:
-  - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v3.6.0
+  - repo: local
     hooks:
-      - id: conventional-pre-commit
+      - id: commitlint
+        name: commitlint (the rules CI checks)
+        language: system
+        entry: commitlint --edit
         stages: [commit-msg]
+
+      - id: gofmt
+        name: gofmt
+        language: system
+        entry: bash -c 'out=$(gofmt -l "$@"); [ -z "$out" ] || { echo "not gofmt-ed:"; echo "$out"; exit 1; }' --
+        files: ^companion/.*\.go$
+        stages: [pre-commit]
+
+      - id: go-vet
+        name: go vet (companion)
+        language: system
+        entry: bash -c 'cd companion && go vet ./...'
+        pass_filenames: false
+        files: ^companion/
+        stages: [pre-push]
+
+      - id: staticcheck
+        name: staticcheck ratchet (companion)
+        language: system
+        entry: python scripts/ratchet.py staticcheck
+        pass_filenames: false
+        files: ^companion/
+        stages: [pre-push]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.6

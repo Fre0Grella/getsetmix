@@ -332,6 +332,11 @@ CI holds these rules with ratchets: each count is capped at its value on the
 day the check was added, and a pull request that lowers a count lowers its
 ceiling in the same change. A ceiling is never raised.
 
+The fast checks also run on the developer's computer, as git hooks
+(`.pre-commit-config.yaml`): commitlint on each commit message, ruff and
+gofmt on each commit, `go vet` and the staticcheck ratchet before a push
+that touches the companion. The tests run in CI.
+
 | Rule | Check | In CI |
 |---|---|---|
 | The layers above, and the pure modules | import-linter contracts | yes |
@@ -340,6 +345,7 @@ ceiling in the same change. A ceiling is never raised.
 | Lint and style | ruff with the project's own rule set, findings capped | yes |
 | Types | pyright over `app/`, errors capped | yes |
 | Go | `go vet`, staticcheck | yes |
+| Commit messages and PR titles: Conventional Commits, lowercase subject, headline within 50 characters without the ` (#NN)` | commitlint (`commitlint.config.mjs`); locally the commit-msg hook | yes, and before each commit |
 | Behaviour | pytest with a coverage floor; Go tests on three systems; browser tests of the UI | yes |
 | Settings read only in `config.py` | review | no |
 | The UI talks only through the API | review | no |
