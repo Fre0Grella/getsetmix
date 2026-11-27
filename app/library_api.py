@@ -1,8 +1,8 @@
 """The Library API (docs/design/library.md, 3.3), behind the same auth as /api.
 
-This module serves the list, the facets, the status, the rescan, one file and
-its tag edit, its cover (read and replace) and audio (with range requests, for
-the preview), and the trash: delete, restore and purge. The index and the
+This module serves the list, the facets, the status, the rescan, bulk actions,
+one file and its tag edit, its cover (read and replace) and audio (with range
+requests, for the preview), and the trash: delete, restore and purge. The index and the
 writes are in app/library.py; the routes here are thin callers.
 
 Routes that take an id use the `int` path convertor, so fixed paths such as
@@ -74,6 +74,13 @@ async def _call(fn, *args):
         return await asyncio.to_thread(fn, *args)
     except library.LibraryError as exc:
         raise HTTPException(exc.status, exc.detail) from None
+
+
+@router.post("/bulk")
+async def library_bulk(body: Annotated[dict, Body()]):
+    """Delete, restore or set the genre of many tracks; the outcome per id."""
+    return await _call(library.current().bulk, body.get("ids"), body.get("action"),
+                       body.get("genre"))
 
 
 @router.get("/{fid:int}")

@@ -32,7 +32,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +64,9 @@ STATES = ("present", "trashed")
 # one the DJ can play, then one they can restore, then the tombstones.
 WHEREABOUTS = {"present": 0, "trashed": 1, "missing": 2, "gone": 3}
 TAG_FIELDS = ("title", "artist", "album", "genre", "comment")
-TRASH_DIR = ".trash"        # inside the root; the dot keeps it out of the walk and the link
+BULK_ACTIONS = ("delete", "restore", "set_genre")
+MAX_SELECTION = 10_000      # tracks one bulk request or one batch edit may name
+TRASH_DIR = ".trash"      # inside the root; the dot keeps it out of the walk and the link
 DAY = 24 * 3600
 
 
@@ -588,7 +590,7 @@ class Library:
             src = root / row["path"]
             if row["state"] != "present" or not src.is_file():
                 raise LibraryError(409, "the file is not on disk")
-            stamp = datetime.fromtimestamp(now, timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            stamp = datetime.fromtimestamp(now, UTC).strftime("%Y%m%dT%H%M%SZ")
             trash_rel = f"{TRASH_DIR}/{stamp}-{fid}/{row['path']}"
             rev = self._next_rev(conn)
             conn.execute(
@@ -645,6 +647,39 @@ class Library:
         self._tidy_trash(root, row["trash_path"])
         log.info("library: restored %s", row["path"])
         return {"id": fid, "state": "present", "rev": rev}
+
+    # ------------------------------------------------------------- in bulk
+    def bulk(self, ids: list, action: str, genre: str | None = None) -> dict:
+        """Delete, restore or set the genre of many files (design 3.3).
+
+        Each id is handled alone, as its single-file request would be, so one
+        failure never hides the rest: the answer is `{"done": [ids], "failed":
+        [{"id", "status", "detail"}]}`. Raises LibraryError 400 for a request
+        that is not valid as a whole, 413 for more than MAX_SELECTION ids.
+        """
+        if action not in BULK_ACTIONS:
+            raise LibraryError(400, f"action must be one of {', '.join(BULK_ACTIONS)}")
+        if (not isinstance(ids, list) or not ids
+                or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids)):
+            raise LibraryError(400, "ids must be a list of track ids")
+        if len(ids) > MAX_SELECTION:
+            raise LibraryError(413, f"at most {MAX_SELECTION} tracks at once")
+        if action == "set_genre":
+            check_fields({"genre": genre})
+        done, failed = [], []
+        for fid in dict.fromkeys(ids):  # each once, in the order given
+            try:
+                if action == "delete":
+                    self.trash(fid)
+                elif action == "restore":
+                    self.restore(fid)
+                else:
+                    self.write_tags(fid, {"genre": genre})
+            except LibraryError as exc:
+                failed.append({"id": fid, "status": exc.status, "detail": exc.detail})
+            else:
+                done.append(fid)
+        return {"done": done, "failed": failed}
 
     def purge(self, everything: bool = False) -> int:
         """Delete trash older than `trash_days` (all of it with `everything`).
@@ -1068,7 +1103,7 @@ class Library:
     def _editable(fmt: str, aid: str) -> bool:
         return fmt in tagger.EDITABLE_FORMATS and not audiohash.is_fallback(aid)
 
-    # Not called yet: the selection behind bulk actions (#39).
+    # Not called yet: selection by filter in batch editing (#50).
     def select(self, q: str | None = None, genre: str | None = None, folder: str | None = None,
                state: str = "present") -> list[dict]:
         """Every id matching a filter, with its editable flag, without paging."""

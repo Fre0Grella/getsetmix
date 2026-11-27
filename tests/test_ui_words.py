@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # Messages only a developer or a misused API sees: they stay English.
 INTERNAL = [
     r"^. must be an object$", r"^. is not an editable field$", r"^. must be text$",
-    r"^size can only be thumb$", r"^scope must be 'history' or 'completed'$",
+    r"^size can only be thumb$", r"^action must be one of .$", r"^ids must be a list of track ids$",
+    r"^scope must be 'history' or 'completed'$",
     r"^notices not found in this build$", r"^license not found in this build$",
     r'^send \{"url": "https://\.\.\."\} or upload an image$',
 ]

@@ -847,6 +847,28 @@ a dialog with the count. No confirmation phrase: a delete is recoverable for
   that names the format, or says the file is damaged; the full reason is in the
   marker's title and in the sheet.
 
+**Selection and the bulk bar, as built**
+([#39](https://github.com/Fre0Grella/getsetmix/issues/39)):
+
+- **Picking.** A long press (500 ms without moving) on a phone; Ctrl- or
+  Cmd-click, Shift-click (every loaded row from the last one picked) or a
+  click on a row's cover on a desktop. While any row is picked, a tap or
+  click adds or removes a row instead of opening its sheet, and the rows'
+  own delete buttons hide. Escape, the bar's close button, a new search,
+  filter or sort, and leaving the view clear the selection. A picked row is
+  washed in the accent and its cover shows a check.
+- **The bar** takes the search's place in the deck: the count, then *Set
+  genre* and *Delete* (in the trash, *Restore*). *Delete* asks with the
+  count and then offers *Undo* in its toast; *Set genre* opens a small
+  dialog with the genre field and the one-tap picks. After an action the
+  toast says what was done and, when some tracks failed, how many and the
+  first reason.
+- **`POST /api/library/bulk`** handles each id as its single-track request
+  would (`trash`, `restore`, `write_tags`), each id once in the order sent,
+  at most 10,000 (`413`); `400` for an unknown action, ids that are not a
+  list of integers, or a genre that is not text. `set_genre` still uses the
+  tag write directly until batch editing takes it over.
+
 **The new routes, as built.**
 
 | Request | Answer |

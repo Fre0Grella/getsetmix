@@ -198,6 +198,18 @@
 
   <!-- The Library's deck: search sits under the thumb, where the link field is. -->
   <footer id="libDock" class="dock lib-dock">
+    <!-- Shown instead of the search while tracks are selected (design 4.5); its actions act on all of them. -->
+    <div id="libSelBar" class="lib-sel hidden" role="toolbar" aria-label="Selected tracks" data-i18n-aria="libSelBar">
+      <button id="libSelClear" type="button" class="icon-btn" aria-label="Clear the selection" data-i18n-aria="libSelClear" title="Clear the selection">
+        <svg viewBox="0 0 24 24"><use href="#i-close" /></svg>
+      </button>
+      <span id="libSelCount" class="lib-sel-count" aria-live="polite"></span>
+      <div id="libSelActions" class="lib-sel-actions">
+        <button type="button" class="btn btn-quiet" data-bulk="set_genre" data-i18n="libSetGenre">Set genre</button>
+        <button type="button" class="btn btn-quiet" data-bulk="restore" data-i18n="libRestore">Restore</button>
+        <button type="button" class="btn btn-danger" data-bulk="delete" data-i18n="libDelete">Delete</button>
+      </div>
+    </div>
     <form id="libSearchForm" class="add" role="search" autocomplete="off">
       <svg class="add-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       <input id="libSearch" type="search" spellcheck="false" enterkeyhint="search"
@@ -337,6 +349,27 @@
       <div class="modal-foot">
         <button type="button" class="btn btn-quiet" data-close data-i18n="close">Close</button>
         <button id="libSheetSave" type="submit" class="btn btn-primary" data-i18n="save">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- One genre for every selected track (the bulk bar's Set genre). -->
+  <div id="libGenreModal" class="modal modal--confirm hidden" role="dialog" aria-modal="true" aria-labelledby="libGenreTitle">
+    <form id="libGenreForm" class="modal-card" novalidate autocomplete="off">
+      <div class="modal-head">
+        <h2 id="libGenreTitle"></h2>
+        <button type="button" class="icon-btn modal-close" data-close aria-label="Close" data-i18n-aria="close">
+          <svg viewBox="0 0 24 24"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div class="modal-body lib-genre-body">
+        <label class="lib-field"><span data-i18n="genre">Genre</span>
+          <input id="libGenreInput" type="text" list="genres" spellcheck="false" /></label>
+        <div id="libGenreChips" class="lib-chips"></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-quiet" data-close data-i18n="cancel">Cancel</button>
+        <button id="libGenreApply" type="submit" class="btn btn-primary" data-i18n="libSetGenre">Set genre</button>
       </div>
     </form>
   </div>

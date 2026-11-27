@@ -232,6 +232,29 @@ body.lib-in-trash .lib-sort { display: none; }  /* the trash lists newest delete
 .lib-dock .add { padding-right: 14px; }
 .lib-dock input[type="search"] { -webkit-appearance: none; appearance: none; }
 
+/* ------------------------------------------------ selection (design 4.5) */
+/* A selected row is washed in the accent, and its art shows a check. */
+.lib-row.is-selected { background: var(--accent-wash); }
+.lib-row.is-selected .lib-art { position: relative; }
+.lib-row.is-selected .lib-art::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 60% no-repeat;
+}
+/* While selecting, a tap toggles a row instead of opening it: no long-press menu, no text pick. */
+body.lib-selecting .lib-row { -webkit-touch-callout: none; user-select: none; }
+body.lib-selecting .lib-act { visibility: hidden; }
+
+/* The bar takes the search's place in the deck. */
+.lib-sel { display: flex; align-items: center; gap: 8px; min-height: 48px; }
+.lib-sel.hidden { display: none; }
+.lib-sel .icon-btn { flex: none; margin-left: -6px; }
+.lib-sel-count { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-sel-actions { display: flex; gap: 6px; flex: none; }
+.lib-sel-actions .btn { height: 40px; padding: 0 14px; }
+.lib-sel-actions .btn.hidden { display: none; }
+body.lib-selecting #libSearchForm { display: none; }
+.lib-genre-body { display: flex; flex-direction: column; gap: 12px; }
+
 /* --------------------------------------------- wide screens: columns */
 @media (min-width: 721px) {
   .view-switch { margin-left: 0; margin-right: auto; }
@@ -271,6 +294,9 @@ body.lib-in-trash .lib-sort { display: none; }  /* the trash lists newest delete
     box-shadow: inset 0 -1px 0 var(--line-soft);
   }
   .lib-row:hover { background: var(--hover); box-shadow: none; }
+  .lib-row.is-selected, .lib-row.is-selected:hover { background: var(--accent-wash); }
+  .lib-sel { max-width: 680px; }
+  .lib-sel-actions .btn { height: 36px; }
   .lib-art { grid-area: auto; width: 40px; height: 40px; border-radius: 6px; }
   .lib-who, .lib-genre, .lib-dur { grid-area: auto; }
   .lib-title { font-size: .96rem; }
