@@ -14,20 +14,6 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
-// FileType codes of djmdContent.FileType, now in track; kept here while
-// callers move (docs/design/library.md, 4.6.1).
-const (
-	FileMP3  = track.FileMP3
-	FileM4A  = track.FileM4A
-	FileFLAC = track.FileFLAC
-	FileALAC = track.FileALAC
-	FileWAV  = track.FileWAV
-	FileAIFF = track.FileAIFF
-)
-
-// Track is one audio file to add to the collection: track.Track.
-type Track = track.Track
-
 // Playlist identifies the playlist new tracks are appended to.
 type Playlist struct {
 	ID        string
@@ -45,7 +31,7 @@ type Result struct {
 // Import adds tracks to the collection and appends them to the root-level
 // playlist named playlistName (created when missing), in one transaction.
 // Tracks whose path is already in the collection are skipped, never doubled.
-func (d *DB) Import(tracks []Track, playlistName string, now time.Time) (Result, error) {
+func (d *DB) Import(tracks []track.Track, playlistName string, now time.Time) (Result, error) {
 	var res Result
 	tx, err := d.sql.Begin()
 	if err != nil {
@@ -65,7 +51,7 @@ func (d *DB) Import(tracks []Track, playlistName string, now time.Time) (Result,
 
 	var added []string // content IDs, in import order
 	for _, t := range tracks {
-		key := PathKey(t.Path)
+		key := track.PathKey(t.Path)
 		if known[key] {
 			res.Skipped = append(res.Skipped, t.Path)
 			continue
@@ -148,7 +134,7 @@ func (w *writer) loadContext() error {
 	return nil
 }
 
-func (w *writer) addContent(t Track) (string, error) {
+func (w *writer) addContent(t track.Track) (string, error) {
 	id, err := w.unusedID("djmdContent", "ID", 28)
 	if err != nil {
 		return "", err

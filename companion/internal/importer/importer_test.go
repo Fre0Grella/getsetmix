@@ -16,6 +16,7 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
 	"github.com/Fre0Grella/getsetmix/companion/internal/rekordbox"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 // mp3 is a tiny but valid MPEG-1 Layer III stream (20 frames, 320 kbps).
@@ -200,8 +201,8 @@ func TestOldStateIsWidenedInPlace(t *testing.T) {
 	e := newEnv(t)
 	kept := e.add(t, "removed in rekordbox.mp3") // handled, then deleted from the collection
 	already := filepath.Join(e.music, "already.mp3")
-	keyAlready, keyKept := library.PathKey(already), library.PathKey(kept)
-	keyGone := library.PathKey(filepath.Join(e.music, "gone.mp3"))
+	keyAlready, keyKept := track.PathKey(already), track.PathKey(kept)
+	keyGone := track.PathKey(filepath.Join(e.music, "gone.mp3"))
 	old := fmt.Sprintf(`{"baseline": "2026-10-01T18:00:00Z", "seen": {%q: "2026-10-01T18:00:00Z", %q: "2026-10-02T18:00:00Z", %q: "2026-10-03T18:00:00Z"}}`,
 		keyAlready, keyKept, keyGone)
 	statePath := filepath.Join(e.im.Home, "state.json")
@@ -256,7 +257,7 @@ func TestOldStateIsWidenedInPlace(t *testing.T) {
 	}
 	state, _ = ledger.ReadSynced(e.im.Home)
 	info, _ := os.Stat(added)
-	if got := state.Seen[library.PathKey(added)]; got.Size != info.Size() || got.MTime != info.ModTime().UnixNano() {
+	if got := state.Seen[track.PathKey(added)]; got.Size != info.Size() || got.MTime != info.ModTime().UnixNano() {
 		t.Errorf("new track: %+v", got)
 	}
 }

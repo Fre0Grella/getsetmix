@@ -10,33 +10,14 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
-// Tags are the six tag fields GetSetMix edits: track.Tags.
-type Tags = track.Tags
-
-// The six fields, by the names Changed reports.
-const (
-	FieldTitle   = track.FieldTitle
-	FieldArtist  = track.FieldArtist
-	FieldAlbum   = track.FieldAlbum
-	FieldGenre   = track.FieldGenre
-	FieldYear    = track.FieldYear
-	FieldComment = track.FieldComment
-)
-
-// AllFields is every field: track.AllFields.
-var AllFields = track.AllFields
-
-// Changed lists the fields whose values differ: track.Changed.
-func Changed(was *Tags, now Tags) []string { return track.Changed(was, now) }
-
 // Change is a track already in the collection whose file was replaced by a
 // newer copy from the server.
 type Change struct {
-	Path     string   // absolute path on this machine, as in FolderPath
-	Tags     Tags     // the file's tags now
-	Fields   []string // the fields to write: those that changed on the server
-	FileSize int64    // the file's new size
-	FileID   uint64   // the file's new filesystem id; 0 when it could not be read
+	Path     string     // absolute path on this machine, as in FolderPath
+	Tags     track.Tags // the file's tags now
+	Fields   []string   // the fields to write: those that changed on the server
+	FileSize int64      // the file's new size
+	FileID   uint64     // the file's new filesystem id; 0 when it could not be read
 }
 
 // UpdateResult says what Update did.
@@ -72,7 +53,7 @@ func (d *DB) Update(changes []Change, now time.Time) (UpdateResult, error) {
 	}
 
 	for _, c := range changes {
-		id, ok := ids[PathKey(c.Path)]
+		id, ok := ids[track.PathKey(c.Path)]
 		if !ok {
 			res.Missing = append(res.Missing, c.Path)
 			continue
@@ -100,17 +81,17 @@ func (w *writer) updateContent(id string, c Change) error {
 	}
 	for _, f := range c.Fields {
 		switch f {
-		case FieldTitle:
+		case track.FieldTitle:
 			title := c.Tags.Title
 			if title == "" {
 				title = trimExt(filepath.Base(c.Path)) // as an import does
 			}
 			set("Title", title)
-		case FieldArtist, FieldAlbum, FieldGenre:
+		case track.FieldArtist, track.FieldAlbum, track.FieldGenre:
 			table, col, name := "djmdArtist", "ArtistID", c.Tags.Artist
-			if f == FieldAlbum {
+			if f == track.FieldAlbum {
 				table, col, name = "djmdAlbum", "AlbumID", c.Tags.Album
-			} else if f == FieldGenre {
+			} else if f == track.FieldGenre {
 				table, col, name = "djmdGenre", "GenreID", c.Tags.Genre
 			}
 			ref, err := w.ensureNamed(table, name)
@@ -118,9 +99,9 @@ func (w *writer) updateContent(id string, c Change) error {
 				return err
 			}
 			set(col, ref)
-		case FieldYear:
+		case track.FieldYear:
 			set("ReleaseYear", nullInt(c.Tags.Year))
-		case FieldComment:
+		case track.FieldComment:
 			set("Commnt", nullStr(c.Tags.Comment))
 		default:
 			return fmt.Errorf("unknown field %q", f)

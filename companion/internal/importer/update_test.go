@@ -13,11 +13,12 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
-	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
+	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 	"github.com/Fre0Grella/getsetmix/companion/internal/track/tracktest"
 )
 
@@ -39,7 +40,7 @@ type fetchedTrack struct {
 func newFetchedTrack(t *testing.T) *fetchedTrack {
 	t.Helper()
 	e := newEnv(t)
-	e.im.Config.Server = &fetch.Server{URL: "http://server.test", Token: "tok", Folder: e.music}
+	e.im.Config.Server = &config.Server{URL: "http://server.test", Token: "tok", Folder: e.music}
 	ft := &fetchedTrack{env: e, path: filepath.Join(e.music, "Night Drive.mp3")}
 	ft.place(t, onServerBefore, time.Now().Add(-time.Hour))
 	var err error
@@ -382,7 +383,7 @@ func TestALocalEditOfAFetchedFileIsLeftAlone(t *testing.T) {
 func TestANewerCopyIsNotLostWhenTheStateIsWidened(t *testing.T) {
 	ft := newFetchedTrack(t)
 	ft.refresh(t)
-	key := library.PathKey(ft.path)
+	key := track.PathKey(ft.path)
 	seen, err := ledger.ReadSynced(ft.im.Home)
 	if err != nil {
 		t.Fatal(err)

@@ -36,7 +36,7 @@ type Fetched struct {
 	// Rekordbox cannot import and so were not downloaded.
 	Skipped map[string]int
 
-	byID  bool            // the last listing (Begin) names tracks by audio id
+	byID  bool            // the last listing (begin) names tracks by audio id
 	paths map[string]bool // every path in Tracks and Legacy
 }
 
@@ -93,18 +93,18 @@ func (s *Fetched) Empty() bool {
 	return len(s.Tracks) == 0 && len(s.Legacy) == 0 && len(s.Removed) == 0
 }
 
-// Remember notes the tags this computer has seen for the track with audio id;
+// remember notes the tags this computer has seen for the track with audio id;
 // whatever was waiting for the importer has been handled.
-func (s *Fetched) Remember(id string, tags track.Tags) {
+func (s *Fetched) remember(id string, tags track.Tags) {
 	if t, ok := s.Tracks[id]; ok {
 		t.Tags, t.Pending = &tags, false
 		s.Tracks[id] = t
 	}
 }
 
-// Newer reports whether the listing holds a newer copy of a fetched track:
+// newer reports whether the listing holds a newer copy of a fetched track:
 // its rev is above the one this computer holds.
-func (s *Fetched) Newer(f track.File) bool {
+func (s *Fetched) newer(f track.File) bool {
 	if !s.byID || f.ID == "" {
 		return false
 	}
@@ -135,11 +135,11 @@ func (s *Fetched) init() {
 	}
 }
 
-// Begin prepares the state for a listing. Against a protocol 2 server the
+// begin prepares the state for a listing. Against a protocol 2 server the
 // state becomes version 2, and every listed file whose path is known by path
 // only gets its audio id: with the listed rev when the local file in folder
 // has the listed size, and rev 0 otherwise, so it counts as changed.
-func (s *Fetched) Begin(l track.Listing, folder string) {
+func (s *Fetched) begin(l track.Listing, folder string) {
 	s.init()
 	s.byID = l.ByID()
 	if s.byID {
@@ -185,7 +185,7 @@ func (s *Fetched) Has(f track.File) bool {
 // Record notes that f is on this computer now.
 func (s *Fetched) Record(f track.File, now time.Time) {
 	if s.paths == nil {
-		s.Begin(track.Listing{}, "")
+		s.begin(track.Listing{}, "")
 	}
 	if s.byID && f.ID != "" {
 		s.Tracks[f.ID] = Track{Path: f.Path, Rev: f.Rev, At: now}
@@ -198,7 +198,7 @@ func (s *Fetched) Record(f track.File, now time.Time) {
 // RecordAll notes every file of l as fetched, so only tracks the server gets
 // from now on are downloaded.
 func (s *Fetched) RecordAll(l track.Listing, now time.Time) {
-	s.Begin(l, "")
+	s.begin(l, "")
 	for _, f := range l.Files {
 		s.Record(f, now)
 	}

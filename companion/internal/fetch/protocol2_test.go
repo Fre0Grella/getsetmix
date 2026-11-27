@@ -13,8 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 // server serves a fixed listing and the bytes of each listed path.
@@ -41,11 +43,11 @@ func (s *server) start(t *testing.T) *Client {
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
-	return &Client{Server: Server{URL: srv.URL, Token: "tok", Folder: t.TempDir()}}
+	return &Client{Server: config.Server{URL: srv.URL, Token: "tok", Folder: t.TempDir()}}
 }
 
-func file(path, body, id string, rev int64) File {
-	return File{Path: path, Size: int64(len(body)), MTime: 1_700_000_000, ID: id, Rev: rev}
+func file(path, body, id string, rev int64) track.File {
+	return track.File{Path: path, Size: int64(len(body)), MTime: 1_700_000_000, ID: id, Rev: rev}
 }
 
 func writeFile(t *testing.T, dir, rel, body string) {
@@ -76,7 +78,7 @@ func sorted(paths []string) []string {
 
 func TestProtocol2DownloadsByAudioID(t *testing.T) {
 	s := &server{files: map[string]string{"a.mp3": "aaaa", "b.flac": "bbbbb"}}
-	s.listing = Listing{Protocol: 2, Rev: 9, Files: []File{
+	s.listing = track.Listing{Protocol: 2, Rev: 9, Files: []track.File{
 		file("a.mp3", "aaaa", "a1_a", 3), file("b.flac", "bbbbb", "a1_b", 9),
 	}}
 	c := s.start(t)
@@ -91,7 +93,7 @@ func TestProtocol2DownloadsByAudioID(t *testing.T) {
 	}
 
 	// The server renames a track: same audio, so it is not fetched again.
-	s.listing = Listing{Protocol: 2, Rev: 10, Files: []File{
+	s.listing = track.Listing{Protocol: 2, Rev: 10, Files: []track.File{
 		file("House/a renamed.mp3", "aaaa", "a1_a", 3), file("b.flac", "bbbbb", "a1_b", 9),
 	}}
 	s.files["House/a renamed.mp3"] = "aaaa"
@@ -103,7 +105,7 @@ func TestProtocol2DownloadsByAudioID(t *testing.T) {
 
 func TestDeletingHereSticksUnderProtocol2(t *testing.T) {
 	s := &server{files: map[string]string{"a.mp3": "aaaa"}}
-	s.listing = Listing{Protocol: 2, Files: []File{file("a.mp3", "aaaa", "a1_a", 1)}}
+	s.listing = track.Listing{Protocol: 2, Files: []track.File{file("a.mp3", "aaaa", "a1_a", 1)}}
 	c := s.start(t)
 	state := ledger.NewFetched()
 	run(t, c, state)
@@ -122,7 +124,7 @@ func TestFilesRekordboxCannotImportAreSkipped(t *testing.T) {
 	}
 	for _, protocol := range []int{1, 2} {
 		s := &server{files: bodies}
-		var files []File
+		var files []track.File
 		for _, p := range []string{"a.mp3", "b.flac", "c.ogg", "d.opus", "e.OGG", "f.wav"} {
 			f := file(p, bodies[p], "", 0)
 			if protocol == 2 {
@@ -130,7 +132,7 @@ func TestFilesRekordboxCannotImportAreSkipped(t *testing.T) {
 			}
 			files = append(files, f)
 		}
-		s.listing = Listing{Protocol: protocol, Files: files}
+		s.listing = track.Listing{Protocol: protocol, Files: files}
 		c := s.start(t)
 		state := ledger.NewFetched()
 		rep := run(t, c, state)
@@ -222,7 +224,7 @@ func TestAnOldCompanionReadsAProtocol2Listing(t *testing.T) {
 		t.Fatalf("old reading %+v", old)
 	}
 	// And this companion reads all of it.
-	var l Listing
+	var l track.Listing
 	if err := json.Unmarshal([]byte(body), &l); err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +242,7 @@ func TestMigrationToVersion2(t *testing.T) {
 		"new.mp3": "new", "x.ogg": "ogg",
 	}}
 	editedID := idOf(t, "edited.mp3", "edited on the server")
-	s.listing = Listing{Protocol: 2, Rev: 50, Files: []File{
+	s.listing = track.Listing{Protocol: 2, Rev: 50, Files: []track.File{
 		file("same.mp3", "same", "a1_same", 10),
 		file("edited.mp3", "edited on the server", editedID, 40),
 		file("deleted here.mp3", "x", "a1_deleted", 11),
@@ -325,7 +327,7 @@ func TestMigrationToVersion2(t *testing.T) {
 	}
 
 	// A path that left the listing and comes back is still not fetched.
-	s.listing = Listing{Protocol: 2, Rev: 51, Files: []File{
+	s.listing = track.Listing{Protocol: 2, Rev: 51, Files: []track.File{
 		file("Gone From Server.mp3", "back", "a1_back", 51),
 	}}
 	s.files["Gone From Server.mp3"] = "back"
@@ -343,19 +345,19 @@ func TestMigrationToVersion2(t *testing.T) {
 // fetched again, and a new track is tied to its id once protocol 2 is back.
 func TestVersion2StateAgainstAProtocol1Listing(t *testing.T) {
 	s := &server{files: map[string]string{"a.mp3": "aaaa", "b.mp3": "bb"}}
-	s.listing = Listing{Protocol: 2, Files: []File{file("a.mp3", "aaaa", "a1_a", 1)}}
+	s.listing = track.Listing{Protocol: 2, Files: []track.File{file("a.mp3", "aaaa", "a1_a", 1)}}
 	c := s.start(t)
 	state := ledger.NewFetched()
 	run(t, c, state)
 
-	s.listing = Listing{Files: []File{file("a.mp3", "aaaa", "", 0), file("b.mp3", "bb", "", 0)}}
+	s.listing = track.Listing{Files: []track.File{file("a.mp3", "aaaa", "", 0), file("b.mp3", "bb", "", 0)}}
 	s.served = nil
 	run(t, c, state)
 	if strings.Join(s.served, ",") != "b.mp3" || state.Version != 2 || !state.Legacy["b.mp3"].Equal(time.Unix(1_800_000_000, 0)) {
 		t.Fatalf("served %v, state %+v", s.served, state)
 	}
 
-	s.listing = Listing{Protocol: 2, Files: []File{file("a.mp3", "aaaa", "a1_a", 1), file("b.mp3", "bb", "a1_b", 2)}}
+	s.listing = track.Listing{Protocol: 2, Files: []track.File{file("a.mp3", "aaaa", "a1_a", 1), file("b.mp3", "bb", "a1_b", 2)}}
 	s.served = nil
 	run(t, c, state)
 	if len(s.served) != 0 || state.Tracks["a1_b"].Rev != 2 || len(state.Legacy) != 0 {

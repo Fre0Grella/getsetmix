@@ -1,6 +1,10 @@
 package library
 
-import "database/sql"
+import (
+	"database/sql"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
+)
 
 // querier is what a lookup needs, from a *sql.DB or inside a *sql.Tx.
 type querier interface {
@@ -44,7 +48,7 @@ func rowsByPath(q querier, device string) (map[string]string, error) {
 		if err := rows.Scan(&id, &p, &dev); err != nil {
 			return nil, err
 		}
-		key := PathKey(p)
+		key := track.PathKey(p)
 		_, seen := ids[key]
 		mine := device != "" && dev == device
 		if !seen || (mine && !ours[key]) {

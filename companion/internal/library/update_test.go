@@ -8,22 +8,8 @@ import (
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
-
-func TestChangedNamesTheFieldsThatDiffer(t *testing.T) {
-	was := library.Tags{Title: "A", Artist: "B", Genre: "House", Year: 2019, Comment: "c"}
-	now := was
-	if got := library.Changed(&was, now); len(got) != 0 {
-		t.Fatalf("no change: %v", got)
-	}
-	now.Genre, now.Year, now.Album = "Tech House", 0, "X"
-	if got := library.Changed(&was, now); !slices.Equal(got, []string{"album", "genre", "year"}) {
-		t.Fatalf("changed %v", got)
-	}
-	if got := library.Changed(nil, now); !slices.Equal(got, library.AllFields) {
-		t.Fatalf("nothing known: %v", got)
-	}
-}
 
 // An empty title is written as the file name, as an import does; a year or
 // comment cleared on the server is cleared in the row; a path with no row is
@@ -38,9 +24,9 @@ func TestUpdateClearsAndReportsMissingRows(t *testing.T) {
 	res, err := db.Update([]library.Change{
 		// The row is found however the folder's case is written.
 		{Path: filepath.FromSlash(strings.Replace(existing, "Nextcloud/Music", "NEXTCLOUD/music", 1)),
-			Tags:   library.Tags{},
+			Tags:   track.Tags{},
 			Fields: []string{"title", "year", "comment", "genre"}, FileSize: 1234},
-		{Path: other, Fields: library.AllFields, FileSize: 1},
+		{Path: other, Fields: track.AllFields, FileSize: 1},
 	}, now)
 	if err != nil {
 		t.Fatal(err)

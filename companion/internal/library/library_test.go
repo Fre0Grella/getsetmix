@@ -11,6 +11,7 @@ import (
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 var now = time.Date(2026, 10, 17, 14, 3, 7, 123_000_000, time.UTC)
@@ -23,10 +24,10 @@ func setup(t *testing.T) (dir, existing string) {
 	return dir, existing
 }
 
-func track(path string) library.Track {
-	return library.Track{
+func trackAt(path string) track.Track {
+	return track.Track{
 		Path: path, Title: "Ella Me Levantó", Artist: "Daddy Yankee", Album: "Barrio Fino",
-		Genre: "Reggaeton", Comment: "https://youtu.be/x", FileType: library.FileMP3,
+		Genre: "Reggaeton", Comment: "https://youtu.be/x", FileType: track.FileMP3,
 		FileSize: 8472296, FileID: 0xF0000001F9DA4, Length: 209, BitRate: 320,
 		BitDepth: 16, SampleRate: 44100,
 	}
@@ -40,7 +41,7 @@ func TestImportWritesRowsLikeRekordbox(t *testing.T) {
 	}
 	// Native separators in, forward slashes stored (a no-op off Windows).
 	path := filepath.FromSlash("C:/Users/dj/Nextcloud/Music/Ella Me Levantó - Daddy Yankee.mp3")
-	res, err := db.Import([]library.Track{track(path)}, "GetSetMix", now)
+	res, err := db.Import([]track.Track{trackAt(path)}, "GetSetMix", now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,7 @@ func TestImportWritesRowsLikeRekordbox(t *testing.T) {
 		"artist":                            {artist, "Daddy Yankee"},
 		"album":                             {album, "Barrio Fino"},
 		"genre":                             {genre, "Reggaeton"},
-		"FileType":                          {fileType, int64(library.FileMP3)},
+		"FileType":                          {fileType, int64(track.FileMP3)},
 		"Length":                            {length, int64(209)},
 	}
 	for name, c := range checks {
@@ -126,12 +127,12 @@ func TestImportReusesNamesAndSkipsKnownPaths(t *testing.T) {
 	}
 	defer db.Close()
 
-	a := track("/Users/dj/Music/a.mp3")
+	a := trackAt("/Users/dj/Music/a.mp3")
 	a.Artist = "W Sound" // already in the library
-	b := track("/Users/dj/Music/b.mp3")
+	b := trackAt("/Users/dj/Music/b.mp3")
 	b.Artist = "W Sound"
-	dup := track(strings.ToUpper(existing)) // same file, different case
-	res, err := db.Import([]library.Track{a, b, dup}, "GetSetMix", now)
+	dup := trackAt(strings.ToUpper(existing)) // same file, different case
+	res, err := db.Import([]track.Track{a, b, dup}, "GetSetMix", now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,8 +141,8 @@ func TestImportReusesNamesAndSkipsKnownPaths(t *testing.T) {
 	}
 
 	// Second import into the same playlist appends after the first two.
-	c := track("/Users/dj/Music/c.mp3")
-	res2, err := db.Import([]library.Track{c, a}, "GetSetMix", now.Add(time.Minute))
+	c := trackAt("/Users/dj/Music/c.mp3")
+	res2, err := db.Import([]track.Track{c, a}, "GetSetMix", now.Add(time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,13 +210,6 @@ func TestPlaylistXML(t *testing.T) {
 	nodes := regexp.MustCompile(`Id="ABB814D3"[^>]*Timestamp="(\d+)"`).FindAllStringSubmatch(string(data), -1)
 	if len(nodes) != 1 || nodes[0][1] != strconv.FormatInt(later.UpdatedAt.UnixMilli(), 10) {
 		t.Fatalf("timestamp not refreshed: %v", nodes)
-	}
-}
-
-func TestPathKey(t *testing.T) {
-	nfd := "Bee\u0301le.mp3" // macOS hands out decomposed names
-	if library.PathKey(filepath.FromSlash("C:/Music/BEÉLE.mp3")) != library.PathKey("c:/music/"+nfd) {
-		t.Fatal("path keys should match across slashes, case and normalisation")
 	}
 }
 

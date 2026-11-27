@@ -12,10 +12,11 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
-func tomb(id, path, reason string) Removed {
-	return Removed{ID: id, Path: path, At: "2026-11-12T22:10:03+00:00", Reason: reason}
+func tomb(id, path, reason string) track.Tombstone {
+	return track.Tombstone{ID: id, Path: path, At: "2026-11-12T22:10:03+00:00", Reason: reason}
 }
 
 // fakeBin stands in for the recycle bin: it moves the file into a folder of
@@ -37,8 +38,8 @@ func (b *fakeBin) recycle(path string) error {
 // both lists the two tracks of twoTracks; onlyA is the listing once the
 // server has removed the second one.
 var (
-	both  = Listing{Protocol: 2, Rev: 5, Files: []File{file("a.mp3", "aaaa", "a1_a", 1), file("House/b.mp3", "bbbbb", "a1_b", 2)}}
-	onlyA = Listing{Protocol: 2, Rev: 6, Files: both.Files[:1], Removed: []Removed{tomb("a1_b", "House/b.mp3", "deleted")}}
+	both  = track.Listing{Protocol: 2, Rev: 5, Files: []track.File{file("a.mp3", "aaaa", "a1_a", 1), file("House/b.mp3", "bbbbb", "a1_b", 2)}}
+	onlyA = track.Listing{Protocol: 2, Rev: 6, Files: both.Files[:1], Removed: []track.Tombstone{tomb("a1_b", "House/b.mp3", "deleted")}}
 )
 
 func twoTracks(t *testing.T) (*server, *Client, *ledger.Fetched) {
@@ -53,8 +54,8 @@ func twoTracks(t *testing.T) (*server, *Client, *ledger.Fetched) {
 
 func TestARemovedTrackIsRecordedOnce(t *testing.T) {
 	s, c, state := twoTracks(t)
-	s.listing = Listing{Protocol: 2, Rev: 6, Files: []File{file("a.mp3", "aaaa", "a1_a", 1)},
-		Removed: []Removed{tomb("a1_b", "House/b.mp3", "deleted"), tomb("a1_never", "x.mp3", "missing")}}
+	s.listing = track.Listing{Protocol: 2, Rev: 6, Files: []track.File{file("a.mp3", "aaaa", "a1_a", 1)},
+		Removed: []track.Tombstone{tomb("a1_b", "House/b.mp3", "deleted"), tomb("a1_never", "x.mp3", "missing")}}
 
 	rep := run(t, c, state)
 	if !reflect.DeepEqual(rep.Removed, []string{"House/b.mp3"}) || len(rep.Restored) != 0 {
@@ -91,7 +92,7 @@ func TestARestoreDropsTheTombstone(t *testing.T) {
 
 func TestAProtocol1ListingHandlesNoTombstones(t *testing.T) {
 	_, c, state := twoTracks(t)
-	l := Listing{Files: []File{{Path: "a.mp3", Size: 4}}, Removed: []Removed{tomb("a1_b", "House/b.mp3", "deleted")}}
+	l := track.Listing{Files: []track.File{{Path: "a.mp3", Size: 4}}, Removed: []track.Tombstone{tomb("a1_b", "House/b.mp3", "deleted")}}
 	var rep Report
 	c.tombstones(state.Plan(l, c.Server.Folder, audio.Supported, false, time.Now()), state, &rep)
 	if len(state.Removed) != 0 || len(rep.Removed) != 0 {
@@ -104,7 +105,7 @@ func TestATombstoneForAPathKnownFromProtocol1(t *testing.T) {
 	c := s.start(t)
 	state := ledger.NewFetched()
 	state.Legacy["old.mp3"] = time.Unix(1_700_000_000, 0)
-	s.listing = Listing{Protocol: 2, Removed: []Removed{tomb("a1_o", "old.mp3", "missing")}}
+	s.listing = track.Listing{Protocol: 2, Removed: []track.Tombstone{tomb("a1_o", "old.mp3", "missing")}}
 	rep := run(t, c, state)
 	if !reflect.DeepEqual(rep.Removed, []string{"old.mp3"}) || state.Removed["a1_o"].Path != "old.mp3" ||
 		state.Removed["a1_o"].Reason != "missing" {
@@ -208,9 +209,9 @@ func TestAFileReplacedOnTheServerIsNotARemoval(t *testing.T) {
 	c.Recycle = bin.recycle
 	c.Server.DeleteRemovedFiles = true
 	s.files["House/b.mp3"] = "other audio"
-	s.listing = Listing{Protocol: 2, Rev: 6,
-		Files:   []File{both.Files[0], file("House/b.mp3", "other audio", "a1_new", 6)},
-		Removed: []Removed{tomb("a1_b", "House/b.mp3", "deleted")}}
+	s.listing = track.Listing{Protocol: 2, Rev: 6,
+		Files:   []track.File{both.Files[0], file("House/b.mp3", "other audio", "a1_new", 6)},
+		Removed: []track.Tombstone{tomb("a1_b", "House/b.mp3", "deleted")}}
 
 	rep := run(t, c, state)
 	if len(rep.Removed) != 0 || len(state.Removed) != 0 || len(bin.moved) != 0 {
@@ -226,8 +227,8 @@ func TestATombstoneIsDroppedWhenAnotherTrackTakesItsPath(t *testing.T) {
 		t.Fatalf("removed %+v", state.Removed)
 	}
 	s.files["House/b.mp3"] = "other audio"
-	s.listing = Listing{Protocol: 2, Rev: 7,
-		Files:   []File{both.Files[0], file("House/b.mp3", "other audio", "a1_new", 7)},
+	s.listing = track.Listing{Protocol: 2, Rev: 7,
+		Files:   []track.File{both.Files[0], file("House/b.mp3", "other audio", "a1_new", 7)},
 		Removed: onlyA.Removed}
 
 	run(t, c, state)
@@ -241,8 +242,8 @@ func TestAFileThatVanishedOnTheServerStaysHere(t *testing.T) {
 	bin := &fakeBin{dir: t.TempDir()}
 	c.Recycle = bin.recycle
 	c.Server.DeleteRemovedFiles = true
-	s.listing = Listing{Protocol: 2, Rev: 6, Files: both.Files[:1],
-		Removed: []Removed{tomb("a1_b", "House/b.mp3", "missing")}}
+	s.listing = track.Listing{Protocol: 2, Rev: 6, Files: both.Files[:1],
+		Removed: []track.Tombstone{tomb("a1_b", "House/b.mp3", "missing")}}
 
 	run(t, c, state)
 	if len(state.Removed) != 1 || len(bin.moved) != 0 {

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
+	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
@@ -25,7 +25,7 @@ import (
 func pairedEnv(t *testing.T) (*env, string) {
 	t.Helper()
 	e := newEnv(t)
-	e.im.Config.Server = &fetch.Server{URL: "http://server", Token: "t", Folder: e.music}
+	e.im.Config.Server = &config.Server{URL: "http://server", Token: "t", Folder: e.music}
 	path := e.add(t, "House - Gone.mp3")
 	if rep, err := e.im.Sync(false); err != nil || len(rep.Imported) != 1 {
 		t.Fatalf("%+v, %v", rep, err)

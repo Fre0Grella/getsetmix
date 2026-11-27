@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 type fakeServer struct {
@@ -26,10 +28,10 @@ func (s *fakeServer) handler(t *testing.T) http.Handler {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		var l Listing
+		var l track.Listing
 		for _, p := range []string{"A - One.mp3", "House/B - Two.mp3", "C - Three.mp3"} {
 			if body, ok := s.files[p]; ok {
-				l.Files = append(l.Files, File{Path: p, Size: int64(len(body)), MTime: 1_700_000_000})
+				l.Files = append(l.Files, track.File{Path: p, Size: int64(len(body)), MTime: 1_700_000_000})
 			}
 		}
 		json.NewEncoder(w).Encode(l)
@@ -52,7 +54,7 @@ func TestRunDownloadsOnceAndRespectsDeletes(t *testing.T) {
 	// already here with the right size: adopted, not downloaded
 	os.WriteFile(filepath.Join(dir, "C - Three.mp3"), []byte("three"), 0o644)
 
-	c := &Client{Server: Server{URL: srv.URL + "/", Token: "tok", Folder: dir}}
+	c := &Client{Server: config.Server{URL: srv.URL + "/", Token: "tok", Folder: dir}}
 	state := ledger.NewFetched()
 	rep, err := c.Run(context.Background(), state, time.Now)
 	if err != nil {
@@ -84,7 +86,7 @@ func TestRunDownloadsOnceAndRespectsDeletes(t *testing.T) {
 func TestShortDownloadIsRetried(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/link/files", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(Listing{Files: []File{{Path: "x.mp3", Size: 10}}})
+		json.NewEncoder(w).Encode(track.Listing{Files: []track.File{{Path: "x.mp3", Size: 10}}})
 	})
 	mux.HandleFunc("/api/link/file", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("short"))
@@ -92,7 +94,7 @@ func TestShortDownloadIsRetried(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 	dir := t.TempDir()
-	c := &Client{Server: Server{URL: srv.URL, Token: "tok", Folder: dir}}
+	c := &Client{Server: config.Server{URL: srv.URL, Token: "tok", Folder: dir}}
 	state := ledger.NewFetched()
 	rep, err := c.Run(context.Background(), state, time.Now)
 	if err != nil || len(rep.Failed) != 1 || len(state.Legacy) != 0 {
@@ -106,20 +108,9 @@ func TestShortDownloadIsRetried(t *testing.T) {
 func TestUnauthorized(t *testing.T) {
 	srv := httptest.NewServer((&fakeServer{}).handler(t))
 	defer srv.Close()
-	c := &Client{Server: Server{URL: srv.URL, Token: "wrong", Folder: t.TempDir()}}
+	c := &Client{Server: config.Server{URL: srv.URL, Token: "wrong", Folder: t.TempDir()}}
 	if _, err := c.Run(context.Background(), ledger.NewFetched(), time.Now); err != ErrUnauthorized {
 		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestLocalRefusesEscapes(t *testing.T) {
-	for _, bad := range []string{"../x.mp3", "/etc/x.mp3", "a/../../x.mp3", `a\..\x.mp3`, "", "./x.mp3"} {
-		if _, err := Local("/music", bad); err == nil {
-			t.Errorf("%q accepted", bad)
-		}
-	}
-	if p, err := Local("dl", "House/x.mp3"); err != nil || p != filepath.Join("dl", "House", "x.mp3") {
-		t.Errorf("got %q %v", p, err)
 	}
 }
 
@@ -129,7 +120,7 @@ func TestStateRoundTrip(t *testing.T) {
 	if err != nil || len(s.Legacy) != 0 || len(s.Tracks) != 0 {
 		t.Fatal(s, err)
 	}
-	s.Record(File{Path: "a.mp3"}, time.Unix(5, 0))
+	s.Record(track.File{Path: "a.mp3"}, time.Unix(5, 0))
 	ledgertest.Save(t, dir, s)
 	s2, _ := ledger.ReadFetched(dir)
 	if !s2.Legacy["a.mp3"].Equal(time.Unix(5, 0)) {
