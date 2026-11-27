@@ -121,7 +121,7 @@ GetSetMix on your home Wi-Fi but can't install it or share to it.
 
 Windows may say it doesn't know the publisher (*More info* > *Run anyway*);
 on macOS, right-click *GetSetMix Setup* > *Open* the first time. Neither is
-signed yet; see the [code signing policy](#code-signing-policy).
+signed yet; see [code signing](#code-signing).
 
 ### What Setup changes on your computer, and how to remove it
 
@@ -149,19 +149,11 @@ it removes the launcher, the autostart and the scheduled task. Then delete
 the two folders above. Tracks already in Rekordbox stay there; remove them in
 Rekordbox if you want.
 
-### Code signing policy
+### Code signing
 
-Free code signing provided by [SignPath.io](https://about.signpath.io),
-certificate by [SignPath Foundation](https://signpath.org) (applied for;
-releases are not signed yet).
-
-- **What is signed**: GetSetMix Setup and the companion for Windows, built by
-  [GitHub Actions](.github/workflows/companion.yml) from the source code in
-  this repository. Nothing built elsewhere is signed.
-- **Committers and reviewers**: [Fre0Grella](https://github.com/Fre0Grella).
-  A change proposed by anyone else is reviewed before it is merged.
-- **Approvers**: [Fre0Grella](https://github.com/Fre0Grella), who approves
-  each signed release by hand.
+GetSetMix Setup and the companion are not code-signed yet, so Windows
+Defender may flag them (a machine-learning false positive) and macOS asks
+before opening them. Signing is planned for the public launch.
 
 ### Privacy
 
