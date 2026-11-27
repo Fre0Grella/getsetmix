@@ -1,6 +1,32 @@
 # CHANGELOG
 
 
+## v1.18.0 (2026-11-27)
+
+### Features
+
+- **library**: Batch edit one field with preview
+  ([`14fc439`](https://github.com/Fre0Grella/getsetmix/commit/14fc439d413b87784399d99a50464f08de01dc24))
+
+Batch editing, slice 2: set one field on the selected tracks, see the changes, then write exactly
+  those.
+
+- app/edits.py stores a preview per track and field (old, new, the steps that made it, warnings) and
+  applies it one file at a time through the Library's write, with the previewed values as the
+  precondition: a file changed meanwhile is a conflict and is left alone, a failure fails that file
+  only, applying again retries only the failures, one edit applies at a time, an unused preview
+  expires. - rules.run_steps runs field operations beside rules (set for now). - /api/library/edits:
+  preview, read, changes, apply. - The bulk bar gains Edit tags, a panel with preview and progress.
+  - Companion test: tracks changed together update in one sync. - Ruff ceiling 38 -> 31 (old
+  findings in files touched here).
+
+Closes #47
+
+Claude-Session: https://claude.ai/code/session_01P6dL1ubJcR7rkeStcK3oqS
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.17.0 (2026-11-27)
 
 ### Chores
