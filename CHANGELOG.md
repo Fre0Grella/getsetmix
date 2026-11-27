@@ -1,6 +1,31 @@
 # CHANGELOG
 
 
+## v1.19.0 (2026-11-27)
+
+### Features
+
+- **library**: Undo batch edits, and their history
+  ([`1921697`](https://github.com/Fre0Grella/getsetmix/commit/1921697db97a6453a18ce22c5f72781617dc17dd))
+
+Batch editing, slice 3.
+
+- Undo is a new edit that writes the old values back through the same job and precondition: a field
+  changed since is a conflict, a trashed track fails as gone, an undo can itself be undone, and part
+  of an edit can be undone. - GET /api/library/edits lists applied edits, newest first. - Retention:
+  edit_history_days (default 30, 0 for good, in Settings); a purged edit keeps its line and counts;
+  unused previews go after a day. The purge runs at most once a day, when edits are used. - The bulk
+  set_genre is now an edit (library design L9), so it shows in the history and can be undone; the
+  request and answer are as before. - UI: Undo in the edit panel, and a History panel in the
+  Library. - Ruff ceiling 31 -> 30 (an old try/except/pass in config.py).
+
+Closes #48
+
+Claude-Session: https://claude.ai/code/session_01P6dL1ubJcR7rkeStcK3oqS
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.18.0 (2026-11-27)
 
 ### Features
