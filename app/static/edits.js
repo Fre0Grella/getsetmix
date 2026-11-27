@@ -8,7 +8,7 @@
 import { $, api, errorOf, esc, libRules, narrow, request, toast } from "./core.js";
 import { lang, num, plural, serverError, STR, T } from "./i18n.js";
 import { cleanupOpen, cleanupSetId, cleanupSteps, quickSets } from "./cleanup.js";
-import { addSelAction, libChanged, libView, selectedIds } from "./library.js";
+import { addSelAction, libChanged, libView, selection } from "./library.js";
 
 const SKIP_IT = {
   "read-only format": "formato in sola lettura", "damaged file": "file danneggiato",
@@ -115,7 +115,7 @@ const FIELDS = ["title", "artist", "album", "genre", "year", "comment"];
 const FIELD_OPS = { title: ["set", "prepend", "append", "replace"], artist: ["set", "prepend", "append", "replace"],
   album: ["set", "clear", "prepend", "append", "replace"], genre: ["set", "clear", "prepend", "append", "replace"],
   year: ["set", "clear"], comment: ["set", "clear", "prepend", "append", "replace"] };
-const Ed = { ids: [], view: null, edit: null, timer: null, busy: false, tab: "fields",
+const Ed = { ids: [], all: false, count: 0, view: null, edit: null, timer: null, busy: false, tab: "fields",
   items: [], filter: "all", phone: false };
 
 // On a phone the panel is a sheet in three steps (design 4.3): 1 what to
@@ -178,14 +178,15 @@ function edRows() {
 }
 
 function edOpen() {
-  Ed.ids = selectedIds();
-  if (!Ed.ids.length) return;
+  const sel = selection();
+  if (!sel.count) return;
+  Object.assign(Ed, { ids: sel.ids, all: sel.all, count: sel.count });
   Ed.view = libView();
   edReset();
-  $("#edTitle").textContent = T.edTitle(Ed.ids.length);
+  $("#edTitle").textContent = T.edTitle(Ed.count);
   // The whole view is offered when it holds more than the selection: one
   // request, resolved by the server, however long the list.
-  const more = Ed.view.total > Ed.ids.length;
+  const more = !Ed.all && Ed.view.total > Ed.ids.length;   // "Select all" already is the view
   $("#edScope").classList.toggle("hidden", !more);
   $('#edScope input[value="ids"]').checked = true;
   edScopeTexts();
@@ -279,7 +280,7 @@ $("#edForm").addEventListener("submit", async (e) => {
 // Make the preview: the selection (or the whole view) and the steps or set.
 async function edPreview(what) {
   if (Ed.busy) return;
-  const all = $('#edScope input[value="filter"]').checked && !$("#edScope").classList.contains("hidden");
+  const all = Ed.all || ($('#edScope input[value="filter"]').checked && !$("#edScope").classList.contains("hidden"));
   Ed.busy = true;
   edReset();
   try {
@@ -647,7 +648,7 @@ new MutationObserver(() => {
 new MutationObserver(() => {
   if (!histModal.classList.contains("hidden")) edHistory();
   if (modal.classList.contains("hidden")) return;
-  $("#edTitle").textContent = T.edTitle(Ed.ids.length);
+  $("#edTitle").textContent = T.edTitle(Ed.count);
   $("#edStep").textContent = T.edStep[modal.dataset.step || 1];
   if (Ed.phone && modal.dataset.step === "1") edQuick();
   edScopeTexts();

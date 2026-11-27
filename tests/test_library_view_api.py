@@ -36,7 +36,7 @@ def test_facets_count_genres_and_the_files_directly_in_each_folder(shelf):
     r = shelf.get("/api/library/facets")
     assert r.status_code == 200
     body = r.json()
-    assert set(body) == {"rev", "genres", "folders"} and body["rev"] == 6
+    assert set(body) == {"rev", "genres", "folders", "artists", "problems"} and body["rev"] == 6
     assert body["genres"] == [{"name": "House", "count": 2}, {"name": "Techno", "count": 2},
                               {"name": "Deep", "count": 1}]  # most first; no untagged entry
     assert body["folders"] == [{"path": "House", "count": 1}, {"path": "House/deep", "count": 2}]
@@ -57,7 +57,10 @@ def test_facets_follow_the_state_and_are_not_taken_for_an_id(shelf):
 
 
 def test_facets_of_an_empty_library(api):
-    assert api.get("/api/library/facets").json() == {"rev": 0, "genres": [], "folders": []}
+    from app import rules
+    assert api.get("/api/library/facets").json() == {
+        "rev": 0, "genres": [], "folders": [], "artists": [],
+        "problems": [{"id": p, "count": 0} for p in rules.PROBLEMS]}
 
 
 # ----------------------------------------------------- long lists and filters

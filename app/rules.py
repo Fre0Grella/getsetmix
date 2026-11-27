@@ -763,6 +763,54 @@ def run_rule(rule_id: str, fields: Fields, scope: list[str] | tuple[str, ...] | 
     return RuleResult(out, changed, [{**w, "rule": rule_id} for w in warnings])
 
 
+# ------------------------------------------------- finding tracks
+# The Library's artist and problem filters (library design 4.5.2) ask the
+# same questions the rules answer, so a filter and the rule that fixes what
+# it finds never disagree.
+_ARTIST_SPLIT = re.compile(rf"\s*(?:,|;|&|\+|/|\s(?:x|vs\.?)\s|\s{_FEAT}(?![\w])\.?\s*)\s*", re.I)
+_FEAT_IN_TITLE = re.compile(rf"[(\[]\s*{_FEAT}(?![\w])\.?\s*([^()\[\]]+?)\s*[)\]]"
+                            rf"|\s{_FEAT}(?![\w])\.?\s+([^()\[\]]+?)\s*$", re.I)
+PROBLEMS = ("no_genre", "no_year", "no_cover", "lowercase", "feat", "promo", "same_audio")
+
+
+def artists_of(artist: str, title: str = "") -> list[str]:
+    """Every artist a track names, each once, as written: the artist field
+    split on its separators (`,` `;` `&` `+` `/` `x` `vs` `feat.` `ft.`), and the
+    featured artists of the title (`(feat. Kito)`)."""
+    texts = [artist or ""]
+    for m in _FEAT_IN_TITLE.finditer(title or ""):
+        texts.append(m.group(1) or m.group(2) or "")
+    out: list[str] = []
+    seen: set[str] = set()
+    for text in texts:
+        for part in _ARTIST_SPLIT.split(text):
+            name = part.strip(" -–—()[]")
+            if name and name.casefold() not in seen:
+                seen.add(name.casefold())
+                out.append(name)
+    return out
+
+
+def problems_of(fields: Fields, has_cover: bool) -> list[str]:
+    """Which of PROBLEMS a track has, from its own values (`same_audio` needs
+    the other files, so the Library asks it itself)."""
+    out = []
+    if not str(fields.get("genre") or "").strip():
+        out.append("no_genre")
+    if fields.get("year") is None:
+        out.append("no_year")
+    if not has_cover:
+        out.append("no_cover")
+    text = {k: str(fields.get(k) or "") for k in ("title", "artist", "album")}
+    if run_rule("case.title", text, scope=("title", "artist")).changed:
+        out.append("lowercase")
+    if run_rule("feat.move", text).changed:
+        out.append("feat")
+    if "title" in run_rule("promo.remove", text).changed:
+        out.append("promo")
+    return out
+
+
 # ------------------------------------------------------ field operations
 # The plain operations an edit can hold beside rules (design 3.4). Values are
 # taken as given, with no tidy pass: the DJ typed them. `replace` matches

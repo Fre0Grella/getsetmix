@@ -93,7 +93,7 @@ def _next(last_id: int) -> str:
     return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
 
 
-FILTER_KEYS = ("q", "genre", "folder")   # as GET /api/library takes them
+FILTER_KEYS = ("q", "genre", "folder", "artist", "problem")   # as GET /api/library takes them
 
 
 def _filter(raw) -> dict[str, str]:

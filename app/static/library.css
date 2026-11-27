@@ -233,12 +233,67 @@ body.lib-in-trash .lib-sort { display: none; }  /* the trash lists newest delete
 .lib-dock input[type="search"] { -webkit-appearance: none; appearance: none; }
 
 /* ------------------------------------------------ selection (design 4.5) */
-/* A selected row is washed in the accent, and its art shows a check. */
+/* The checkbox on a row's cover: every row while selecting; on a computer
+   also on a hovered row, as the visible way in (design 4.5.1). */
+.lib-art { position: relative; }
+.lib-check {
+  position: absolute; inset: 0; display: none; border-radius: inherit;
+  background: color-mix(in oklch, var(--bg) 55%, transparent);
+}
+.lib-check::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  border: 2px solid var(--text-2); border-radius: 6px; background: var(--surface);
+}
+body.lib-selecting .lib-row .lib-check { display: block; }
 .lib-row.is-selected { background: var(--accent-wash); }
-.lib-row.is-selected .lib-art { position: relative; }
-.lib-row.is-selected .lib-art::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
-  background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 60% no-repeat;
+.lib-row.is-selected .lib-check { display: block; background: transparent; }
+.lib-row.is-selected .lib-check::after {
+  border-color: var(--accent);
+  background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 80% no-repeat;
+}
+@media (hover: hover) and (pointer: fine) {
+  .lib-row:hover .lib-check { display: block; cursor: pointer; }
+}
+#libSelectBtn[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+/* "Select all": a quiet link beside the count, and in the bar. */
+.lib-link {
+  border: 0; background: none; padding: 4px 2px; color: var(--accent); font: inherit;
+  font-size: .86rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.lib-link:hover { text-decoration: underline; }
+.lib-sel-actions .btn:disabled { opacity: .45; }
+
+/* ------------------------------------------------- the filters (4.5.2) */
+.lib-artist input {
+  width: 11rem; height: 34px; border: 0; background: transparent; color: inherit; font: inherit;
+}
+.lib-artist input:focus { outline: 0; }
+.lib-artist::after, .lib-artist svg { display: none; }
+.lib-filters-head, .lib-filters-shade { display: none; }
+/* A phone: one Filters button; the row becomes a sheet. */
+@media (max-width: 720px) {
+  .lib-filters { display: none; }
+  body.lib-filters-open .lib-filters-shade {
+    display: block; position: fixed; inset: 0; z-index: 44; background: rgb(0 0 0 / .35);
+  }
+  body.lib-filters-open .lib-filters {
+    display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; max-height: 80vh; overflow: auto;
+    padding: 12px var(--gutter) max(16px, env(safe-area-inset-bottom));
+    background: var(--surface); border-radius: 18px 18px 0 0; box-shadow: var(--shadow-dock);
+  }
+  body.lib-filters-open .lib-filters-head { display: flex; align-items: center; justify-content: space-between; }
+  .lib-filters-head h2 { margin: 0; font-size: 1.05rem; }
+  body.lib-filters-open .lib-genres { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
+  body.lib-filters-open .lib-select, body.lib-filters-open .lib-artist input { width: 100%; }
+  body.lib-filters-open .lib-select select { max-width: none; width: 100%; }
+  body.lib-filters-open .lib-sort { display: flex; }
+  body.lib-filters-open .lib-sort .lib-select { flex: 1; }
+}
+@media (min-width: 721px) {
+  .lib-filters-btn { display: none; }
+  .lib-filters { flex-wrap: wrap; align-items: center; }
+  .lib-filters .lib-sort { margin-left: auto; }
 }
 /* While selecting, a tap toggles a row instead of opening it: no long-press menu, no text pick. */
 body.lib-selecting .lib-row { -webkit-touch-callout: none; user-select: none; }
@@ -259,7 +314,6 @@ body.lib-selecting #libSearchForm { display: none; }
   .lib-sel-actions { gap: 4px; }
   .lib-sel-actions .btn { padding: 0 9px; font-size: .84rem; }
 }
-.lib-genre-body { display: flex; flex-direction: column; gap: 12px; }
 
 /* ------------------------------------- batch editing (edits.js) */
 .ed-body { display: flex; flex-direction: column; gap: 16px; }

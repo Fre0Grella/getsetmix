@@ -989,6 +989,24 @@ problems, folder), opened from one button that shows how many are on.
 
 **Not done:** problem filters never start an edit by themselves.
 
+**As built** ([#107](https://github.com/Fre0Grella/getsetmix/issues/107)):
+
+- The bar: the count, *Select all* when narrowed, *Filters* (phone only),
+  *Select* (pressed while selecting), *History*, *Trash*. The filter row
+  holds the genre chips, *Artist*, *Problems*, the folder and the sort; on a
+  phone it is the *Filters* sheet, and its button counts the filters on.
+- `GET /api/library` and `GET /api/library/ids` take `artist` and
+  `problem`; `ids` answers every id of the view, for *Delete* on *Select
+  all*. Facets add `artists` (`name`, `count`; the commonest spelling names
+  an artist, and a mixed-case one wins a tie) and `problems` (`id`,
+  `count`). Batch editing takes both as a filter.
+- `rules.artists_of` and `rules.problems_of` are the checks; the index
+  stores them in `artists` (folded names between ``) and `problems`
+  (`,id,`), refilled on every write; rows from before are filled at the
+  start of the next pass. An artist matches a whole name, not a fragment.
+- Taking one track out of *Select all* asks the server for the view's ids
+  first, then removes it, so the rest stays picked.
+
 ### 4.6 What a computer does
 
 The rule that a computer never changes the server stays. So does the rule
