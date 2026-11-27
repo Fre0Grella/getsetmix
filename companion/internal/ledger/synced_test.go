@@ -1,4 +1,4 @@
-package config
+package ledger
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/scan"
 )
 
-func TestStateReadsBothFormsOfAValue(t *testing.T) {
+func TestSyncedReadsBothFormsOfAValue(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "state.json"), []byte(`{
   "baseline": "2026-10-01T18:00:00Z",
@@ -19,7 +19,7 @@ func TestStateReadsBothFormsOfAValue(t *testing.T) {
     "new": {"at": "2026-10-03T18:00:00Z", "size": 1234, "mtime": 1700000000000000000}
   }
 }`), 0o644)
-	s, err := LoadState(dir)
+	s, err := loadSynced(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestStateReadsBothFormsOfAValue(t *testing.T) {
 		t.Error("widened twice")
 	}
 
-	if err := s.Save(dir); err != nil {
+	if err := s.save(dir); err != nil {
 		t.Fatal(err)
 	}
 	var onDisk struct {

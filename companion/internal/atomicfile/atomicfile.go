@@ -4,6 +4,7 @@
 package atomicfile
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -40,4 +41,17 @@ func WriteFile(path string, data []byte, perm os.FileMode) error {
 		_, err := w.Write(data)
 		return err
 	})
+}
+
+// WriteJSON writes v as indented JSON with a final newline, atomically,
+// creating path's folder when it is missing.
+func WriteJSON(path string, v any) error {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return WriteFile(path, append(data, '\n'), 0o644)
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/config"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
 	"github.com/Fre0Grella/getsetmix/companion/internal/rekordbox"
@@ -226,7 +227,7 @@ func TestOldStateIsWidenedInPlace(t *testing.T) {
 	if n := e.count(t, "SELECT count(*) FROM djmdContent"); n != 1 {
 		t.Errorf("collection has %d tracks, want 1", n)
 	}
-	state, err := config.LoadState(e.im.Home)
+	state, err := ledger.ReadSynced(e.im.Home)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +254,7 @@ func TestOldStateIsWidenedInPlace(t *testing.T) {
 	if rep, err := e.im.Sync(false); err != nil || len(rep.Imported) != 1 {
 		t.Fatalf("%+v, %v", rep, err)
 	}
-	state, _ = config.LoadState(e.im.Home)
+	state, _ = ledger.ReadSynced(e.im.Home)
 	info, _ := os.Stat(added)
 	if got := state.Seen[library.PathKey(added)]; got.Size != info.Size() || got.MTime != info.ModTime().UnixNano() {
 		t.Errorf("new track: %+v", got)

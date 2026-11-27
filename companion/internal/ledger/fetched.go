@@ -1,4 +1,4 @@
-package fetch
+package ledger
 
 import (
 	"encoding/json"
@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	stateFile   = "fetched.json"
-	stateFileV1 = "fetched.v1.json" // the version 1 file, kept when it is migrated
+	fetchedFile   = "fetched.json"
+	fetchedFileV1 = "fetched.v1.json" // the version 1 file, kept when it is migrated
 )
 
-// State remembers which server tracks this computer fetched
+// Fetched is fetched.json: which server tracks this computer fetched
 // (docs/design/library.md, 3.6).
 //
 // Version 1 maps a server path to when it was fetched. It stays the format
@@ -27,7 +27,7 @@ const (
 // server migrates it to version 2, keyed by audio id: each listed path the
 // state knows gets its id, and the paths the server no longer lists stay in
 // Legacy, so they are never fetched again if they come back.
-type State struct {
+type Fetched struct {
 	Version int                  // 1 or 2: what Save writes
 	Tracks  map[string]Track     // audio id -> the track this computer holds
 	Legacy  map[string]time.Time // server path -> when fetched, for tracks known by path only
@@ -38,6 +38,37 @@ type State struct {
 
 	byID  bool            // the last listing (Begin) names tracks by audio id
 	paths map[string]bool // every path in Tracks and Legacy
+}
+
+// Tombstone is a track this computer holds that the server removed: trashed
+// in GetSetMix ("deleted") or gone from the server's disk ("missing")
+// (docs/design/library.md, 4.6).
+//
+// Handling it here only records it. The importer reads the recorded
+// tombstones and lists their tracks in the "GetSetMix: removed on server"
+// playlist, under its own safety; nothing is removed from the collection.
+// When the server lists the id again (a restore), the tombstone is dropped
+// and the importer takes the track out of that playlist.
+type Tombstone struct {
+	Path   string    `json:"path"`             // the server path the track was fetched from
+	At     time.Time `json:"at"`               // when this computer handled the tombstone
+	Reason string    `json:"reason,omitempty"` // "deleted" or "missing"
+	// Recycle is set while the local file still has to go to the recycle
+	// bin (the option was on when the tombstone was handled, and no try has
+	// worked yet); Recycled once it went.
+	Recycle  bool `json:"recycle,omitempty"`
+	Recycled bool `json:"recycled,omitempty"`
+}
+
+// UnmarshalJSON also reads the form the design first gave a value: the
+// time alone.
+func (t *Tombstone) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		*t = Tombstone{}
+		return json.Unmarshal(data, &t.At)
+	}
+	type plain Tombstone
+	return json.Unmarshal(data, (*plain)(t))
 }
 
 // Track is one fetched track in a version 2 state.
@@ -61,15 +92,15 @@ type Track struct {
 // server no longer has it. When a server path was replaced by other audio,
 // Empty reports whether the state knows no track at all: nothing fetched,
 // nothing removed. Setup seeds only an empty state, never one in use.
-func (s *State) Empty() bool {
+func (s *Fetched) Empty() bool {
 	return len(s.Tracks) == 0 && len(s.Legacy) == 0 && len(s.Removed) == 0
 }
 
 // two ids share the path and only the newest one speaks for the file.
-func (s *State) Stale(folder string) map[string]string {
+func (s *Fetched) Stale(folder string) map[string]string {
 	newest := map[string]string{}
 	for id, t := range s.Tracks {
-		p, err := Local(folder, t.Path)
+		p, err := track.Local(folder, t.Path)
 		if err != nil {
 			continue
 		}
@@ -90,7 +121,7 @@ func (s *State) Stale(folder string) map[string]string {
 
 // Remember notes the tags this computer has seen for the track with audio id;
 // whatever was waiting for the importer has been handled.
-func (s *State) Remember(id string, tags track.Tags) {
+func (s *Fetched) Remember(id string, tags track.Tags) {
 	if t, ok := s.Tracks[id]; ok {
 		t.Tags, t.Pending = &tags, false
 		s.Tracks[id] = t
@@ -99,7 +130,7 @@ func (s *State) Remember(id string, tags track.Tags) {
 
 // Newer reports whether the listing holds a newer copy of a fetched track:
 // its rev is above the one this computer holds.
-func (s *State) Newer(f File) bool {
+func (s *Fetched) Newer(f track.File) bool {
 	if !s.byID || f.ID == "" {
 		return false
 	}
@@ -107,15 +138,15 @@ func (s *State) Newer(f File) bool {
 	return ok && f.Rev > t.Rev
 }
 
-// NewState is an empty state, written as version 1 until a protocol 2 server
+// NewFetched is an empty state, written as version 1 until a protocol 2 server
 // is seen.
-func NewState() *State {
-	s := &State{Version: 1}
+func NewFetched() *Fetched {
+	s := &Fetched{Version: 1}
 	s.init()
 	return s
 }
 
-func (s *State) init() {
+func (s *Fetched) init() {
 	if s.Version == 0 {
 		s.Version = 1
 	}
@@ -134,7 +165,7 @@ func (s *State) init() {
 // state becomes version 2, and every listed file whose path is known by path
 // only gets its audio id: with the listed rev when the local file in folder
 // has the listed size, and rev 0 otherwise, so it counts as changed.
-func (s *State) Begin(l Listing, folder string) {
+func (s *Fetched) Begin(l track.Listing, folder string) {
 	s.init()
 	s.byID = l.ByID()
 	if s.byID {
@@ -151,7 +182,7 @@ func (s *State) Begin(l Listing, folder string) {
 				continue
 			}
 			rev := f.Rev
-			if dest, err := Local(folder, f.Path); err != nil || !sizeIs(dest, f.Size) {
+			if dest, err := track.Local(folder, f.Path); err != nil || !track.HasSize(dest, f.Size) {
 				rev = 0
 			}
 			s.Tracks[f.ID] = Track{Path: f.Path, Rev: rev, At: at}
@@ -169,7 +200,7 @@ func (s *State) Begin(l Listing, folder string) {
 
 // Has reports whether f was fetched before: by audio id from a protocol 2
 // server, by path from an older one.
-func (s *State) Has(f File) bool {
+func (s *Fetched) Has(f track.File) bool {
 	if s.byID && f.ID != "" {
 		_, ok := s.Tracks[f.ID]
 		return ok
@@ -178,9 +209,9 @@ func (s *State) Has(f File) bool {
 }
 
 // Record notes that f is on this computer now.
-func (s *State) Record(f File, now time.Time) {
+func (s *Fetched) Record(f track.File, now time.Time) {
 	if s.paths == nil {
-		s.Begin(Listing{}, "")
+		s.Begin(track.Listing{}, "")
 	}
 	if s.byID && f.ID != "" {
 		s.Tracks[f.ID] = Track{Path: f.Path, Rev: f.Rev, At: now}
@@ -192,7 +223,7 @@ func (s *State) Record(f File, now time.Time) {
 
 // RecordAll notes every file of l as fetched, so only tracks the server gets
 // from now on are downloaded.
-func (s *State) RecordAll(l Listing, now time.Time) {
+func (s *Fetched) RecordAll(l track.Listing, now time.Time) {
 	s.Begin(l, "")
 	for _, f := range l.Files {
 		s.Record(f, now)
@@ -201,7 +232,7 @@ func (s *State) RecordAll(l Listing, now time.Time) {
 
 // SkippedSummary says how many listed files this computer does not download
 // and why; empty when there are none.
-func (s *State) SkippedSummary() string {
+func (s *Fetched) SkippedSummary() string {
 	total := 0
 	exts := make([]string, 0, len(s.Skipped))
 	for ext, n := range s.Skipped {
@@ -240,7 +271,7 @@ type stateV2 struct {
 }
 
 // MarshalJSON writes the state in its version's format.
-func (s *State) MarshalJSON() ([]byte, error) {
+func (s *Fetched) MarshalJSON() ([]byte, error) {
 	s.init()
 	if s.Version < 2 {
 		return json.Marshal(stateV1{Fetched: s.Legacy, Skipped: s.Skipped})
@@ -250,7 +281,7 @@ func (s *State) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON reads either version.
-func (s *State) UnmarshalJSON(data []byte) error {
+func (s *Fetched) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		stateV2
 		Fetched map[string]time.Time `json:"fetched"`
@@ -258,52 +289,48 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	*s = State{Version: raw.Version, Tracks: raw.Tracks, Legacy: raw.Legacy,
+	*s = Fetched{Version: raw.Version, Tracks: raw.Tracks, Legacy: raw.Legacy,
 		Removed: raw.Removed, Skipped: raw.Skipped}
 	if raw.Version < 2 {
-		*s = State{Version: 1, Legacy: raw.Fetched, Skipped: raw.Skipped}
+		*s = Fetched{Version: 1, Legacy: raw.Fetched, Skipped: raw.Skipped}
 	}
 	s.init()
 	return nil
 }
 
-// LoadState reads the state from dir; a missing file is an empty state.
-func LoadState(dir string) (*State, error) {
-	data, err := os.ReadFile(filepath.Join(dir, stateFile))
+// loadFetched reads fetched.json from dir; a missing file is an empty state.
+func loadFetched(dir string) (*Fetched, error) {
+	data, err := os.ReadFile(filepath.Join(dir, fetchedFile))
 	if errors.Is(err, os.ErrNotExist) {
-		return NewState(), nil
+		return NewFetched(), nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	s := &State{}
+	s := &Fetched{}
 	if err := json.Unmarshal(data, s); err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
-// Save writes the state to dir. The first time a version 2 state replaces a
-// version 1 file, the old file is kept as fetched.v1.json.
-func (s *State) Save(dir string) error {
-	data, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
-	}
+// save writes fetched.json to dir. The first time a version 2 state
+// replaces a version 1 file, the old file is kept as fetched.v1.json.
+func (s *Fetched) save(dir string) error {
 	if s.Version >= 2 {
 		if err := keepV1(dir); err != nil {
 			return err
 		}
 	}
-	return atomicfile.WriteFile(filepath.Join(dir, stateFile), append(data, '\n'), 0o644)
+	return atomicfile.WriteJSON(filepath.Join(dir, fetchedFile), s)
 }
 
 func keepV1(dir string) error {
-	keep := filepath.Join(dir, stateFileV1)
+	keep := filepath.Join(dir, fetchedFileV1)
 	if _, err := os.Stat(keep); err == nil {
 		return nil
 	}
-	old, err := os.ReadFile(filepath.Join(dir, stateFile))
+	old, err := os.ReadFile(filepath.Join(dir, fetchedFile))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}

@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
 )
 
 type fakeServer struct {
@@ -50,7 +53,7 @@ func TestRunDownloadsOnceAndRespectsDeletes(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "C - Three.mp3"), []byte("three"), 0o644)
 
 	c := &Client{Server: Server{URL: srv.URL + "/", Token: "tok", Folder: dir}}
-	state := NewState()
+	state := ledger.NewFetched()
 	rep, err := c.Run(context.Background(), state, time.Now)
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +93,7 @@ func TestShortDownloadIsRetried(t *testing.T) {
 	defer srv.Close()
 	dir := t.TempDir()
 	c := &Client{Server: Server{URL: srv.URL, Token: "tok", Folder: dir}}
-	state := NewState()
+	state := ledger.NewFetched()
 	rep, err := c.Run(context.Background(), state, time.Now)
 	if err != nil || len(rep.Failed) != 1 || len(state.Legacy) != 0 {
 		t.Fatalf("%+v %v", rep, err)
@@ -104,7 +107,7 @@ func TestUnauthorized(t *testing.T) {
 	srv := httptest.NewServer((&fakeServer{}).handler(t))
 	defer srv.Close()
 	c := &Client{Server: Server{URL: srv.URL, Token: "wrong", Folder: t.TempDir()}}
-	if _, err := c.Run(context.Background(), NewState(), time.Now); err != ErrUnauthorized {
+	if _, err := c.Run(context.Background(), ledger.NewFetched(), time.Now); err != ErrUnauthorized {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -122,15 +125,13 @@ func TestLocalRefusesEscapes(t *testing.T) {
 
 func TestStateRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	s, err := LoadState(dir)
+	s, err := ledger.ReadFetched(dir)
 	if err != nil || len(s.Legacy) != 0 || len(s.Tracks) != 0 {
 		t.Fatal(s, err)
 	}
 	s.Record(File{Path: "a.mp3"}, time.Unix(5, 0))
-	if err := s.Save(dir); err != nil {
-		t.Fatal(err)
-	}
-	s2, _ := LoadState(dir)
+	ledgertest.Save(t, dir, s)
+	s2, _ := ledger.ReadFetched(dir)
 	if !s2.Legacy["a.mp3"].Equal(time.Unix(5, 0)) {
 		t.Fatal(s2)
 	}

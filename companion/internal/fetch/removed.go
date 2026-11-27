@@ -1,44 +1,13 @@
 package fetch
 
 import (
-	"encoding/json"
 	"os"
 	"sort"
 	"time"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/recycle"
 )
-
-// Tombstone is a track this computer holds that the server removed: trashed
-// in GetSetMix ("deleted") or gone from the server's disk ("missing")
-// (docs/design/library.md, 4.6).
-//
-// Handling it here only records it. The importer reads the recorded
-// tombstones and lists their tracks in the "GetSetMix: removed on server"
-// playlist, under its own safety; nothing is removed from the collection.
-// When the server lists the id again (a restore), the tombstone is dropped
-// and the importer takes the track out of that playlist.
-type Tombstone struct {
-	Path   string    `json:"path"`             // the server path the track was fetched from
-	At     time.Time `json:"at"`               // when this computer handled the tombstone
-	Reason string    `json:"reason,omitempty"` // "deleted" or "missing"
-	// Recycle is set while the local file still has to go to the recycle
-	// bin (the option was on when the tombstone was handled, and no try has
-	// worked yet); Recycled once it went.
-	Recycle  bool `json:"recycle,omitempty"`
-	Recycled bool `json:"recycled,omitempty"`
-}
-
-// UnmarshalJSON also reads the form the design first gave a value: the
-// time alone.
-func (t *Tombstone) UnmarshalJSON(data []byte) error {
-	if len(data) > 0 && data[0] == '"' {
-		*t = Tombstone{}
-		return json.Unmarshal(data, &t.At)
-	}
-	type plain Tombstone
-	return json.Unmarshal(data, (*plain)(t))
-}
 
 func (c *Client) recycle(path string) error {
 	if c.Recycle != nil {
@@ -50,7 +19,7 @@ func (c *Client) recycle(path string) error {
 // tombstones records the listing's removed tracks that this computer holds,
 // drops the ones the server lists again, and, with the option on, sends the
 // local files of newly removed tracks to the recycle bin.
-func (c *Client) tombstones(l Listing, state *State, now time.Time, rep *Report) {
+func (c *Client) tombstones(l Listing, state *ledger.Fetched, now time.Time, rep *Report) {
 	if !l.ByID() {
 		return
 	}
@@ -101,7 +70,7 @@ func (c *Client) tombstones(l Listing, state *State, now time.Time, rep *Report)
 		}
 		// Only a track deleted in GetSetMix. A file that vanished from the
 		// server's disk was nobody's decision, and this copy may be the last.
-		state.Removed[r.ID] = Tombstone{Path: serverPath, At: now, Reason: r.Reason,
+		state.Removed[r.ID] = ledger.Tombstone{Path: serverPath, At: now, Reason: r.Reason,
 			Recycle: c.Server.DeleteRemovedFiles && r.Reason == "deleted"}
 		rep.Removed = append(rep.Removed, serverPath)
 	}

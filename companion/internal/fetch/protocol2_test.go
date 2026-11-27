@@ -12,6 +12,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
 )
 
 // server serves a fixed listing and the bytes of each listed path.
@@ -56,7 +59,7 @@ func writeFile(t *testing.T, dir, rel, body string) {
 	}
 }
 
-func run(t *testing.T, c *Client, state *State) Report {
+func run(t *testing.T, c *Client, state *ledger.Fetched) Report {
 	t.Helper()
 	rep, err := c.Run(context.Background(), state, func() time.Time { return time.Unix(1_800_000_000, 0) })
 	if err != nil {
@@ -77,12 +80,12 @@ func TestProtocol2DownloadsByAudioID(t *testing.T) {
 		file("a.mp3", "aaaa", "a1_a", 3), file("b.flac", "bbbbb", "a1_b", 9),
 	}}
 	c := s.start(t)
-	state := NewState()
+	state := ledger.NewFetched()
 	rep := run(t, c, state)
 	if len(rep.Downloaded) != 2 || rep.Offered != 2 {
 		t.Fatalf("report %+v", rep)
 	}
-	if state.Version != 2 || state.Tracks["a1_a"] != (Track{Path: "a.mp3", Rev: 3, At: time.Unix(1_800_000_000, 0)}) ||
+	if state.Version != 2 || state.Tracks["a1_a"] != (ledger.Track{Path: "a.mp3", Rev: 3, At: time.Unix(1_800_000_000, 0)}) ||
 		state.Tracks["a1_b"].Rev != 9 || len(state.Legacy) != 0 {
 		t.Fatalf("state %+v", state)
 	}
@@ -102,7 +105,7 @@ func TestDeletingHereSticksUnderProtocol2(t *testing.T) {
 	s := &server{files: map[string]string{"a.mp3": "aaaa"}}
 	s.listing = Listing{Protocol: 2, Files: []File{file("a.mp3", "aaaa", "a1_a", 1)}}
 	c := s.start(t)
-	state := NewState()
+	state := ledger.NewFetched()
 	run(t, c, state)
 	os.Remove(filepath.Join(c.Server.Folder, "a.mp3"))
 	s.served = nil
@@ -129,7 +132,7 @@ func TestFilesRekordboxCannotImportAreSkipped(t *testing.T) {
 		}
 		s.listing = Listing{Protocol: protocol, Files: files}
 		c := s.start(t)
-		state := NewState()
+		state := ledger.NewFetched()
 		rep := run(t, c, state)
 
 		if got := sorted(s.served); strings.Join(got, ",") != "a.mp3,b.flac,f.wav" {
@@ -149,10 +152,8 @@ func TestFilesRekordboxCannotImportAreSkipped(t *testing.T) {
 		}
 		// `status` reads it back from the saved state.
 		dir := t.TempDir()
-		if err := state.Save(dir); err != nil {
-			t.Fatal(err)
-		}
-		again, err := LoadState(dir)
+		ledgertest.Save(t, dir, state)
+		again, err := ledger.ReadFetched(dir)
 		if err != nil || again.SkippedSummary() != want {
 			t.Fatalf("protocol %d: after a reload %q %v", protocol, again.SkippedSummary(), err)
 		}
@@ -162,7 +163,7 @@ func TestFilesRekordboxCannotImportAreSkipped(t *testing.T) {
 			t.Fatalf("protocol %d: a skipped file counts as fetched", protocol)
 		}
 	}
-	if (&State{}).SkippedSummary() != "" {
+	if (&ledger.Fetched{}).SkippedSummary() != "" {
 		t.Fatal("summary with nothing skipped")
 	}
 }
@@ -175,24 +176,22 @@ func TestProtocol1ServerKeepsTheVersion1State(t *testing.T) {
 		`{"path":"b.mp3","size":2,"mtime":1700000000}]}`
 	c := s.start(t)
 	home := t.TempDir()
-	state, _ := LoadState(home)
+	state, _ := ledger.ReadFetched(home)
 	rep := run(t, c, state)
 	if len(rep.Downloaded) != 2 {
 		t.Fatalf("report %+v", rep)
 	}
-	if err := state.Save(home); err != nil {
-		t.Fatal(err)
-	}
+	ledgertest.Save(t, home, state)
 	var onDisk map[string]json.RawMessage
-	data, _ := os.ReadFile(filepath.Join(home, stateFile))
+	data, _ := os.ReadFile(filepath.Join(home, "fetched.json"))
 	json.Unmarshal(data, &onDisk)
 	if _, ok := onDisk["fetched"]; !ok || onDisk["version"] != nil || onDisk["tracks"] != nil {
 		t.Fatalf("not a version 1 file: %s", data)
 	}
-	if _, err := os.Stat(filepath.Join(home, stateFileV1)); err == nil {
+	if _, err := os.Stat(filepath.Join(home, "fetched.v1.json")); err == nil {
 		t.Fatal("fetched.v1.json written without a migration")
 	}
-	state, _ = LoadState(home)
+	state, _ = ledger.ReadFetched(home)
 	s.served = nil
 	if rep := run(t, c, state); len(rep.Downloaded) != 0 || len(s.served) != 0 {
 		t.Fatalf("fetched again: %+v", rep)
@@ -259,19 +258,17 @@ func TestMigrationToVersion2(t *testing.T) {
   }
 }
 `)
-	os.WriteFile(filepath.Join(home, stateFile), v1, 0o644)
+	os.WriteFile(filepath.Join(home, "fetched.json"), v1, 0o644)
 	writeFile(t, c.Server.Folder, "same.mp3", "same")
 	writeFile(t, c.Server.Folder, "edited.mp3", "old bytes") // the local size differs
 	// "deleted here.mp3" was deleted by the DJ.
 
-	state, err := LoadState(home)
+	state, err := ledger.ReadFetched(home)
 	if err != nil || state.Version != 1 || len(state.Legacy) != 4 {
 		t.Fatalf("v1 state %+v %v", state, err)
 	}
 	rep := run(t, c, state)
-	if err := state.Save(home); err != nil {
-		t.Fatal(err)
-	}
+	ledgertest.Save(t, home, state)
 
 	// The new track is fetched, and so is the one whose local size differs
 	// (rev 0: it counts as changed); the one deleted here is not.
@@ -283,13 +280,13 @@ func TestMigrationToVersion2(t *testing.T) {
 		t.Fatalf("edited.mp3 holds %q", got)
 	}
 	at := func(day int) time.Time { return time.Date(2026, 10, day, 18, 0, 0, 0, time.UTC) }
-	want := map[string]Track{
+	want := map[string]ledger.Track{
 		"a1_same":    {Path: "same.mp3", Rev: 10, At: at(1)},
 		editedID:     {Path: "edited.mp3", Rev: 40, At: time.Unix(1_800_000_000, 0)},
 		"a1_deleted": {Path: "deleted here.mp3", Rev: 11, At: at(3)},
 		"a1_new":     {Path: "new.mp3", Rev: 45, At: time.Unix(1_800_000_000, 0)},
 	}
-	state, _ = LoadState(home)
+	state, _ = ledger.ReadFetched(home)
 	if state.Version != 2 || len(state.Tracks) != len(want) {
 		t.Fatalf("v2 state %+v", state)
 	}
@@ -305,12 +302,12 @@ func TestMigrationToVersion2(t *testing.T) {
 		t.Errorf("removed %v", state.Removed)
 	}
 
-	kept, err := os.ReadFile(filepath.Join(home, stateFileV1))
+	kept, err := os.ReadFile(filepath.Join(home, "fetched.v1.json"))
 	if err != nil || !bytes.Equal(kept, v1) {
 		t.Fatalf("fetched.v1.json %q %v", kept, err)
 	}
 	var onDisk map[string]json.RawMessage
-	data, _ := os.ReadFile(filepath.Join(home, stateFile))
+	data, _ := os.ReadFile(filepath.Join(home, "fetched.json"))
 	json.Unmarshal(data, &onDisk)
 	for _, k := range []string{"version", "tracks", "legacy", "removed"} {
 		if onDisk[k] == nil {
@@ -322,10 +319,8 @@ func TestMigrationToVersion2(t *testing.T) {
 	}
 
 	// Saving again leaves the kept file alone.
-	if err := state.Save(home); err != nil {
-		t.Fatal(err)
-	}
-	if again, _ := os.ReadFile(filepath.Join(home, stateFileV1)); !bytes.Equal(again, v1) {
+	ledgertest.Save(t, home, state)
+	if again, _ := os.ReadFile(filepath.Join(home, "fetched.v1.json")); !bytes.Equal(again, v1) {
 		t.Fatal("fetched.v1.json overwritten")
 	}
 
@@ -350,7 +345,7 @@ func TestVersion2StateAgainstAProtocol1Listing(t *testing.T) {
 	s := &server{files: map[string]string{"a.mp3": "aaaa", "b.mp3": "bb"}}
 	s.listing = Listing{Protocol: 2, Files: []File{file("a.mp3", "aaaa", "a1_a", 1)}}
 	c := s.start(t)
-	state := NewState()
+	state := ledger.NewFetched()
 	run(t, c, state)
 
 	s.listing = Listing{Files: []File{file("a.mp3", "aaaa", "", 0), file("b.mp3", "bb", "", 0)}}

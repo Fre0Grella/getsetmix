@@ -288,7 +288,7 @@ func (w *Wizard) pcStep(ctx context.Context, mode, id string) (string, error) {
 			return "", err
 		}
 		if cfg.Server != nil {
-			if err := w.seedFetchState(ctx, *cfg.Server, c.CopyExisting); err != nil {
+			if err := fetch.Seed(ctx, o.Home, *cfg.Server, c.CopyExisting, time.Now()); err != nil {
 				return "", err
 			}
 		}
@@ -385,37 +385,6 @@ func same(a, b string) bool {
 	ia, err1 := os.Stat(a)
 	ib, err2 := os.Stat(b)
 	return err1 == nil && err2 == nil && os.SameFile(ia, ib)
-}
-
-// seedFetchState decides what the first fetch downloads: everything the
-// server has, or (copyExisting false) only what arrives from now on.
-//
-// Only on first pairing: a computer that already fetched keeps its state,
-// whatever the choice, or Setup run again would forget what it holds and
-// what the server removed, and fetch again over local files. It writes
-// under the fetch lock, like every other writer of fetched.json.
-func (w *Wizard) seedFetchState(ctx context.Context, srv fetch.Server, copyExisting bool) error {
-	unlock, err := fetch.Lock(w.opts.Home)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-	if held, err := fetch.LoadState(w.opts.Home); err != nil {
-		return err
-	} else if !held.Empty() {
-		return nil
-	}
-	state := fetch.NewState()
-	if !copyExisting {
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		l, err := (&fetch.Client{Server: srv}).List(ctx)
-		if err != nil {
-			return err
-		}
-		state.RecordAll(l, time.Now())
-	}
-	return state.Save(w.opts.Home)
 }
 
 // fetchApp downloads the GetSetMix app for this platform: from the release

@@ -84,6 +84,10 @@ Writing to another program's database deserves suspicion, so:
   before writing.
 - **Nothing is opened unless something is new.** The usual run is a folder
   scan and an exit.
+- **One import at a time.** The launcher, the scheduled fetch and `watch`
+  can each start one; a second waits up to 30 s for the first (`sync.lock`)
+  and otherwise leaves its tracks to the next one, so two never write
+  `master.db` or the backup at once.
 - **Backup first, one transaction, integrity check after.** `master.db` and
   `masterPlaylists6.xml` are copied to `backup/` before every write; if the
   write or SQLite's `quick_check` fails, the backup is put back.
