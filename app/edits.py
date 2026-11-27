@@ -168,6 +168,7 @@ class Edits:
         self._idle = threading.Event()
         self._idle.set()
         self._current: dict[int, str] = {}  # edit id -> the file being written
+        self._cancel: set[int] = set()       # edits asked to stop after the file in hand
 
     def recover(self) -> int:
         """At startup: an edit left `applying` by a stop is `interrupted`."""
@@ -621,6 +622,22 @@ class Edits:
         self._idle.clear()
         threading.Thread(target=self._run, args=(eid,), name=f"edit-{eid}", daemon=True).start()
 
+    def cancel(self, eid: int) -> dict:
+        """Stop an apply after the file in hand (design 4.4): what was written
+        stays and can be undone; applying again carries on. Raises
+        LibraryError: 404 unknown edit, 409 not applying."""
+        with self._starting:
+            with self.db.transaction() as conn:
+                e = conn.execute("SELECT state FROM edits WHERE id = ?", (eid,)).fetchone()
+            if e is None:
+                raise LibraryError(404, "no such edit")
+            if e["state"] != "applying":
+                raise LibraryError(409, "only an edit being applied can be stopped")
+            self._cancel.add(eid)
+        out = self.get(eid)
+        assert out is not None
+        return out
+
     # -------------------------------------------------------------- undo
     def undo(self, eid: int, files=None) -> dict:
         """Revert an edit, whole or for some tracks, as a new edit that starts
@@ -761,15 +778,20 @@ class Edits:
                     f"SELECT file_id FROM edit_changes WHERE edit_id = ? AND state IN ({marks}) "
                     "GROUP BY file_id ORDER BY MIN(id)", (eid, *TO_WRITE))]
             for fid in fids:
+                if eid in self._cancel:
+                    state = "cancelled"
+                    break
                 with self.db.transaction() as conn:
                     rows = conn.execute(
                         f"SELECT * FROM edit_changes WHERE edit_id = ? AND file_id = ? "
                         f"AND state IN ({marks})", (eid, fid, *TO_WRITE)).fetchall()
                 self._write(eid, fid, [dict(r) for r in rows])
-            state = "applied"
+            else:
+                state = "applied"
         except Exception:
             log.exception("edit %s: the apply stopped", eid)
         finally:
+            self._cancel.discard(eid)
             with self.db.transaction() as conn:
                 conn.execute("UPDATE edits SET state = ?, finished_at = ? WHERE id = ?",
                              (state, dbmod.iso(self.clock()), eid))
@@ -801,6 +823,9 @@ class Edits:
         except OSError as exc:
             reason = "no space" if exc.errno == errno.ENOSPC else "write error"
             state, error = "failed", f"{reason}: {exc}"
+        except Exception as exc:   # anything else from the tagger fails this file only
+            log.exception("edit %s: writing file %s failed", eid, fid)
+            state, error = "failed", f"write error: {exc}"
         with self.db.transaction() as conn:
             conn.executemany("UPDATE edit_changes SET state = ?, error = ?, old_value = ? "
                              "WHERE id = ?", [(state, error, r["old_value"], r["id"]) for r in rows])

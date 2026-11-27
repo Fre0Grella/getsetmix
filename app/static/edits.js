@@ -31,6 +31,8 @@ Object.assign(STR.en, {
   edCoverNew: "new image", edCoverNone: "no cover", edCoverHad: "its cover",
   edStep: { 1: "1 of 3 · What", 2: "2 of 3 · Check", 3: "3 of 3 · Apply" },
   edQuickTitle: "Clean up with a rule set", edOrField: "Or change fields", edBack: "Back",
+  edStop: "Stop", edStopping: "Stopping after the file being written…",
+  edStopped: "Stopped. Apply again to carry on, or undo what was written.",
   edAll: "All", edWarned: "With a warning", edKeepTrack: "Keep this track in the edit",
   edKeepChange: "Keep this change",
   edResend: (t, mb) => `${plural(t, "Each paired computer downloads 1 track again", "Each paired computer downloads {n} tracks again")} (${mb} MB).`,
@@ -73,6 +75,8 @@ Object.assign(STR.it, {
   edCoverNew: "nuova immagine", edCoverNone: "nessuna copertina", edCoverHad: "la sua copertina",
   edStep: { 1: "1 di 3 · Cosa", 2: "2 di 3 · Controlla", 3: "3 di 3 · Applica" },
   edQuickTitle: "Pulisci con un insieme di regole", edOrField: "Oppure cambia dei campi", edBack: "Indietro",
+  edStop: "Ferma", edStopping: "Mi fermo dopo il file che sto scrivendo…",
+  edStopped: "Fermata. Applica di nuovo per continuare, o annulla quello che è stato scritto.",
   edAll: "Tutte", edWarned: "Con un avviso", edKeepTrack: "Tieni questo brano nella modifica",
   edKeepChange: "Tieni questa modifica",
   edResend: (t, mb) => `${plural(t, "Ogni computer abbinato riscarica 1 brano", "Ogni computer abbinato riscarica {n} brani")} (${mb} MB).`,
@@ -443,6 +447,7 @@ function edButton(edit) {
   const p = edit.progress;
   let text = "";
   if (edit.state === "preview" && s.pending) text = T.edApply(s.pending, p.files_total);
+  else if (edit.state === "cancelled" && (s.pending || s.failed)) text = T.edApply((s.pending || 0) + (s.failed || 0), p.files_total - p.files_done);
   else if (edit.state !== "applying" && edit.state !== "preview" && s.failed) text = T.edRetry(p.files_failed);
   btn.textContent = text;
   btn.classList.toggle("hidden", !text);
@@ -464,6 +469,7 @@ function edProgress(edit) {
   const done = p.files_done + p.files_failed + p.files_conflict;
   const box = $("#edProgress");
   box.classList.toggle("hidden", edit.state !== "applying");
+  $("#edStop").classList.toggle("hidden", edit.state !== "applying");
   $("#edProgressText").textContent = T.edWriting(done, p.files_total);
   $("#edProgressFill").style.width = `${p.files_total ? ((done / p.files_total) * 100).toFixed(1) : 0}%`;
 }
@@ -474,6 +480,7 @@ function edResult(edit) {
   if (p.files_done) lines.push(T.edDone(p.files_done));
   if (p.files_failed) lines.push(T.edFailed(p.files_failed));
   if (p.files_conflict) lines.push(T.edConflict(p.files_conflict));
+  if (edit.state === "cancelled") lines.push(T.edStopped);
   const el = $("#edResult");
   el.textContent = lines.join(" ");
   el.classList.toggle("hidden", !lines.length);
@@ -521,6 +528,17 @@ $("#edApply").addEventListener("click", async () => {
   } finally {
     Ed.busy = false;
   }
+});
+
+// Stop: the file in hand is finished, then the apply ends (`cancelled`).
+$("#edStop").addEventListener("click", async () => {
+  const edit = Ed.edit;
+  if (!edit || edit.state !== "applying") return;
+  $("#edStop").disabled = true;
+  try {
+    await api(`/api/library/edits/${edit.id}/cancel`, { method: "POST" });
+    toast(T.edStopping);
+  } catch (err) { toast(err.message); } finally { $("#edStop").disabled = false; }
 });
 
 // Undo: a new edit that writes the old values back, followed like an apply.
