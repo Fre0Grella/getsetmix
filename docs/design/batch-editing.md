@@ -1262,3 +1262,21 @@ comment and cover:
 - UI: a *Cover* row in the Fields tab (*New image* with a file, or *Remove*),
   uploaded when the preview is made; the preview says *its cover*, *new
   image* or *no cover*.
+
+**Slice 7** ([#52](https://github.com/Fre0Grella/getsetmix/issues/52)), the
+phone sheet:
+
+- Below 721 px the edit panel becomes the three steps of 4.3 on the same
+  element (`ed-phone`, `data-step`), with the same requests as the desktop.
+  The head says where you are (*1 of 3 · What*).
+- **1. What**: every rule set as one big button, its rules named under it in
+  the UI's language from the catalogue (a built-in set's name too); one tap
+  makes the preview. Below, the field rows and the whole-view choice. The
+  Cleanup tab (building and reordering sets) stays on the desktop.
+- **2. Check**: one card per track, tracks with a warning first; a switch
+  keeps or leaves out the track, a tap on a change leaves it out or puts it
+  back (`PATCH`), and the changed part is marked as on the desktop. *Back*
+  and *Apply* sit at the bottom; the sheet closes from its head.
+- **3. Apply**: the progress, the counts, then only the cards that failed or
+  met a conflict, with *Try again* and *Undo*.
+- Checked with 154 tracks and 308 changes on a 360 px screen.

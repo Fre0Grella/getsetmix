@@ -388,12 +388,21 @@
   <div id="edModal" class="modal modal--panel hidden" role="dialog" aria-modal="true" aria-labelledby="edTitle">
     <div class="modal-card">
       <div class="modal-head">
-        <h2 id="edTitle"></h2>
+        <div class="ed-head">
+          <h2 id="edTitle"></h2>
+          <p id="edStep" class="ed-step"></p>
+        </div>
         <button type="button" class="icon-btn modal-close" data-close aria-label="Close" data-i18n-aria="close">
           <svg viewBox="0 0 24 24"><use href="#i-close" /></svg>
         </button>
       </div>
       <div class="modal-body ed-body">
+        <!-- On a phone (design 4.3): 1 What, 2 Check, 3 Apply. A rule set is one tap. -->
+        <section id="edQuick" class="ed-quick" aria-labelledby="edQuickTitle">
+          <h3 id="edQuickTitle" class="ed-sub" data-i18n="edQuickTitle">Clean up with a rule set</h3>
+          <div id="edQuickSets" class="ed-quick-sets"></div>
+          <h3 class="ed-sub" data-i18n="edOrField">Or change fields</h3>
+        </section>
         <form id="edForm" class="ed-form" novalidate autocomplete="off">
           <fieldset id="edScope" class="ed-scope hidden">
             <label><input type="radio" name="edScope" value="ids" checked /> <span id="edScopeIds"></span></label>
@@ -434,6 +443,7 @@
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-quiet" data-close data-i18n="close">Close</button>
+        <button id="edBack" type="button" class="btn btn-quiet" data-i18n="edBack">Back</button>
         <button id="edUndo" type="button" class="btn btn-quiet hidden" data-i18n="edUndo">Undo</button>
         <button id="edApply" type="button" class="btn btn-primary hidden"></button>
       </div>

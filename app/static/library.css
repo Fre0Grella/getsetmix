@@ -311,9 +311,9 @@ body.lib-selecting #libSearchForm { display: none; }
 .ed-row[data-state="blocked"] .ed-state { color: var(--danger); }
 .ed-change { min-width: 0; color: var(--text-2); overflow-wrap: anywhere; }
 .ed-old { color: var(--text-3); }
-.ed-old del { text-decoration: line-through; background: color-mix(in oklch, var(--danger) 14%, transparent); border-radius: 3px; }
+.ed-old del, .ed-card-was del { text-decoration: line-through; background: color-mix(in oklch, var(--danger) 14%, transparent); border-radius: 3px; }
 .ed-new { color: var(--text); font-weight: 500; }
-.ed-new mark { color: inherit; background: var(--accent-wash); box-shadow: inset 0 -2px 0 var(--accent); border-radius: 3px; }
+.ed-new mark, .ed-card-now mark { color: inherit; background: var(--accent-wash); box-shadow: inset 0 -2px 0 var(--accent); border-radius: 3px; }
 .ed-why { grid-column: 2 / -1; color: var(--danger); font-size: .8rem; }
 .ed-filter:empty { display: none; }
 /* Tabs: Fields and Cleanup. */
@@ -358,6 +358,62 @@ body.lib-selecting #libSearchForm { display: none; }
 .ed-line-what { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .ed-line-meta { grid-column: 1; color: var(--text-3); font-size: .82rem; }
 body.lib-in-trash #libHistoryBtn { display: none; }
+
+/* ---------------------- batch editing on a phone: three steps (#52) */
+.ed-head { min-width: 0; }
+.ed-step { margin: 2px 0 0; color: var(--text-3); font-size: .82rem; font-weight: 600; }
+.ed-sub { margin: 0; font-size: .9rem; color: var(--text-2); }
+.ed-quick { display: flex; flex-direction: column; gap: 10px; }
+.ed-quick-sets { display: flex; flex-direction: column; gap: 8px; }
+.ed-quick-set {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+  min-height: 56px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.ed-quick-set strong { font-size: 1rem; }
+.ed-quick-set small { color: var(--text-3); font-size: .8rem; line-height: 1.35; }
+.ed-quick-set:active { background: var(--accent-wash); border-color: var(--accent); }
+/* Desktop shows none of it; the phone none of the desktop's tabs. */
+#edModal:not(.ed-phone) #edQuick, #edModal:not(.ed-phone) #edStep,
+#edModal:not(.ed-phone) #edBack { display: none; }
+#edModal.ed-phone .ed-tabs, #edModal.ed-phone #edCleanup { display: none; }
+#edModal.ed-phone:not([data-step="1"]) #edQuick, #edModal.ed-phone:not([data-step="1"]) #edForm { display: none; }
+#edModal.ed-phone[data-step="1"] #edPreview { display: none; }
+#edModal.ed-phone:not([data-step="2"]) #edBack { display: none; }
+#edModal.ed-phone[data-step="3"] #edFilter { display: none; }
+/* Step 2 has Back and Apply under the thumb; the sheet still closes from its head. */
+#edModal.ed-phone[data-step="2"] .modal-foot [data-close] { display: none; }
+/* The cards of step 2: one per track, a switch to keep it, each change a button. */
+.ed-card { display: flex; flex-direction: column; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.ed-card-head { display: flex; align-items: center; gap: 10px; min-height: 32px; }
+.ed-card-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-card-change {
+  display: flex; flex-direction: column; align-items: stretch; gap: 1px; width: 100%;
+  padding: 8px 10px; border: 1px solid var(--line-soft); border-radius: 10px;
+  background: var(--field); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.ed-card-change[aria-pressed="false"] { opacity: .5; }
+.ed-card-change[aria-pressed="false"] .ed-card-now { text-decoration: line-through; }
+.ed-card-change:disabled { cursor: default; }
+.ed-card-field { color: var(--text-3); font-size: .76rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.ed-card-was { color: var(--text-3); overflow-wrap: anywhere; }
+.ed-card-now { font-weight: 600; overflow-wrap: anywhere; }
+.ed-card-change .ed-why { font-size: .8rem; }
+.ed-card-change[data-state="applied"] { border-color: var(--accent); }
+/* A switch: a checkbox drawn as a track and a knob. */
+.ed-switch { position: relative; flex: none; width: 46px; height: 28px; }
+.ed-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.ed-switch span {
+  position: absolute; inset: 0; border-radius: 999px; background: var(--line); pointer-events: none;
+  transition: background-color .15s var(--ease);
+}
+.ed-switch span::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: transform .15s var(--ease);
+}
+.ed-switch input:checked + span { background: var(--accent); }
+.ed-switch input:checked + span::after { transform: translateX(18px); }
+.ed-switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* --------------------------------------------- wide screens: columns */
 @media (min-width: 721px) {
