@@ -1,6 +1,29 @@
 # CHANGELOG
 
 
+## v1.24.0 (2026-11-27)
+
+### Features
+
+- **library**: Stop an edit, and harden its apply
+  ([`57e9c1d`](https://github.com/Fre0Grella/getsetmix/commit/57e9c1d2e44a3d38ebf7f3f2c59415264f72c8cd))
+
+Batch editing, slice 8, without the manual Rekordbox checklist.
+
+- POST /api/library/edits/{id}/cancel stops after the file in hand; applying again carries on, undo
+  reverts what was written. A Stop button in the panel. - An unexpected tagger error fails that file
+  and the job goes on. - A file marked read-only by its owner is refused before any copy, with a
+  reason that says so (Windows reported it as in use). - Tests for every injected failure of the
+  design: read-only file, removed file, full disk at the copy, tagger failing on the n-th file, a
+  job killed midway, and a file held open on Windows.
+
+Refs #53
+
+Claude-Session: https://claude.ai/code/session_01P6dL1ubJcR7rkeStcK3oqS
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.23.0 (2026-11-27)
 
 ### Features
