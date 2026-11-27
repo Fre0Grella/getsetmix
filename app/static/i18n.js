@@ -109,6 +109,7 @@ export let T = STR[lang];
 // app/*.py, and tests/test_ui_words.py fails when a message has none.
 const SERVER_ERRORS_IT = [
   [/^no such track$/, "Brano non trovato"],
+  [/^at most (\d+) tracks at once$/, "Al massimo $1 brani alla volta"],
   [/^Track not found$/, "Brano non trovato"],
   [/^no such file$/, "File non trovato"],
   [/^the file is not on disk$/, "Il file non è sul disco"],
