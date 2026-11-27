@@ -1,6 +1,29 @@
 # CHANGELOG
 
 
+## v1.20.0 (2026-11-27)
+
+### Features
+
+- **library**: Field operations and edit by filter
+  ([`0c4f8ea`](https://github.com/Fre0Grella/getsetmix/commit/0c4f8ea9bcdefe2639a58e875611c13f79744115))
+
+Batch editing, slice 5.
+
+- Field operations clear, append, prepend and replace (plain text, whole word or not, case or not;
+  never a pattern) beside set, each aimed only at the fields it allows: title and artist are never
+  cleared. - A selection can be a filter of the Library list (q, genre, folder), resolved to ids
+  when the preview is made and frozen there. - Every edit says what paired computers download again
+  (resend). - The edit panel has one row per field, and offers the whole view when it holds more
+  tracks than the selection.
+
+Closes #50
+
+Claude-Session: https://claude.ai/code/session_01P6dL1ubJcR7rkeStcK3oqS
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.19.0 (2026-11-27)
 
 ### Features
