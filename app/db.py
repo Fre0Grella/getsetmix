@@ -7,7 +7,7 @@ import time
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .config import DATA_DIR
 
@@ -85,6 +85,42 @@ CREATE TABLE IF NOT EXISTS library_meta (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+-- Batch editing (docs/design/batch-editing.md, 3.6); written by app/edits.py.
+CREATE TABLE IF NOT EXISTS rule_sets (
+    id         INTEGER PRIMARY KEY,
+    name       TEXT    NOT NULL UNIQUE,
+    steps      TEXT    NOT NULL,
+    builtin    INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT    NOT NULL,
+    updated_at TEXT    NOT NULL
+);
+CREATE TABLE IF NOT EXISTS edits (
+    id          INTEGER PRIMARY KEY,
+    state       TEXT    NOT NULL,
+    label       TEXT    NOT NULL DEFAULT '',
+    selection   TEXT    NOT NULL,
+    steps       TEXT    NOT NULL,
+    catalogue   INTEGER NOT NULL,
+    library_rev INTEGER NOT NULL,
+    undo_of     INTEGER REFERENCES edits (id),
+    created_at  TEXT    NOT NULL,
+    applied_at  TEXT,
+    finished_at TEXT
+);
+CREATE TABLE IF NOT EXISTS edit_changes (
+    id        INTEGER PRIMARY KEY,
+    edit_id   INTEGER NOT NULL REFERENCES edits (id) ON DELETE CASCADE,
+    file_id   INTEGER NOT NULL,
+    audio_id  TEXT    NOT NULL,
+    field     TEXT    NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    by        TEXT    NOT NULL,
+    warnings  TEXT    NOT NULL DEFAULT '[]',
+    state     TEXT    NOT NULL,
+    error     TEXT    NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS edit_changes_edit ON edit_changes (edit_id, file_id);
 """
 
 # Track lifecycle:
@@ -98,7 +134,7 @@ ACTIVE_STATUSES = ("queued", "downloading", "tagging")
 def iso(ts: float) -> str:
     """A Unix time as every stored timestamp is written: UTC, to the second
     ("2026-11-24T10:00:00+00:00"), so they sort and compare as text."""
-    return datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds")
+    return datetime.fromtimestamp(ts, UTC).isoformat(timespec="seconds")
 
 
 def now_iso() -> str:

@@ -112,7 +112,7 @@ def _trim(fields, scope, p):
     def fix(v: str) -> str:
         out = []
         for ch in v:
-            if ch in "​﻿":  # zero-width space, byte-order mark
+            if ch in "\u200b\ufeff":  # zero-width space, byte-order mark
                 continue
             if ch.isspace():
                 out.append(" ")
@@ -586,8 +586,10 @@ RULES: tuple[Rule, ...] = (
     Rule(
         "feat.move",
         {"en": "Move the featured artist", "it": "Sposta l'artista ospite"},
-        {"en": "Moves the featured artist into the title (default) or into the artist. Run it after the spelling rule.",
-         "it": "Sposta l'artista ospite nel titolo (predefinito) o nell'artista. Da eseguire dopo la regola della grafia."},
+        {"en": "Moves the featured artist into the title (default) or into the artist. "
+               "Run it after the spelling rule.",
+         "it": "Sposta l'artista ospite nel titolo (predefinito) o nell'artista. "
+               "Da eseguire dopo la regola della grafia."},
         ("title", "artist"), ("title", "artist"), True,
         (Param("to", "choice", "title", ("title", "artist")),), _feat_move,
         (_ex({"artist": "Nova feat. Kito", "title": "Night Drive"},
@@ -622,8 +624,10 @@ RULES: tuple[Rule, ...] = (
     Rule(
         "artist.separators",
         {"en": "One separator between artists", "it": "Un solo separatore tra gli artisti"},
-        {"en": "Replaces x, vs, ; and similar between artists with one separator. & and \"and\" are not touched by default.",
-         "it": "Sostituisce x, vs, ; e simili tra gli artisti con un solo separatore. & e \"and\" non si toccano per impostazione predefinita."},
+        {"en": "Replaces x, vs, ; and similar between artists with one separator. "
+               "& and \"and\" are not touched by default.",
+         "it": "Sostituisce x, vs, ; e simili tra gli artisti con un solo separatore. "
+               "& e \"and\" non si toccano per impostazione predefinita."},
         ("artist",), ("artist",), False,
         (Param("from", "string_list", ARTIST_SEPARATORS), Param("to", "string", ", "),
          Param("keep", "string_list", [])), _artist_separators,
@@ -634,8 +638,10 @@ RULES: tuple[Rule, ...] = (
     Rule(
         "case.title",
         {"en": "Fix letter case", "it": "Correggi le maiuscole"},
-        {"en": "Capitalises values written all in lower case. Capitals are left alone unless you widen the scope.",
-         "it": "Mette le maiuscole ai valori scritti tutti in minuscolo. Le maiuscole esistenti restano, salvo che tu allarghi l'ambito."},
+        {"en": "Capitalises values written all in lower case. "
+               "Capitals are left alone unless you widen the scope.",
+         "it": "Mette le maiuscole ai valori scritti tutti in minuscolo. "
+               "Le maiuscole esistenti restano, salvo che tu allarghi l'ambito."},
         ("title", "album"), ("title", "artist", "album"), False,
         (Param("scope", "choice", "lower", ("lower", "uniform", "all")),
          Param("small_words", "string_list", SMALL_WORDS), Param("keep", "string_list", KEEP_WORDS)),
@@ -757,19 +763,55 @@ def run_rule(rule_id: str, fields: Fields, scope: list[str] | tuple[str, ...] | 
     return RuleResult(out, changed, [{**w, "rule": rule_id} for w in warnings])
 
 
-# Not called by the app yet: the preview and apply of batch editing (#47).
-def run_steps(fields: Fields, steps: list[dict]) -> StepsResult:
-    """Run an ordered list of rule steps. Each sees the result of the one before.
+# ------------------------------------------------------ field operations
+# The plain operations an edit can hold beside rules (design 3.4). `set` for
+# now; clear, append, prepend and replace come with #50.
+OP_FIELDS = ("title", "artist", "album", "genre", "year", "comment")
+OPS = ("set",)
 
-    `by` says, per field, which steps changed it; `warnings` carries what the
-    rules flagged (each with the step and rule that raised it).
+
+def run_op(step: dict, fields: Fields) -> Fields:
+    """Run one field operation over `fields`; `fields` is not modified.
+
+    The value is taken as given: no tidy pass, since the DJ typed it. Raises
+    RuleError for an unknown operation or field, or a value of the wrong type
+    (the year is an integer or None, every other field is text).
+    """
+    op, field_ = step.get("op"), step.get("field")
+    if op not in OPS:
+        raise RuleError(f"unknown operation {op!r}")
+    if field_ not in OP_FIELDS:
+        raise RuleError(f"{op}: cannot be aimed at {field_!r}")
+    value = step.get("value")
+    if field_ == "year":
+        if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
+            raise RuleError("set: the year is an integer, or null")
+    elif not isinstance(value, str):
+        raise RuleError(f"set: {field_} is text")
+    return {**fields, field_: value}
+
+
+def run_steps(fields: Fields, steps: list[dict]) -> StepsResult:
+    """Run an ordered list of steps, rules and field operations. Each sees the
+    result of the one before.
+
+    `by` says, per field, which steps changed it (`{"step", "rule"}` or
+    `{"step", "op"}`); `warnings` carries what the rules flagged (each with
+    the step and rule that raised it).
     """
     current = dict(fields)
     by: dict[str, list[dict]] = {}
     warnings: list[Warning_] = []
     for i, step in enumerate(steps):
+        if isinstance(step, dict) and "op" in step:
+            out = run_op(step, current)
+            for k in out:
+                if out[k] != current.get(k):
+                    by.setdefault(k, []).append({"step": i, "op": step["op"]})
+            current = out
+            continue
         if not isinstance(step, dict) or "rule" not in step:
-            raise RuleError(f"step {i} is not a rule step")
+            raise RuleError(f"step {i} is neither a rule nor a field operation")
         res = run_rule(step["rule"], current, scope=step.get("fields"), params=step.get("params"))
         for k in res.changed:
             by.setdefault(k, []).append({"step": i, "rule": step["rule"]})

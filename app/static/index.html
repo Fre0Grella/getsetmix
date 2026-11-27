@@ -205,6 +205,7 @@
       </button>
       <span id="libSelCount" class="lib-sel-count" aria-live="polite"></span>
       <div id="libSelActions" class="lib-sel-actions">
+        <button type="button" class="btn btn-quiet" data-bulk="edit" data-i18n="edEditTags">Edit tags</button>
         <button type="button" class="btn btn-quiet" data-bulk="set_genre" data-i18n="libSetGenre">Set genre</button>
         <button type="button" class="btn btn-quiet" data-bulk="restore" data-i18n="libRestore">Restore</button>
         <button type="button" class="btn btn-danger" data-bulk="delete" data-i18n="libDelete">Delete</button>
@@ -372,6 +373,48 @@
         <button id="libGenreApply" type="submit" class="btn btn-primary" data-i18n="libSetGenre">Set genre</button>
       </div>
     </form>
+  </div>
+
+  <!-- Batch editing (edits.js): one field for the selected tracks, previewed, then written. -->
+  <div id="edModal" class="modal modal--panel hidden" role="dialog" aria-modal="true" aria-labelledby="edTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="edTitle"></h2>
+        <button type="button" class="icon-btn modal-close" data-close aria-label="Close" data-i18n-aria="close">
+          <svg viewBox="0 0 24 24"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div class="modal-body ed-body">
+        <form id="edForm" class="ed-form" novalidate autocomplete="off">
+          <label class="lib-field"><span data-i18n="edField">Field</span>
+            <select id="edField" class="ed-select">
+              <option value="genre" data-i18n="genre">Genre</option>
+              <option value="artist" data-i18n="libArtist">Artist</option>
+              <option value="title" data-i18n="libTitle">Title</option>
+              <option value="album" data-i18n="album">Album</option>
+              <option value="year" data-i18n="libYear">Year</option>
+              <option value="comment" data-i18n="libComment">Comment</option>
+            </select></label>
+          <label class="lib-field"><span data-i18n="edValue">New value</span>
+            <input id="edValue" type="text" spellcheck="false" /></label>
+          <button id="edPreviewBtn" type="submit" class="btn btn-primary" data-i18n="edPreview">Preview</button>
+        </form>
+        <section id="edPreview" class="ed-preview hidden" aria-live="polite">
+          <p id="edCounts" class="ed-counts"></p>
+          <p id="edNotes" class="lib-note ed-notes"></p>
+          <div id="edProgress" class="lib-progress ed-progress hidden" role="status">
+            <span id="edProgressText" class="batch-label"></span>
+            <div class="batch-track"><div id="edProgressFill" class="batch-fill"></div></div>
+          </div>
+          <p id="edResult" class="ed-result hidden"></p>
+          <div id="edList" class="ed-list"></div>
+        </section>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-quiet" data-close data-i18n="close">Close</button>
+        <button id="edApply" type="button" class="btn btn-primary hidden"></button>
+      </div>
+    </div>
   </div>
 
   <!-- Cover art -->

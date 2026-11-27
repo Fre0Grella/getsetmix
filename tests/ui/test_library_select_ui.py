@@ -131,3 +131,47 @@ def test_the_bar_speaks_italian(open_tab, server):
     expect(tab.page.locator("#libSelCount")).to_have_text("1 selezionato")
     expect(bar(tab).locator('[data-bulk="set_genre"]')).to_have_text("Imposta genere")
     expect(bar(tab).locator('[data-bulk="delete"]')).to_have_text("Elimina")
+
+
+# ------------------------------------------------ batch editing (#47)
+def test_edit_tags_previews_then_writes_one_field_on_the_selection(open_tab, server):
+    tab = open_tab("/#library")
+    row(tab, "Midnight Drive").click(modifiers=["Control"])
+    row(tab, "Blue Hour").click(modifiers=["Control"])
+    bar(tab).locator('[data-bulk="edit"]').click()
+    panel = tab.page.locator("#edModal")
+    expect(panel).to_be_visible()
+    expect(tab.page.locator("#edTitle")).to_have_text("Edit tags of 2 tracks")
+
+    tab.page.locator("#edField").select_option("genre")
+    tab.page.locator("#edValue").fill("Tech House")
+    tab.page.locator("#edPreviewBtn").click()
+    expect(tab.page.locator("#edCounts")).to_have_text("2 changes on 2 tracks")
+    expect(tab.page.locator(".ed-row")).to_have_count(2)
+    expect(tab.page.locator(".ed-row").first).to_contain_text("→ Tech House")
+    # a preview writes nothing
+    assert server.item(MIDNIGHT)["genre"] == "House"
+
+    apply = tab.page.locator("#edApply")
+    expect(apply).to_have_text("Change 2 tags on 2 tracks")
+    apply.click()
+    expect(tab.page.locator("#edResult")).to_have_text("Written to 2 files.")
+    expect(tab.page.locator('.ed-row[data-state="applied"]')).to_have_count(2)
+    expect(apply).to_be_hidden()
+    assert server.item(MIDNIGHT)["genre"] == server.item(BLUE_HOUR)["genre"] == "Tech House"
+    assert server.item("Late Train.mp3")["genre"] == "Disco"
+    tab.page.locator("#edModal [data-close]").first.click()
+    expect(row(tab, "Midnight Drive")).to_contain_text("Tech House")
+    expect(bar(tab)).to_be_hidden()
+    assert tab.errors == [] and tab.dialogs == []
+
+
+def test_edit_tags_says_when_nothing_changes(open_tab, server):
+    tab = open_tab("/#library", PHONE)
+    long_press(tab, "Midnight Drive")
+    bar(tab).locator('[data-bulk="edit"]').click()
+    tab.page.locator("#edValue").fill("House")
+    tab.page.locator("#edPreviewBtn").click()
+    expect(tab.page.locator("#edCounts")).to_contain_text("Nothing to change")
+    expect(tab.page.locator("#edApply")).to_be_hidden()
+    assert tab.page.evaluate("document.documentElement.scrollWidth") <= PHONE["width"]

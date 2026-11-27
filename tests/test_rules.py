@@ -125,7 +125,7 @@ def test_no_rule_empties_title_or_artist_on_nasty_input(rule):
 UNICODE = [
     "Café del Mar – Ñandú", "夜のドライブ", "الليل الطويل",
     "לילה טוב", "Night Drive \U0001f525\U0001f3a7", "\U0001f468‍\U0001f469‍\U0001f467 Family",
-    "Élan Vital", "Διονυσος", "Nova ‏(Kito)‎",
+    "Élan Vital", "Διονυσος", "Nova \u200f(Kito)\u200e",
 ]
 
 
@@ -154,7 +154,39 @@ def test_unknown_rule_param_and_field_are_refused():
     with pytest.raises(rules.RuleError):
         rules.run_steps({"title": "x"}, [{"rule": "case.title", "params": {"scope": "sometimes"}}])
     with pytest.raises(rules.RuleError):
-        rules.run_steps({"title": "x"}, [{"op": "set", "field": "genre", "value": "x"}])
+        rules.run_steps({"title": "x"}, [{"op": "explode", "field": "genre", "value": "x"}])
+    with pytest.raises(rules.RuleError):
+        rules.run_steps({"title": "x"}, [{"title": "x"}])
+
+
+@pytest.mark.parametrize("step", [
+    {"op": "set", "field": "cover", "value": "x"},
+    {"op": "set", "field": "bpm", "value": "124"},
+    {"op": "set", "field": "title", "value": 3},
+    {"op": "set", "field": "title"},
+    {"op": "set", "field": "year", "value": "2019"},
+    {"op": "set", "field": "year", "value": True},
+])
+def test_a_set_with_a_bad_field_or_value_is_refused(step):
+    with pytest.raises(rules.RuleError):
+        rules.run_steps({"title": "x", "year": None}, [step])
+
+
+def test_set_takes_the_value_as_given_and_is_named_in_by():
+    res = rules.run_steps({"title": "a", "genre": "House", "year": None},
+                          [{"op": "set", "field": "genre", "value": " Tech  House "},
+                           {"op": "set", "field": "year", "value": 2021},
+                           {"op": "set", "field": "title", "value": "a"}])
+    assert res.fields == {"title": "a", "genre": " Tech  House ", "year": 2021}
+    # a step that leaves a field as it was is not named
+    assert res.by == {"genre": [{"step": 0, "op": "set"}], "year": [{"step": 1, "op": "set"}]}
+
+
+def test_rules_and_operations_run_in_order():
+    res = rules.run_steps({"title": "x"}, [{"op": "set", "field": "title", "value": "night drive"},
+                                           {"rule": "case.title"}])
+    assert res.fields["title"] == "Night Drive"
+    assert res.by["title"] == [{"step": 0, "op": "set"}, {"step": 1, "rule": "case.title"}]
 
 
 def test_run_steps_does_not_touch_its_input():

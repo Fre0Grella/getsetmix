@@ -155,8 +155,9 @@ flowchart TB
 | `audiohash.py` | a track's identity: the hash of its audio payload, tags skipped ([decision 4](#9-decision-log)) |
 | `thumbs.py` | small cover thumbnails for the list, kept on disk |
 | `matching.py` | the same-song rules: source link, or title and artist as token sets |
-| `rules.py`, `genres.py` | the cleanup rule catalogue and the genre quick picks |
-| `db.py` | SQLite: staged and processed tracks, URL history, counters |
+| `edits.py` | batch editing: an edit's preview, stored per track and field, and its apply, one file at a time through the Library's write |
+| `rules.py`, `genres.py` | the cleanup rule catalogue, the field operations, the step runner, and the genre quick picks |
+| `db.py` | SQLite: staged and processed tracks, URL history, counters, the Library index, edits and their changes |
 | `link.py` | `/api/link`: what paired computers may list and download |
 | `config.py`, `metrics.py` | settings with env overrides; Prometheus text |
 | `static/` | the UI: vanilla JavaScript as ES modules, no build step, English and Italian, light and dark. `app.js` is the entry (Downloads, settings) and loads `library.js` (the Library screen); both use `core.js` (requests and the token, escaping, toasts, the yes/no dialog), `i18n.js` (the words) and `cover.js` (the cover picker). `library.js` never imports `app.js`. |
@@ -183,7 +184,7 @@ Modules and their design docs, each written and approved before the module is bu
 | Module | Design doc | Status |
 |---|---|---|
 | Library: index, identity, changes, trash, the Library view | `docs/design/library.md` | built; selection and bulk actions ([#39](https://github.com/Fre0Grella/getsetmix/issues/39)) and more formats ([#42](https://github.com/Fre0Grella/getsetmix/issues/42)) to come |
-| Batch editing and cleanup rules | `docs/design/batch-editing.md` | the rule catalogue is built; editing comes with [#47](https://github.com/Fre0Grella/getsetmix/issues/47) |
+| Batch editing and cleanup rules | `docs/design/batch-editing.md` | the rule catalogue and one field operation, previewed and applied ([#47](https://github.com/Fre0Grella/getsetmix/issues/47)), are built |
 | Analysis | decided after the spikes | [#24](https://github.com/Fre0Grella/getsetmix/issues/24) |
 
 ## 6. Runtime
@@ -309,7 +310,9 @@ that way.
 - **Routes:** `main.py` and `library_api.py` take requests and answer them.
   Nothing imports them, except `main.py` mounting `library_api.py`.
 - **Core:** the Library, the worker, the link, tagging, thumbnails, metadata
-  and yt-dlp. They hold the rules and call storage.
+  and yt-dlp. They hold the rules and call storage. Batch editing
+  (`edits.py`) sits on the Library: it writes only through the Library's
+  write, so nothing below imports it.
 - **Base:** `db.py` and `config.py`. They import nothing else from the app,
   except `db.py` reading `config.py`. Settings and environment variables are
   read only in `config.py`.

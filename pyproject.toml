@@ -69,6 +69,7 @@ type = "layers"
 layers = [
     "app.main",
     "app.library_api",
+    "app.edits",
     "app.worker : app.library : app.link : app.metadata : app.metrics : app.thumbs : app.tagger : app.ytdl",
 ]
 
@@ -77,7 +78,7 @@ name = "config imports no other app module"
 type = "forbidden"
 source_modules = ["app.config"]
 forbidden_modules = [
-    "app.db", "app.audiohash", "app.genres", "app.library", "app.library_api", "app.link",
+    "app.db", "app.audiohash", "app.edits", "app.genres", "app.library", "app.library_api", "app.link",
     "app.main", "app.matching", "app.metadata", "app.metrics", "app.naming", "app.rules",
     "app.tagger", "app.thumbs", "app.worker", "app.ytdl",
 ]
@@ -87,7 +88,7 @@ name = "db imports no app module but config"
 type = "forbidden"
 source_modules = ["app.db"]
 forbidden_modules = [
-    "app.audiohash", "app.genres", "app.library", "app.library_api", "app.link", "app.main",
+    "app.audiohash", "app.edits", "app.genres", "app.library", "app.library_api", "app.link", "app.main",
     "app.matching", "app.metadata", "app.metrics", "app.naming", "app.rules", "app.tagger",
     "app.thumbs", "app.worker", "app.ytdl",
 ]
@@ -96,7 +97,8 @@ forbidden_modules = [
 name = "Pure modules know nothing of the db, config, library, worker or routes"
 type = "forbidden"
 source_modules = ["app.audiohash", "app.matching", "app.naming", "app.genres", "app.rules"]
-forbidden_modules = ["app.db", "app.config", "app.library", "app.worker", "app.main", "app.library_api"]
+forbidden_modules = ["app.db", "app.config", "app.library", "app.edits", "app.worker", "app.main",
+                     "app.library_api"]
 
 [tool.pytest.ini_options]
 markers = ["ui: browser smoke tests (need playwright and Chromium; see tests/ui/conftest.py)"]

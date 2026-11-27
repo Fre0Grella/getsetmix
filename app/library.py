@@ -120,6 +120,19 @@ def check_image(data: bytes) -> tuple[bytes, str]:
     return data, mime
 
 
+def check_ids(ids) -> list[int]:
+    """A selection of track ids, each once, in the order given. Raises
+    LibraryError: 400 not a non-empty list of integers, 413 more than
+    MAX_SELECTION."""
+    if (not isinstance(ids, list) or not ids
+            or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids)):
+        raise LibraryError(400, "ids must be a list of track ids")
+    ids = list(dict.fromkeys(ids))
+    if len(ids) > MAX_SELECTION:
+        raise LibraryError(413, f"at most {MAX_SELECTION} tracks at once")
+    return ids
+
+
 def check_fields(values: dict, what: str = "changes") -> dict:
     """The six editable fields with valid values; a 400 names what is wrong.
 
@@ -659,15 +672,11 @@ class Library:
         """
         if action not in BULK_ACTIONS:
             raise LibraryError(400, f"action must be one of {', '.join(BULK_ACTIONS)}")
-        if (not isinstance(ids, list) or not ids
-                or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids)):
-            raise LibraryError(400, "ids must be a list of track ids")
-        if len(ids) > MAX_SELECTION:
-            raise LibraryError(413, f"at most {MAX_SELECTION} tracks at once")
+        ids = check_ids(ids)
         if action == "set_genre":
             check_fields({"genre": genre})
         done, failed = [], []
-        for fid in dict.fromkeys(ids):  # each once, in the order given
+        for fid in ids:
             try:
                 if action == "delete":
                     self.trash(fid)
@@ -997,7 +1006,7 @@ class Library:
         if row["state"] != "present":
             raise LibraryError(410, "the file is in the trash" if row["state"] == "trashed"
                                else "the file is no longer in the library")
-        if not self._editable(row["format"], row["audio_id"]):
+        if not self.editable(row["format"], row["audio_id"]):
             raise LibraryError(409, "a damaged file cannot be edited"
                                if audiohash.is_fallback(row["audio_id"]) else
                                f"{row['format'] or 'this format'} is read-only in this version")
@@ -1100,7 +1109,7 @@ class Library:
         return where, params
 
     @staticmethod
-    def _editable(fmt: str, aid: str) -> bool:
+    def editable(fmt: str, aid: str) -> bool:
         return fmt in tagger.EDITABLE_FORMATS and not audiohash.is_fallback(aid)
 
     # Not called yet: selection by filter in batch editing (#50).
@@ -1112,7 +1121,7 @@ class Library:
             rows = conn.execute(
                 f"SELECT id, format, audio_id FROM library_files WHERE {' AND '.join(where)} "
                 "ORDER BY id", params).fetchall()
-        return [{"id": r["id"], "editable": self._editable(r["format"], r["audio_id"])}
+        return [{"id": r["id"], "editable": self.editable(r["format"], r["audio_id"])}
                 for r in rows]
 
     def list(self, q: str | None = None, genre: str | None = None, folder: str | None = None,
@@ -1182,7 +1191,7 @@ class Library:
             "duration": row["duration"], "has_cover": bool(row["has_cover"]),
             "size": row["size"], "added_at": row["added_at"],
             "content_rev": row["content_rev"],
-            "editable": self._editable(row["format"], row["audio_id"]),
+            "editable": self.editable(row["format"], row["audio_id"]),
             # the reasons, so the UI never re-derives them from the id or the text
             "damaged": audiohash.is_fallback(row["audio_id"]),
             "source": matching.comment_source(row["comment"]),
