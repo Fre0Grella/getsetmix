@@ -78,9 +78,12 @@ async def _call(fn, *args):
 
 @router.post("/bulk")
 async def library_bulk(body: Annotated[dict, Body()]):
-    """Delete, restore or set the genre of many tracks; the outcome per id."""
-    return await _call(library.current().bulk, body.get("ids"), body.get("action"),
-                       body.get("genre"))
+    """Delete, restore or set the genre of many tracks; the outcome per id.
+    A genre goes through a batch edit, so it shows in the history and can be undone."""
+    if body.get("action") == "set_genre":
+        steps = [{"op": "set", "field": "genre", "value": body.get("genre")}]
+        return await _call(edits.current().at_once, body.get("ids"), steps)
+    return await _call(library.current().bulk, body.get("ids"), body.get("action"))
 
 
 # ------------------------------------------------- batch editing (edits)
@@ -88,6 +91,12 @@ async def library_bulk(body: Annotated[dict, Body()]):
 async def make_edit(body: Annotated[dict, Body()]):
     """Preview an edit: a selection and steps; the changes are stored, not written."""
     return await _call(edits.current().preview, body)
+
+
+@router.get("/edits")
+async def edit_history(limit: int = 50, cursor: str | None = None):
+    """The edits that were applied, newest first."""
+    return await _call(edits.current().history, limit, cursor)
 
 
 @router.get("/edits/{eid:int}")
@@ -110,6 +119,12 @@ async def edit_changes(eid: int, field: str = "", state: str = "", warning: str 
 async def apply_edit(eid: int):
     """Write a previewed edit, one file at a time; also retries what failed."""
     return await _call(edits.current().apply, eid)
+
+
+@router.post("/edits/{eid:int}/undo", status_code=202)
+async def undo_edit(eid: int, body: Annotated[dict | None, Body()] = None):
+    """Revert an edit, whole or for `{"files": [ids]}`, as a new edit applying now."""
+    return await _call(edits.current().undo, eid, (body or {}).get("files"))
 
 
 @router.get("/{fid:int}")

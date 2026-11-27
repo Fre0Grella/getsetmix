@@ -105,7 +105,9 @@ CREATE TABLE IF NOT EXISTS edits (
     undo_of     INTEGER REFERENCES edits (id),
     created_at  TEXT    NOT NULL,
     applied_at  TEXT,
-    finished_at TEXT
+    finished_at TEXT,
+    purged_at   TEXT,                          -- its changes were removed (retention)
+    summary     TEXT                           -- JSON: its counts, kept once purged
 );
 CREATE TABLE IF NOT EXISTS edit_changes (
     id        INTEGER PRIMARY KEY,

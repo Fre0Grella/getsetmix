@@ -1,6 +1,6 @@
 {
   "_": "Ceilings for scripts/ratchet.py. A count may fall, never rise: lower a number in the same PR that improves it, never raise one. Coverage is a floor (it may rise, never fall).",
-  "ruff": 31,
+  "ruff": 30,
   "pyright": 0,
   "import_contracts_broken": 0,
   "duplication_percent": {

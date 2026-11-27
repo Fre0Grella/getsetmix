@@ -1159,7 +1159,32 @@ field operation previewed and applied:
   (the changes as before → after, up to 500 listed), then *Change N tags on
   M tracks*, the progress, and the outcome per file; failures can be tried
   again. The phone sheet is slice 7.
-- The bulk `set_genre` of the Library still writes directly; it moves onto
-  edits with the undo of slice 3 (L9).
+- The bulk `set_genre` of the Library moved onto edits in slice 3 (L9).
 - Companion: nothing new travels; `TestSeveralChangedTracksAreUpdatedInOneSync`
   checks that the tracks an edit changed are updated together in one sync.
+
+**Slice 3** ([#48](https://github.com/Fre0Grella/getsetmix/issues/48)), undo
+and the history:
+
+- `POST /api/library/edits/{id}/undo`, with no body or `{"files": [ids]}`,
+  answers `202` with the new edit (`undo_of` set, label `undo: <label>`),
+  already applying. Its changes carry `by: [{"undo": <change id>}]`; when one
+  is written its source change becomes `undone`, and if that source was
+  itself an undo, what it had undone is `applied` again, so an undone undo
+  leaves the first edit undoable. `409` with nothing applied left to revert
+  or while another edit applies; `410` once the journal is purged.
+- A field changed since is a `conflict`, a trashed track fails as `gone`;
+  both stay in the undo edit, which can be applied again (after a restore).
+- An edit shows `undone` (`all`, `some` or null), `undoable` and `purged`.
+- `GET /api/library/edits?limit=&cursor=` lists the edits that were applied,
+  newest first; previews are not history.
+- Retention: `edit_history_days` (`GSM_EDIT_HISTORY_DAYS`, default 30, 0 for
+  good; also in Settings). A purged edit keeps its line, with its counts in
+  the new `summary` column and the time in `purged_at`. Previews unused for a
+  day are deleted with their changes. The purge runs at most once a day, the
+  first time the edits are used that day, not on a timer.
+- The bulk `set_genre` is an edit made and applied in one call
+  (`Edits.at_once`), so it is journalled and can be undone; the Library's
+  own `bulk` keeps delete and restore.
+- UI: *Undo* in the edit panel once an apply ends, and **History** beside
+  Trash in the Library bar, each edit with *Undo* while it can be undone.

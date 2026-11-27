@@ -175,3 +175,30 @@ def test_edit_tags_says_when_nothing_changes(open_tab, server):
     expect(tab.page.locator("#edCounts")).to_contain_text("Nothing to change")
     expect(tab.page.locator("#edApply")).to_be_hidden()
     assert tab.page.evaluate("document.documentElement.scrollWidth") <= PHONE["width"]
+
+
+# ------------------------------------------------ undo and the history (#48)
+def test_an_edit_is_undone_from_the_panel_and_from_the_history(open_tab, server):
+    tab = open_tab("/#library")
+    row(tab, "Midnight Drive").click(modifiers=["Control"])
+    bar(tab).locator('[data-bulk="edit"]').click()
+    tab.page.locator("#edValue").fill("Tech House")
+    tab.page.locator("#edPreviewBtn").click()
+    tab.page.locator("#edApply").click()
+    expect(tab.page.locator("#edResult")).to_have_text("Written to 1 file.")
+    assert server.item(MIDNIGHT)["genre"] == "Tech House"
+
+    tab.page.locator("#edUndo").click()   # straight from the panel
+    expect(tab.page.locator('.ed-row[data-state="applied"]')).to_contain_text("Tech House → House")
+    assert server.item(MIDNIGHT)["genre"] == "House"
+    tab.page.keyboard.press("Escape")
+
+    tab.page.locator("#libHistoryBtn").click()
+    lines = tab.page.locator("#edHistoryList .ed-line")
+    expect(lines).to_have_count(2)
+    expect(lines.nth(0)).to_contain_text("Undo: genre = Tech House")
+    expect(lines.nth(1)).to_contain_text("Undone")
+    lines.nth(0).locator("[data-undo]").click()   # undo the undo
+    expect(lines.nth(0)).to_contain_text("Undo: Undo: genre = Tech House")
+    assert server.item(MIDNIGHT)["genre"] == "Tech House"
+    assert tab.errors == []

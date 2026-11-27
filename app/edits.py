@@ -14,6 +14,13 @@ preview is a `conflict` and is not written; any other failure fails that file
 only, and applying again retries only what failed. One edit applies at a
 time; previews can be made meanwhile. An edit cut short by a restart is
 `interrupted`, and applying it again carries on.
+
+Undo is a new edit (design 4.7) that writes the old values back through the
+same job and the same precondition with the roles swapped, so a field changed
+again since is a `conflict` and never overwritten. The changes of an applied
+edit are kept `edit_history_days`; then its line stays in the history with
+its counts, and it can no longer be undone. An unused preview goes after 24
+hours. The purge runs at most once a day, when the edits are used.
 """
 from __future__ import annotations
 
@@ -26,8 +33,8 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 
+from . import config, library, rules, tagger
 from . import db as dbmod
-from . import library, rules, tagger
 from .library import LibraryError
 
 log = logging.getLogger("getsetmix.edits")
@@ -40,10 +47,16 @@ BLOCKING = ("would_empty", "too_long")
 CHANGE_STATES = ("pending", "excluded", "blocked", "applied", "failed", "conflict", "undone")
 TO_WRITE = ("pending", "failed")
 APPLIABLE = ("preview", "applied", "cancelled", "interrupted")
+FINISHED = ("applied", "cancelled", "interrupted")   # in the history; may be undone
+UNUSED = ("preview", "expired", "discarded")          # never applied: purged after a day
+DAY = 24 * 3600
 # Why a selected track takes no part (design 3.3).
 SKIPPED_STATE = {"trashed": "in the trash", "missing": "not on disk", "gone": "not in the library"}
 # How a failed write is named in a change's error (design 4.4).
-FAILURE = {404: "gone", 409: "read-only", 410: "gone", 423: "in use"}
+FAILURE = {410: "gone", 404: "gone", 409: "read-only", 423: "in use"}
+# The status a skipped track answers with in a bulk request.
+SKIP_STATUS = {"no such track": 404, "in the trash": 410, "not on disk": 410,
+               "not in the library": 410, "read-only format": 409, "damaged file": 409}
 
 
 def _encode(value) -> str | None:
@@ -54,6 +67,18 @@ def _decode(field: str, text: str | None):
     if field == "year":
         return None if text is None else int(text)
     return text or ""
+
+
+def _cursor(cursor: str) -> int:
+    try:
+        return int(json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))["i"])
+    except Exception:
+        raise LibraryError(400, "cursor does not belong to this list") from None
+
+
+def _next(last_id: int) -> str:
+    raw = json.dumps({"i": last_id}, separators=(",", ":"))
+    return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
 
 
 def _selection(raw) -> list[int]:
@@ -98,10 +123,13 @@ class Edits:
     """The edits over one Library and its database."""
 
     def __init__(self, database, lib: library.Library,
-                 clock: Callable[[], float] = time.time) -> None:
+                 clock: Callable[[], float] = time.time,
+                 history_days: Callable[[], int] | None = None) -> None:
         self.db = database
         self.lib = lib
         self.clock = clock
+        self.history_days = history_days or (lambda: int(config.settings["edit_history_days"]))
+        self._purged_at: float | None = None
         self._starting = threading.Lock()   # two applies never both start
         self._idle = threading.Event()
         self._idle.set()
@@ -124,23 +152,35 @@ class Edits:
         if not isinstance(body, dict):
             raise LibraryError(400, "the edit must be an object")
         ids = _selection(body.get("selection"))
-        steps = _steps(body.get("steps"))
-        rows = self._rows(ids)
+        eid, skipped_by_id, unchanged = self._store(ids, _steps(body.get("steps")))
         skipped: dict[str, int] = {}
-        unchanged = 0
+        for why in skipped_by_id.values():
+            skipped[why] = skipped.get(why, 0) + 1
+        out = self.get(eid)
+        assert out is not None
+        out["counts"].update(selected=len(ids), unchanged=len(unchanged),
+                             skipped=len(skipped_by_id), skipped_by_reason=skipped)
+        return out
+
+    def _store(self, ids: list[int], steps: list[dict]) -> tuple[int, dict[int, str], list[int]]:
+        """Run the steps over the index and store the preview: its id, the
+        tracks left out with why, and the tracks the steps leave as they are."""
+        rows = self._rows(ids)
+        skipped: dict[int, str] = {}
+        unchanged: list[int] = []
         changes = []
         for fid in ids:
             row = rows.get(fid)
             why = self._skip(row)
             if why:
-                skipped[why] = skipped.get(why, 0) + 1
+                skipped[fid] = why
                 continue
             assert row is not None
             before = {f: row[f] for f in FIELDS}
             result = rules.run_steps(before, steps)
             differ = [f for f in FIELDS if result.fields[f] != before[f]]
             if not differ:
-                unchanged += 1
+                unchanged.append(fid)
                 continue
             multi = set(row["multi"].split(","))
             for f in differ:
@@ -161,11 +201,34 @@ class Edits:
                 "new_value, by, warnings, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [(eid, *c) for c in changes])
         assert eid is not None
-        out = self.get(eid)
-        assert out is not None
-        out["counts"].update(selected=len(ids), unchanged=unchanged,
-                             skipped=sum(skipped.values()), skipped_by_reason=skipped)
-        return out
+        return eid, skipped, unchanged
+
+    def at_once(self, ids, steps) -> dict:
+        """Preview and apply in one call, and wait for the end: the Library's
+        bulk `set_genre` (library design 3.3, L9), so it is journalled and can
+        be undone. The answer is the bulk one: `{"done": [ids], "failed":
+        [{"id", "status", "detail"}]}`, each id once in the order given.
+        Raises LibraryError like preview and apply."""
+        ids = library.check_ids(ids)
+        eid, skipped, _ = self._store(ids, _steps(steps))
+        failed = {fid: (SKIP_STATUS.get(why, 409), why) for fid, why in skipped.items()}
+        with self.db.transaction() as conn:
+            pending = conn.execute("SELECT 1 FROM edit_changes WHERE edit_id = ? "
+                                   "AND state = 'pending'", (eid,)).fetchone()
+        if pending:
+            self.apply(eid)
+            self.wait()
+        with self.db.transaction() as conn:
+            rows = conn.execute("SELECT file_id, state, error FROM edit_changes "
+                                "WHERE edit_id = ? AND state <> 'applied'", (eid,)).fetchall()
+        for r in rows:
+            reason = r["error"].split(":", 1)[0]
+            status = 412 if r["state"] == "conflict" else 400 if r["state"] == "blocked" else \
+                next((s for s, name in FAILURE.items() if name == reason), 500)
+            failed.setdefault(r["file_id"], (status, r["error"] or r["state"]))
+        return {"done": [fid for fid in ids if fid not in failed],
+                "failed": [{"id": fid, "status": failed[fid][0], "detail": failed[fid][1]}
+                           for fid in ids if fid in failed]}
 
     def _rows(self, ids: list[int]) -> dict[int, dict]:
         found: dict[int, dict] = {}
@@ -195,6 +258,10 @@ class Edits:
                 return None
             rows = conn.execute("SELECT file_id, field, state, warnings FROM edit_changes "
                                 "WHERE edit_id = ?", (eid,)).fetchall()
+        if e["purged_at"]:
+            return self._line(e, json.loads(e["summary"] or "{}"),
+                              {"files_total": 0, "files_done": 0, "files_failed": 0,
+                               "files_conflict": 0})
         by_field: dict[str, int] = {}
         by_state: dict[str, int] = {}
         files: dict[str, set[int]] = {}
@@ -206,19 +273,47 @@ class Edits:
             warned += r["warnings"] != "[]"
         written = set().union(*(files.get(s, set()) for s in
                                 ("pending", "applied", "failed", "conflict")))
+        return self._line(
+            e, {"changed": len({r["file_id"] for r in rows}), "changes": len(rows),
+                "by_field": by_field, "by_state": by_state, "warnings": warned},
+            {"files_total": len(written), "files_done": len(files.get("applied", set())),
+             "files_failed": len(files.get("failed", set())),
+             "files_conflict": len(files.get("conflict", set()))})
+
+    def _line(self, e, counts: dict, progress: dict) -> dict:
+        """An edit as the API shows it. `undone` is "all" when every change it
+        wrote was reverted, "some" when only part was; `undoable` says whether
+        anything it wrote can still be reverted."""
+        by_state = counts.get("by_state", {})
+        reverted, kept = by_state.get("undone", 0), by_state.get("applied", 0)
         return {
             "id": e["id"], "state": e["state"], "label": e["label"],
             "catalogue": e["catalogue"], "library_rev": e["library_rev"],
             "undo_of": e["undo_of"], "created_at": e["created_at"],
             "applied_at": e["applied_at"], "finished_at": e["finished_at"],
-            "counts": {"changed": len({r["file_id"] for r in rows}), "changes": len(rows),
-                       "by_field": by_field, "by_state": by_state, "warnings": warned},
-            "progress": {"files_total": len(written),
-                         "files_done": len(files.get("applied", set())),
-                         "files_failed": len(files.get("failed", set())),
-                         "files_conflict": len(files.get("conflict", set()))},
-            "current": self._current.get(eid),
+            "counts": counts, "progress": progress, "current": self._current.get(e["id"]),
+            "undone": ("some" if kept else "all") if reverted else None,
+            "undoable": not e["purged_at"] and e["state"] in FINISHED and kept > 0,
+            "purged": bool(e["purged_at"]),
         }
+
+    def history(self, limit: int = 50, cursor: str | None = None) -> dict:
+        """The edits that were applied, newest first (design 3.5)."""
+        if not 1 <= limit <= 200:
+            raise LibraryError(400, "limit must be between 1 and 200")
+        marks = ", ".join("?" for _ in UNUSED)
+        where = [f"state NOT IN ({marks})"]
+        params: list[object] = [*UNUSED]
+        if cursor:
+            where.append("id < ?")
+            params.append(_cursor(cursor))
+        with self.db.transaction() as conn:
+            found = [r[0] for r in conn.execute(
+                f"SELECT id FROM edits WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT ?",
+                (*params, limit + 1))]
+        items = [item for item in (self.get(i) for i in found[:limit]) if item]
+        return {"next": _next(found[limit - 1]) if len(found) > limit else None,
+                "items": items}
 
     def changes(self, eid: int, field: str = "", state: str = "", warning: str = "",
                 limit: int = 200, cursor: str | None = None) -> dict:
@@ -241,12 +336,8 @@ class Edits:
             where.append("c.warnings LIKE ?")
             params.append(f'%"{warning}"%')
         if cursor:
-            try:
-                after = int(json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))["i"])
-            except Exception:
-                raise LibraryError(400, "cursor does not belong to this list") from None
             where.append("c.id > ?")
-            params.append(after)
+            params.append(_cursor(cursor))
         with self.db.transaction() as conn:
             if conn.execute("SELECT 1 FROM edits WHERE id = ?", (eid,)).fetchone() is None:
                 raise LibraryError(404, "no such edit")
@@ -256,10 +347,7 @@ class Edits:
                 (*params, limit + 1)).fetchall()
         more = len(rows) > limit
         rows = rows[:limit]
-        nxt = None
-        if more:
-            raw = json.dumps({"i": rows[-1]["id"]}, separators=(",", ":"))
-            nxt = base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+        nxt = _next(rows[-1]["id"]) if more else None
         return {"next": nxt, "items": [{
             "change_id": r["id"], "file_id": r["file_id"], "path": r["path"] or "",
             "field": r["field"], "old": _decode(r["field"], r["old_value"]),
@@ -282,8 +370,7 @@ class Edits:
                 e = conn.execute("SELECT * FROM edits WHERE id = ?", (eid,)).fetchone()
                 if e is None:
                     raise LibraryError(404, "no such edit")
-                if conn.execute("SELECT 1 FROM edits WHERE state = 'applying'").fetchone():
-                    raise LibraryError(409, "another edit is being applied: wait for it to end")
+                self._not_busy(conn)
                 if e["state"] == "preview":
                     newer = conn.execute("SELECT 1 FROM edits WHERE id <> ? AND applied_at > ?",
                                          (eid, e["created_at"])).fetchone()
@@ -306,12 +393,124 @@ class Edits:
                                  (dbmod.iso(self.clock()), eid))
             if expired:
                 raise LibraryError(410, "the preview expired: make it again")
-            self._idle.clear()
-            threading.Thread(target=self._run, args=(eid,), name=f"edit-{eid}",
-                             daemon=True).start()
+            self._start(eid)
         out = self.get(eid)
         assert out is not None
         return out
+
+    @staticmethod
+    def _not_busy(conn) -> None:
+        if conn.execute("SELECT 1 FROM edits WHERE state = 'applying'").fetchone():
+            raise LibraryError(409, "another edit is being applied: wait for it to end")
+
+    def _start(self, eid: int) -> None:
+        self._idle.clear()
+        threading.Thread(target=self._run, args=(eid,), name=f"edit-{eid}", daemon=True).start()
+
+    # -------------------------------------------------------------- undo
+    def undo(self, eid: int, files=None) -> dict:
+        """Revert an edit, whole or for some tracks, as a new edit that starts
+        applying at once (design 4.7). Each change it wrote gets its old value
+        back, expecting the value it wrote; what an unfinished edit left
+        pending is dropped.
+
+        Raises LibraryError: 400 `files` not a list of track ids, 404 unknown
+        edit, 409 another edit is applying or nothing is left to undo, 410 its
+        changes were purged.
+        """
+        only = library.check_ids(files) if files is not None else None
+        rev = self.lib.rev()
+        now = dbmod.iso(self.clock())
+        with self._starting:
+            with self.db.transaction() as conn:
+                e = conn.execute("SELECT * FROM edits WHERE id = ?", (eid,)).fetchone()
+                if e is None:
+                    raise LibraryError(404, "no such edit")
+                if e["purged_at"]:
+                    raise LibraryError(410, "this edit can no longer be undone")
+                self._not_busy(conn)
+                scope, params = "", [eid]
+                if only:
+                    scope = f" AND file_id IN ({', '.join('?' for _ in only)})"
+                    params += only
+                source = conn.execute(f"SELECT * FROM edit_changes WHERE edit_id = ? "
+                                      f"AND state = 'applied'{scope} ORDER BY id", params).fetchall()
+                if e["state"] not in FINISHED or not source:
+                    raise LibraryError(409, "nothing is left to undo")
+                if e["state"] != "applied":   # cancelled or interrupted: the rest is dropped
+                    conn.execute(f"UPDATE edit_changes SET state = 'excluded' WHERE edit_id = ? "
+                                 f"AND state IN ('pending', 'failed'){scope}", params)
+                fids = list(dict.fromkeys(r["file_id"] for r in source))
+                new = conn.execute(
+                    "INSERT INTO edits (state, label, selection, steps, catalogue, library_rev, "
+                    "undo_of, created_at, applied_at) VALUES ('applying', ?, ?, '[]', ?, ?, ?, ?, ?)",
+                    (f"undo: {e['label']}"[:200], json.dumps({"ids": fids}),
+                     rules.CATALOGUE_VERSION, rev, eid, now, now)).lastrowid
+                conn.executemany(
+                    "INSERT INTO edit_changes (edit_id, file_id, audio_id, field, old_value, "
+                    "new_value, by, state) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
+                    [(new, r["file_id"], r["audio_id"], r["field"], r["new_value"],
+                      r["old_value"], json.dumps([{"undo": r["id"]}])) for r in source])
+            assert new is not None
+            self._start(new)
+        out = self.get(new)
+        assert out is not None
+        return out
+
+    def _reverted(self, conn, rows: list[dict]) -> None:
+        """The changes an undo has just written back: their sources are
+        `undone`, and when a source was itself an undo, what it had undone is
+        `applied` again."""
+        for r in rows:
+            for step in json.loads(r["by"]):
+                if "undo" not in step:
+                    continue
+                conn.execute("UPDATE edit_changes SET state = 'undone' WHERE id = ?",
+                             (step["undo"],))
+                src = conn.execute("SELECT by FROM edit_changes WHERE id = ?",
+                                   (step["undo"],)).fetchone()
+                for back in json.loads(src["by"]) if src else []:
+                    if "undo" in back:
+                        conn.execute("UPDATE edit_changes SET state = 'applied' "
+                                     "WHERE id = ? AND state = 'undone'", (back["undo"],))
+
+    # ------------------------------------------------------------- purge
+    def purge(self) -> dict:
+        """Remove previews unused for a day, and the changes of edits that
+        finished more than `edit_history_days` ago (0 keeps them). Such an
+        edit keeps its line and counts in the history."""
+        now = self.clock()
+        days = self.history_days()
+        marks = ", ".join("?" for _ in UNUSED)
+        with self.db.transaction() as conn:
+            unused = [r[0] for r in conn.execute(
+                f"SELECT id FROM edits WHERE state IN ({marks}) AND created_at < ?",
+                (*UNUSED, dbmod.iso(now - PREVIEW_SECONDS)))]
+            for eid in unused:
+                conn.execute("DELETE FROM edit_changes WHERE edit_id = ?", (eid,))
+                conn.execute("DELETE FROM edits WHERE id = ?", (eid,))
+            done = [] if days <= 0 else [r[0] for r in conn.execute(
+                f"SELECT id FROM edits WHERE purged_at IS NULL AND finished_at < ? "
+                f"AND state IN ({', '.join('?' for _ in FINISHED)})",
+                (dbmod.iso(now - days * DAY), *FINISHED))]
+        for eid in done:
+            line = self.get(eid)
+            with self.db.transaction() as conn:
+                conn.execute("UPDATE edits SET purged_at = ?, summary = ? WHERE id = ?",
+                             (dbmod.iso(now), json.dumps(line["counts"] if line else {}), eid))
+                conn.execute("DELETE FROM edit_changes WHERE edit_id = ?", (eid,))
+        if unused or done:
+            log.info("edits: purged %d unused previews and %d old journals", len(unused), len(done))
+        return {"previews": len(unused), "journals": len(done)}
+
+    def purge_due(self) -> bool:
+        """The purge, if it has not run in the last day; True if it ran."""
+        now = self.clock()
+        if self._purged_at is not None and now - self._purged_at < DAY:
+            return False
+        self._purged_at = now
+        self.purge()
+        return True
 
     def _run(self, eid: int) -> None:
         state = "interrupted"
@@ -355,6 +554,8 @@ class Edits:
         with self.db.transaction() as conn:
             conn.executemany("UPDATE edit_changes SET state = ?, error = ? WHERE id = ?",
                              [(state, error, r["id"]) for r in rows])
+            if state == "applied":
+                self._reverted(conn, rows)
         log.info("edit %s: %s %s", eid, state, self._current[eid])
 
 
@@ -365,11 +566,17 @@ _current_lock = threading.Lock()
 
 def current() -> Edits:
     """The edits over the app's Library (rebuilt if the Library is). The first
-    one after a start finds an apply that the stop cut short `interrupted`."""
+    one after a start finds an apply that the stop cut short `interrupted`;
+    the daily purge runs from here, the first time the edits are used each day."""
     global _current
     lib = library.current()
     with _current_lock:
         if _current is None or _current.lib is not lib:
             _current = Edits(dbmod.db, lib)
             _current.recover()
-        return _current
+        edits = _current
+    try:
+        edits.purge_due()
+    except Exception:
+        log.exception("edits: the daily purge failed")
+    return edits

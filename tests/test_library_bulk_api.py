@@ -91,3 +91,24 @@ def test_more_than_the_limit_is_413(shelf, monkeypatch):
 def test_bulk_needs_the_app_token(tmp_path, monkeypatch, music):
     with _client(tmp_path, monkeypatch, token="sekret") as c:
         assert c.post("/api/library/bulk", json={"action": "delete", "ids": [1]}).status_code == 401
+
+
+def test_a_bulk_genre_is_a_batch_edit_that_can_be_undone(shelf, music):
+    by_path = ids(shelf)
+    r = bulk(shelf, action="set_genre", genre="Tech House", ids=[by_path["a.mp3"], by_path["b.mp3"]])
+    assert r.json()["failed"] == []
+    [line] = shelf.get("/api/library/edits").json()["items"]
+    assert line["label"] == "genre = Tech House" and line["undoable"] is True
+    shelf.post(f"/api/library/edits/{line['id']}/undo")
+    from app import edits
+    assert edits.current().wait(10)
+    for name in ("a.mp3", "b.mp3"):
+        assert ID3(music.path(name))["TCON"].text == ["House"]
+
+
+def test_a_bulk_genre_that_changes_nothing_is_done_without_a_write(shelf, music):
+    by_path = ids(shelf)
+    before = music.path("a.mp3").read_bytes()
+    r = bulk(shelf, action="set_genre", genre="House", ids=[by_path["a.mp3"]])
+    assert r.json() == {"done": [by_path["a.mp3"]], "failed": []}
+    assert music.path("a.mp3").read_bytes() == before

@@ -563,8 +563,15 @@ async function openSettings() {
   $("#setLibrary").value = settingsCache.library_root;
   $("#setLanguage").value = settingsCache.language;
   $("#setTrashDays").value = settingsCache.trash_days ?? 30;
+  $("#setEditDays").value = settingsCache.edit_history_days ?? 30;
   save.disabled = false;
   gate(false);
+}
+
+// A number of days from a settings field; empty means "keep the current value".
+function days(sel) {
+  const v = $(sel).value.trim();
+  return v === "" ? undefined : Math.max(0, Math.round(Number(v) || 0));
 }
 
 $("#btnSaveSettings").addEventListener("click", async () => {
@@ -578,8 +585,8 @@ $("#btnSaveSettings").addEventListener("click", async () => {
         library_root: $("#setLibrary").value,
         language: $("#setLanguage").value,
         // An empty field keeps the current value (JSON drops undefined).
-        trash_days: $("#setTrashDays").value.trim() === ""
-          ? undefined : Math.max(0, Math.round(Number($("#setTrashDays").value) || 0)),
+        trash_days: days("#setTrashDays"),
+        edit_history_days: days("#setEditDays"),
       }),
     });
     $("#settingsModal").classList.add("hidden");
