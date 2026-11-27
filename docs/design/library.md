@@ -866,8 +866,10 @@ a dialog with the count. No confirmation phrase: a delete is recoverable for
 - **`POST /api/library/bulk`** handles each id as its single-track request
   would (`trash`, `restore`, `write_tags`), each id once in the order sent,
   at most 10,000 (`413`); `400` for an unknown action, ids that are not a
-  list of integers, or a genre that is not text. `set_genre` still uses the
-  tag write directly until batch editing takes it over.
+  list of integers, or a genre that is not text. `set_genre` is a batch edit
+  (from [#48](https://github.com/Fre0Grella/getsetmix/issues/48)): previewed
+  and applied in one call, it shows in the edit history and can be undone;
+  the answer keeps its shape.
 
 **The new routes, as built.**
 

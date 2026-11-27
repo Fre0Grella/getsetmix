@@ -291,6 +291,12 @@ body.lib-selecting #libSearchForm { display: none; }
 .ed-new { color: var(--text); font-weight: 500; }
 .ed-why { grid-column: 1 / -1; color: var(--danger); font-size: .8rem; }
 .ed-more { margin: 0; color: var(--text-3); font-size: .85rem; }
+/* The history: one line per edit, its Undo at the end. */
+.ed-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; }
+.ed-line .btn { height: 34px; padding: 0 12px; font-size: .86rem; }
+.ed-line-what { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.ed-line-meta { grid-column: 1; color: var(--text-3); font-size: .82rem; }
+body.lib-in-trash #libHistoryBtn { display: none; }
 
 /* --------------------------------------------- wide screens: columns */
 @media (min-width: 721px) {

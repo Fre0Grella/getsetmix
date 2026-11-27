@@ -179,7 +179,7 @@ def test_stored_values_outside_the_allowed_ones_are_coerced_on_load(tmp_path, mo
     assert {k: config.settings[k] for k in
             ("output_format", "language", "concurrency", "trash_days", "filename_template")} == {
         "output_format": "flac", "language": "en", "concurrency": config.CONCURRENCY_MAX,
-        "trash_days": config.TRASH_DAYS_MAX, "filename_template": "{artist} - {title}"}
+        "trash_days": config.DAYS_MAX, "filename_template": "{artist} - {title}"}
 
 
 # ---------------------------------------------------------------------- auth

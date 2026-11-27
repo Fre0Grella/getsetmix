@@ -104,6 +104,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m0 0l-5-5m5 5l5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
+      <button id="libHistoryBtn" type="button" class="btn-pill lib-trash-btn" aria-label="History" data-i18n-aria="edHistory">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4M12 8v4l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="lib-trash-label" data-i18n="edHistory">History</span>
+      </button>
       <button id="libTrashBtn" type="button" class="btn-pill lib-trash-btn">
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trash" /></svg>
         <span id="libTrashLabel" class="lib-trash-label">Trash</span>
@@ -282,6 +286,11 @@
             <input id="setTrashDays" type="number" inputmode="numeric" min="0" max="3650" />
             <small class="set-note" data-i18n="trashDaysHint">Then the trash removes them for good. 0 keeps them until you empty the trash.</small>
           </div>
+          <div class="set-row">
+            <label for="setEditDays" data-i18n="editDays">Undo batch edits for (days)</label>
+            <input id="setEditDays" type="number" inputmode="numeric" min="0" max="3650" />
+            <small class="set-note" data-i18n="editDaysHint">After that an edit stays in the history but can no longer be undone. 0 keeps it undoable for good.</small>
+          </div>
         </section>
 
         <section class="set-group" data-server>
@@ -412,7 +421,24 @@
       </div>
       <div class="modal-foot">
         <button type="button" class="btn btn-quiet" data-close data-i18n="close">Close</button>
+        <button id="edUndo" type="button" class="btn btn-quiet hidden" data-i18n="edUndo">Undo</button>
         <button id="edApply" type="button" class="btn btn-primary hidden"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- The history of batch edits, newest first, each with Undo while it can be undone. -->
+  <div id="edHistoryModal" class="modal modal--panel hidden" role="dialog" aria-modal="true" aria-labelledby="edHistoryTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="edHistoryTitle" data-i18n="edHistory">History</h2>
+        <button type="button" class="icon-btn modal-close" data-close aria-label="Close" data-i18n-aria="close">
+          <svg viewBox="0 0 24 24"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="edHistoryEmpty" class="lib-note hidden" data-i18n="edHistoryEmpty">No batch edits yet.</p>
+        <div id="edHistoryList" class="ed-list"></div>
       </div>
     </div>
   </div>

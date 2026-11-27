@@ -3,9 +3,10 @@
    a panel; *Preview* asks the server for the changes, which it stores, and
    lists them; *Apply* writes exactly those, one file at a time, and the panel
    follows the progress. Files that failed can be tried again; a file changed
-   meanwhile is left alone and said so. Loaded by app.js. */
+   meanwhile is left alone and said so. *Undo* writes the old values back,
+   from the panel or from the History (slice 3). Loaded by app.js. */
 import { $, api, esc, libRules, toast } from "./core.js";
-import { num, plural, serverError, STR, T } from "./i18n.js";
+import { lang, num, plural, serverError, STR, T } from "./i18n.js";
 import { addSelAction, libChanged, selectedIds } from "./library.js";
 
 const SKIP_IT = {
@@ -33,7 +34,12 @@ Object.assign(STR.en, {
   edWarn: { would_empty: "it would be empty: left out", too_long: "longer than 255 characters: left out",
     merges_values: "the file holds several values; they become this one" },
   edState: { pending: "", applied: "Written", failed: "Not written", conflict: "Changed meanwhile",
-    blocked: "Left out", excluded: "Left out" },
+    blocked: "Left out", excluded: "Left out", undone: "Undone" },
+  edUndo: "Undo", edHistory: "History", edHistoryEmpty: "No batch edits yet.",
+  edUndoLabel: (what) => `Undo: ${what}`,
+  edUndoing: "Undoing…",
+  edLineUndone: { all: "Undone", some: "Partly undone" },
+  edLineGone: "Can no longer be undone",
 });
 Object.assign(STR.it, {
   edEditTags: "Modifica tag",
@@ -55,7 +61,12 @@ Object.assign(STR.it, {
   edWarn: { would_empty: "resterebbe vuoto: escluso", too_long: "più lungo di 255 caratteri: escluso",
     merges_values: "il file ha più valori; diventano questo" },
   edState: { pending: "", applied: "Scritto", failed: "Non scritto", conflict: "Cambiato nel frattempo",
-    blocked: "Escluso", excluded: "Escluso" },
+    blocked: "Escluso", excluded: "Escluso", undone: "Annullato" },
+  edUndo: "Annulla", edHistory: "Cronologia", edHistoryEmpty: "Ancora nessuna modifica in blocco.",
+  edUndoLabel: (what) => `Annulla: ${what}`,
+  edUndoing: "Annullamento…",
+  edLineUndone: { all: "Annullata", some: "Annullata in parte" },
+  edLineGone: "Non si può più annullare",
 });
 
 const SHOWN = 500;        // changes listed in the panel; the rest are counted
@@ -73,6 +84,7 @@ function edReset() {
   Ed.edit = null;
   $("#edPreview").classList.add("hidden");
   $("#edApply").classList.add("hidden");
+  $("#edUndo").classList.add("hidden");
   $("#edResult").classList.add("hidden");
   $("#edProgress").classList.add("hidden");
   $("#edList").innerHTML = "";
@@ -168,6 +180,9 @@ function edButton(edit) {
   btn.textContent = text;
   btn.classList.toggle("hidden", !text);
   btn.disabled = false;
+  const undo = $("#edUndo");
+  undo.classList.toggle("hidden", !edit.undoable || edit.state === "applying");
+  undo.disabled = false;
 }
 
 async function edShow(edit) {
@@ -239,6 +254,87 @@ $("#edApply").addEventListener("click", async () => {
   }
 });
 
+// Undo: a new edit that writes the old values back, followed like an apply.
+async function edUndoStart(id) {
+  const edit = await api(`/api/library/edits/${id}/undo`, { method: "POST" });
+  toast(T.edUndoing);
+  return edit;
+}
+$("#edUndo").addEventListener("click", async () => {
+  const edit = Ed.edit;
+  if (!edit || Ed.busy) return;
+  Ed.busy = true;
+  $("#edUndo").disabled = true;
+  try {
+    Ed.edit = await edUndoStart(edit.id);
+    $("#edUndo").classList.add("hidden");
+    $("#edResult").classList.add("hidden");
+    edProgress(Ed.edit);
+    edFollow(Ed.edit.id);
+  } catch (err) {
+    toast(err.message);
+    $("#edUndo").disabled = false;
+  } finally {
+    Ed.busy = false;
+  }
+});
+
+// ------------------------------------------------------------ history
+const histModal = $("#edHistoryModal");
+const edLabel = (label) => (label.startsWith("undo: ") ? T.edUndoLabel(edLabel(label.slice(6))) : label);
+
+function edLineHtml(e) {
+  const when = new Date(e.applied_at || e.created_at).toLocaleString(lang, { dateStyle: "medium", timeStyle: "short" });
+  const bits = [when];
+  if (e.counts.changes) bits.push(T.edCounts(e.counts.changes, e.counts.changed));
+  if (e.undone) bits.push(T.edLineUndone[e.undone]);
+  else if (e.purged) bits.push(T.edLineGone);
+  if (e.progress.files_failed) bits.push(T.edFailed(e.progress.files_failed));
+  const undo = e.undoable ? `<button type="button" class="btn btn-quiet" data-undo="${e.id}">${esc(T.edUndo)}</button>` : "";
+  return `<div class="ed-row ed-line" data-id="${e.id}">
+    <span class="ed-line-what">${esc(edLabel(e.label))}</span>${undo}
+    <span class="ed-line-meta">${esc(bits.join(" · "))}</span>
+  </div>`;
+}
+
+async function edHistory() {
+  try {
+    const page = await api("/api/library/edits?limit=50");
+    $("#edHistoryList").innerHTML = page.items.map(edLineHtml).join("");
+    $("#edHistoryEmpty").classList.toggle("hidden", page.items.length > 0);
+  } catch (err) { toast(err.message); }
+}
+
+// Wait for an undo started from the history, then show where things are.
+async function edHistoryFollow(id) {
+  try {
+    const e = await api(`/api/library/edits/${id}`);
+    if (e.state === "applying") { setTimeout(() => edHistoryFollow(id), POLL_MS); return; }
+    const p = e.progress;
+    toast([p.files_done && T.edDone(p.files_done), p.files_failed && T.edFailed(p.files_failed),
+      p.files_conflict && T.edConflict(p.files_conflict)].filter(Boolean).join(" ") || T.edNothing);
+  } catch (err) { toast(err.message); }
+  libChanged();
+  if (!histModal.classList.contains("hidden")) edHistory();
+}
+
+$("#libHistoryBtn").addEventListener("click", () => {
+  histModal.classList.remove("hidden");
+  edHistory();
+});
+$("#edHistoryList").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-undo]");
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    const started = await edUndoStart(Number(btn.dataset.undo));
+    edHistoryFollow(started.id);
+  } catch (err) {
+    toast(err.message);
+    btn.disabled = false;
+  }
+});
+
 // Closed: stop following; a running apply carries on and the list reloads by itself.
 new MutationObserver(() => {
   if (modal.classList.contains("hidden")) clearTimeout(Ed.timer);
@@ -246,6 +342,7 @@ new MutationObserver(() => {
 
 // A language change: the texts set from code follow.
 new MutationObserver(() => {
+  if (!histModal.classList.contains("hidden")) edHistory();
   if (modal.classList.contains("hidden")) return;
   $("#edTitle").textContent = T.edTitle(Ed.ids.length);
   if (Ed.edit) { edSummary(Ed.edit); edButton(Ed.edit); edList(Ed.edit).catch(() => {}); }

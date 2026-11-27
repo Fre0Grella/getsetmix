@@ -6,6 +6,7 @@ changed from the UI are persisted back to config.json.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import threading
@@ -20,6 +21,7 @@ DEFAULTS = {
     "filename_template": "{artist} - {title}",
     "language": "en",                   # "en" | "it"
     "trash_days": 30,                   # Library trash kept this long; 0 = until emptied by hand
+    "edit_history_days": 30,            # batch edits can be undone this long; 0 = for good
 }
 
 ENV_MAP = {
@@ -29,8 +31,10 @@ ENV_MAP = {
     "GSM_FILENAME_TEMPLATE": "filename_template",
     "GSM_LANGUAGE": "language",
     "GSM_TRASH_DAYS": "trash_days",
+    "GSM_EDIT_HISTORY_DAYS": "edit_history_days",
 }
-INT_KEYS = ("concurrency", "trash_days")
+DAYS_KEYS = ("trash_days", "edit_history_days")   # 0 to DAYS_MAX; 0 = kept for good
+INT_KEYS = ("concurrency", *DAYS_KEYS)
 
 # The values a setting may take. A stored or env value outside them is coerced
 # on load (`Settings._normalize`); one sent to PUT /api/settings is refused
@@ -38,7 +42,7 @@ INT_KEYS = ("concurrency", "trash_days")
 OUTPUT_FORMATS = ("mp3", "flac")
 LANGUAGES = ("it", "en")
 CONCURRENCY_MIN, CONCURRENCY_MAX = 1, 8
-TRASH_DAYS_MAX = 3650
+DAYS_MAX = 3650
 
 
 def clamp_concurrency(n: int) -> int:
@@ -55,8 +59,9 @@ def patch_problem(patch: dict) -> str | None:
     if "concurrency" in patch and not (
             CONCURRENCY_MIN <= int(patch["concurrency"]) <= CONCURRENCY_MAX):
         return f"concurrency must be between {CONCURRENCY_MIN} and {CONCURRENCY_MAX}"
-    if "trash_days" in patch and not 0 <= int(patch["trash_days"]) <= TRASH_DAYS_MAX:
-        return f"trash_days must be between 0 and {TRASH_DAYS_MAX}"
+    for key in DAYS_KEYS:
+        if key in patch and not 0 <= int(patch[key]) <= DAYS_MAX:
+            return f"{key} must be between 0 and {DAYS_MAX}"
     if "filename_template" in patch and not str(patch["filename_template"]).strip():
         return "filename_template cannot be empty"
     return None
@@ -86,10 +91,8 @@ class Settings:
                 if env in os.environ and os.environ[env] != "":
                     raw = os.environ[env]
                     if key in INT_KEYS:
-                        try:
+                        with contextlib.suppress(ValueError):
                             self.data[key] = int(raw)
-                        except ValueError:
-                            pass
                     else:
                         self.data[key] = raw
             self._normalize()
@@ -115,11 +118,11 @@ class Settings:
                 int(self.data.get("concurrency", DEFAULTS["concurrency"])))
         except (TypeError, ValueError):
             self.data["concurrency"] = DEFAULTS["concurrency"]
-        try:
-            days = int(self.data.get("trash_days", DEFAULTS["trash_days"]))
-            self.data["trash_days"] = max(0, min(TRASH_DAYS_MAX, days))
-        except (TypeError, ValueError):
-            self.data["trash_days"] = DEFAULTS["trash_days"]
+        for key in DAYS_KEYS:
+            try:
+                self.data[key] = max(0, min(DAYS_MAX, int(self.data.get(key, DEFAULTS[key]))))
+            except (TypeError, ValueError):
+                self.data[key] = DEFAULTS[key]
         if self.data.get("language") not in LANGUAGES:
             self.data["language"] = DEFAULTS["language"]
         if not str(self.data.get("filename_template") or "").strip():

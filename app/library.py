@@ -662,28 +662,25 @@ class Library:
         return {"id": fid, "state": "present", "rev": rev}
 
     # ------------------------------------------------------------- in bulk
-    def bulk(self, ids: list, action: str, genre: str | None = None) -> dict:
-        """Delete, restore or set the genre of many files (design 3.3).
+    def bulk(self, ids: list, action: str) -> dict:
+        """Delete or restore many files (design 3.3); `set_genre`, the third
+        bulk action, is a batch edit (app/edits.py).
 
         Each id is handled alone, as its single-file request would be, so one
         failure never hides the rest: the answer is `{"done": [ids], "failed":
         [{"id", "status", "detail"}]}`. Raises LibraryError 400 for a request
         that is not valid as a whole, 413 for more than MAX_SELECTION ids.
         """
-        if action not in BULK_ACTIONS:
+        if action not in ("delete", "restore"):
             raise LibraryError(400, f"action must be one of {', '.join(BULK_ACTIONS)}")
         ids = check_ids(ids)
-        if action == "set_genre":
-            check_fields({"genre": genre})
         done, failed = [], []
         for fid in ids:
             try:
                 if action == "delete":
                     self.trash(fid)
-                elif action == "restore":
-                    self.restore(fid)
                 else:
-                    self.write_tags(fid, {"genre": genre})
+                    self.restore(fid)
             except LibraryError as exc:
                 failed.append({"id": fid, "status": exc.status, "detail": exc.detail})
             else:

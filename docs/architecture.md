@@ -184,7 +184,7 @@ Modules and their design docs, each written and approved before the module is bu
 | Module | Design doc | Status |
 |---|---|---|
 | Library: index, identity, changes, trash, the Library view | `docs/design/library.md` | built; selection and bulk actions ([#39](https://github.com/Fre0Grella/getsetmix/issues/39)) and more formats ([#42](https://github.com/Fre0Grella/getsetmix/issues/42)) to come |
-| Batch editing and cleanup rules | `docs/design/batch-editing.md` | the rule catalogue and one field operation, previewed and applied ([#47](https://github.com/Fre0Grella/getsetmix/issues/47)), are built |
+| Batch editing and cleanup rules | `docs/design/batch-editing.md` | built: the rule catalogue, one field operation previewed and applied ([#47](https://github.com/Fre0Grella/getsetmix/issues/47)), undo and the history ([#48](https://github.com/Fre0Grella/getsetmix/issues/48)) |
 | Analysis | decided after the spikes | [#24](https://github.com/Fre0Grella/getsetmix/issues/24) |
 
 ## 6. Runtime
