@@ -1,6 +1,232 @@
 # CHANGELOG
 
 
+## v1.17.0 (2026-11-27)
+
+### Chores
+
+- Check commits before they reach CI ([#93](https://github.com/Fre0Grella/getsetmix/pull/93),
+  [`5b38ffb`](https://github.com/Fre0Grella/getsetmix/commit/5b38ffb29fc8c1d646c9aa2d58895f98ed1d6a09))
+
+The headline rule is looser and lives in one place: 50 characters, not counting the " (#NN)" a
+  squash merge adds, as a commitlint rule in commitlint.config.mjs. CI's PR-title job drops its own
+  length count and runs commitlint alone, and the push to main accepts squash headlines up to 50
+  characters plus the number.
+
+The git hooks are switched on and check what CI would reject first: commitlint on each commit
+  message (replacing conventional-pre-commit, whose rules differ from commitlint's), ruff and gofmt
+  on each commit, go vet and the staticcheck ratchet before a push that touches the companion.
+  CLAUDE.md and architecture 8.8 say so; a PR title, which no hook sees, is checked with `echo
+  "<title>" | commitlint`.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+### Continuous Integration
+
+- Run less, and in parallel ([#94](https://github.com/Fre0Grella/getsetmix/pull/94),
+  [`a45fef8`](https://github.com/Fre0Grella/getsetmix/commit/a45fef8b4ab5eced64f18c854f9010069479bca6))
+
+Three changes to make a pull request's checks finish sooner.
+
+- Setup is built beside the companion tests, not after them. A release still waits for the tests
+  (build needs test). - The importer and library tests run in parallel. Each opens an encrypted
+  master.db, which is slow by design, and they ran one by one: locally the importer tests went from
+  about 200 s to 58 s, the library tests from 95 s to 25 s, with no race under -race. The two tests
+  that replace a package variable (quickCheck, syncWait) stay sequential; Go runs those before the
+  parallel ones. - A changes job skips the app's tests, browser tests and image build when a pull
+  request only touches the companion, the docs, the site or other workflows' files. lint always
+  runs: it also counts the companion's duplication. Main has no required checks, so a skipped job
+  cannot block a merge.
+
+Windows keeps -parallel 1: there, parallel runs were slower (importer 72 s to 156 s). Measured on
+  this PR: the companion workflow took 182 s, down from 318 s on #92.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+### Documentation
+
+- Code signing policy for SignPath ([#95](https://github.com/Fre0Grella/getsetmix/pull/95),
+  [`f4c7c87`](https://github.com/Fre0Grella/getsetmix/commit/f4c7c874ea7aa8c289bb97a22e1ed6cc38946127))
+
+README's Install section has what SignPath Foundation's conditions ask of the download page: the
+  code signing policy, a privacy statement, what Setup changes on the computer and how to remove it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+- Signing waits for the public launch ([#96](https://github.com/Fre0Grella/getsetmix/pull/96),
+  [`ca51dce`](https://github.com/Fre0Grella/getsetmix/commit/ca51dcee20830eb89e82c19fca890f7f7fd03fd7))
+
+README says releases are unsigned until the public launch; no SignPath application before then.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+### Features
+
+- **library**: Select tracks and act in bulk
+  ([`6e3bb61`](https://github.com/Fre0Grella/getsetmix/commit/6e3bb610716403211aafb2c6e44640df406722c8))
+
+Pick several tracks in the Library view (long press on a phone; Ctrl-, Shift- or cover-click on a
+  desktop) and act on all of them from a bar in the deck: Set genre, Delete (asks with the count,
+  offers Undo), and Restore in the trash.
+
+POST /api/library/bulk runs delete, restore or set_genre per id through the single-track internals
+  and reports the outcome per id, so one failure never hides the rest.
+
+Closes #39
+
+Claude-Session: https://claude.ai/code/session_01P6dL1ubJcR7rkeStcK3oqS
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+### Refactoring
+
+- **companion**: A pure track package ([#87](https://github.com/Fre0Grella/getsetmix/pull/87),
+  [`088592f`](https://github.com/Fre0Grella/getsetmix/commit/088592f3d4b6480f36456cdce719bd4783cef404))
+
+Slice 1 of the sync ledger (docs/design/library.md, 4.6.1).
+
+track holds what every package means by a track: Track, Tags, Changed, PathKey, Local, the Rekordbox
+  file type codes and the link listing types (the removed entry is track.Tombstone). library and
+  fetch keep aliases while callers move; audio, scan, fetch and config use track directly, so none
+  of them reaches library or SQLCipher any more. The MP3 builder for tests moves from librarytest to
+  a pure track/tracktest, so fetch's tests skip the cgo driver as well.
+
+internal/layers is the import-rule test: go list -deps -test of the pure packages must name neither
+  library nor go-sqlcipher, and track imports nothing of the companion. It stats the module's Go
+  files, so the test cache reruns it after an import changes. Architecture 8.8 lists the rule. Go
+  duplication fell to 0.26%: ceiling lowered.
+
+No behaviour change.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+- **companion**: Drop the track aliases ([#92](https://github.com/Fre0Grella/getsetmix/pull/92),
+  [`03701ec`](https://github.com/Fre0Grella/getsetmix/commit/03701ecdcd9438f92b770a8fb212c4137b5ec0ef))
+
+Slice 5 of the sync ledger (docs/design/library.md, 4.6.1), the last: clean-up.
+
+The aliases kept while callers moved are gone: library's Track, Tags, file type codes, field names,
+  AllFields, Changed and PathKey, and fetch's File, Removed, Listing, Local and Server. Every use
+  names track or config. The tests of Changed, PathKey and Local move to track. The ledger's begin,
+  newer and remember are private: only the ledger calls them now.
+
+The fetch package comment and section 4.6 of the design say who owns fetched.json now; 4.6.1 is
+  marked implemented.
+
+No behaviour change.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+- **companion**: Ledger plans fetches ([#91](https://github.com/Fre0Grella/getsetmix/pull/91),
+  [`f48b097`](https://github.com/Fre0Grella/getsetmix/commit/f48b0972271dd46ebac67da9100ba0fe822718b0))
+
+Second half of slice 4 of the sync ledger (docs/design/library.md, 4.6.1): the fetch side.
+
+ledger.Fetched.Plan says what a fetch does with one listing: Get, Refresh and Keep steps in listing
+  order, the tombstones to record, the ones the server lists again (and which of them to fetch
+  again), and the local files for the recycle bin. It keeps today's rules: one step per audio id, so
+  a track listed at two server paths is fetched once; a newer copy of a track deleted here is only
+  noted; only tracks this computer holds get a tombstone, and only a deleted one goes to the recycle
+  bin.
+
+fetch does the network and file work and records each outcome: Got, Refreshed, Kept, Tombstoned,
+  Restored, Recycled. Its own decision code (the old tombstones walk and the checks in Run, fetchNew
+  and refresh) is gone.
+
+No behaviour change: every fetch test keeps its assertions; one test that called the tombstone walk
+  directly now asks the plan for it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+- **companion**: One owner for the state ([#89](https://github.com/Fre0Grella/getsetmix/pull/89),
+  [`e264593`](https://github.com/Fre0Grella/getsetmix/commit/e264593df9b2dcd130ffe96313c3c5d688ef2242))
+
+Slice 3 of the sync ledger (docs/design/library.md, 4.6.1).
+
+internal/ledger is the only package that reads or writes fetched.json (Fetched, moved from
+  fetch.State) and state.json (Synced, moved from config.State), in the formats and with the
+  migrations they always had. Either file can be saved only through its held lock, FetchLock or
+  SyncLock; ReadFetched and ReadSynced are snapshots for questions.
+
+One sync at a time (decision 1): a sync takes sync.lock, waits up to 30 s for another one, and
+  otherwise returns ErrSyncRunning having done nothing. The launcher still starts Rekordbox, a fetch
+  logs it, the watcher tries again; a dry run takes no lock. The holder refreshes sync.lock every
+  minute, so a dead sync blocks for at most five minutes. fetch.lock behaves as before. Baseline
+  writes under sync.lock; one sync reads fetched.json once, not twice.
+
+config is companion.json alone, with config.Server (fetch.Server is an alias for one release).
+  Setup's seed is fetch.Seed, beside RunLocked. atomicfile.WriteJSON replaces three copies of the
+  same write. ledgertest writes state for tests under the lock. The layers test adds the ledger,
+  config as settings only, and that no code outside the ledger names its files.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+- **companion**: One row lookup per file ([#88](https://github.com/Fre0Grella/getsetmix/pull/88),
+  [`d03e534`](https://github.com/Fre0Grella/getsetmix/commit/d03e534022943a15bc296500b216df1a7680da73))
+
+Slice 2 of the sync ledger (docs/design/library.md, 4.6.1).
+
+rowsByPath (library/rows.go) is the one place that picks the djmdContent row for a file. Update,
+  MarkRemoved and Import use it, and so does KnownPaths, through knownPaths; contentIDs and the two
+  inline queries are gone. localDevice is the device detection Import already had, now shared with
+  Update.
+
+The winner, when Rekordbox holds several live rows for one file, is this computer's oldest row; when
+  this computer has none, the oldest row of any device, as before. "Already in Rekordbox?" still
+  counts every device's rows, so a library whose rows carry an old device ID is not imported twice.
+  Decision 2 in the design records this refinement.
+
+Tests: a duplicate row is updated, listed and restored as one row; this computer's row wins over an
+  older row of another device; another device's row is used when it is the only one. Each fails
+  against a mutant of the rule it protects.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+- **companion**: The ledger plans a sync ([#90](https://github.com/Fre0Grella/getsetmix/pull/90),
+  [`afdf413`](https://github.com/Fre0Grella/getsetmix/commit/afdf413a64c3c0ba35c2eabdde4eb968cae2087c))
+
+First half of slice 4 of the sync ledger (docs/design/library.md, 4.6.1): the importer's side.
+
+ledger.WorkFor answers what a sync does about the server's tracks: Changed (a newer copy is in place
+  and the row is behind), Removed (a tombstone not listed yet) and Restored (listed, but no
+  tombstone any more), as Items with the audio id, the local path, its key and, for a changed track,
+  the tags last seen. Unhandled, Handled, Listed, Unlisted and Applied are the record calls;
+  NewSynced is Baseline's fresh state.
+
+importer.removals, Fetched.Stale, the key handling around the fetch lock and the re-keying at the
+  end of Sync are gone: the importer hands the items back, and maps the library's results back by
+  the paths it gave. status asks WorkFor too.
+
+Golden files in internal/ledger/testdata record each form of fetched.json and state.json; each is
+  asked, saved, asked again, and read with a frozen copy of the decoder, the old-companion check.
+  They pin one old answer: a tombstone in its first form names no path, so it lists nothing. Go
+  duplication fell to 0.25%: ceiling lowered.
+
+No behaviour change: the importer and fetch tests keep their assertions.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1rTis43LTgmturVnCk
+
+
 ## v1.16.7 (2026-11-26)
 
 ### Bug Fixes
