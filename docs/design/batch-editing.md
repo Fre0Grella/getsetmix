@@ -1232,3 +1232,33 @@ in edits and rule sets:
   The preview is grouped by track, with a checkbox per track and per change,
   the changed part marked (`<del>` before, `<mark>` after), and chips to
   show only the changes with a warning or of one field.
+
+**Slice 6** ([#51](https://github.com/Fre0Grella/getsetmix/issues/51)), year,
+comment and cover:
+
+- Year and comment were already fields of edits (L3 and L4 were built with
+  the Library's slice 3: `TDRC`/`date` in the file, `ReleaseYear`/`Commnt`
+  in Rekordbox, checked by the companion's `TestAChangedTrackUpdatesExactlyItsColumns`).
+  `year.extract` runs in an edit like any rule; a full date stays unless the
+  year is edited. A parametrised test runs every rule of the catalogue, and
+  *Standard cleanup*, over a comment holding the source link and a web
+  address: none touches it unless the step names the comment.
+- `POST /api/library/edits/covers` takes an upload or `{"url"}` (the single
+  track's cover route shares the reading) and answers `201`
+  `{"source": "upload:<token>"}`; the image is kept under
+  `<data>/edits/uploads/`. Steps `{"op": "set_cover", "source"}` and
+  `{"op": "clear_cover"}` are handled by `app/edits.py`, not by the rules; the
+  last one wins. A new image is a change on every track; removing one only on
+  tracks with a cover.
+- `Library.write_tags` takes `cover` and `expect_cover` (a `cover_digest`,
+  None for none, or KEEP), so tags and cover go in one write and one `rev`,
+  and returns the cover it replaced; `write_cover` is a wrapper over it.
+- A cover change's old value is `"cover"` until written (the index knows only
+  that there is one), then `store:<edit>/<file>`, the replaced image kept
+  under `<data>/edits/<edit id>/`; `None` means no cover. An undo expects the
+  digest of the image the edit wrote, so a cover changed since is a conflict.
+- The purge removes an edit's kept covers with its changes, and uploads a day
+  old that no change names.
+- UI: a *Cover* row in the Fields tab (*New image* with a file, or *Remove*),
+  uploaded when the preview is made; the preview says *its cover*, *new
+  image* or *no cover*.

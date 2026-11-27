@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import hashlib
 import json
 import logging
 import os
@@ -92,9 +93,11 @@ YEAR_RANGE = (1000, 9999)
 
 @dataclass
 class WriteResult:
-    """What write_tags did: the updated item, or the fields whose values differ."""
+    """What write_tags did: the updated item, or the fields whose values differ.
+    When the cover was written, `previous_cover` is the image it replaced."""
     item: dict | None = None
     differs: dict | None = None
+    previous_cover: tagger.Cover | None = None
 
     @property
     def written(self) -> bool:
@@ -118,6 +121,13 @@ def check_image(data: bytes) -> tuple[bytes, str]:
     if mime is None:
         raise LibraryError(400, "the cover must be a JPEG, PNG or WebP image")
     return data, mime
+
+
+def cover_digest(cover: tagger.Cover | bytes | None) -> str | None:
+    """What a precondition on a cover compares: a hash of its bytes, or None."""
+    if cover is None:
+        return None
+    return hashlib.sha256(cover[0] if isinstance(cover, tuple) else cover).hexdigest()
 
 
 def check_ids(ids) -> list[int]:
@@ -951,30 +961,44 @@ class Library:
                 "sample_rate": row["sample_rate"], "source_url": row["source_url"]}
 
     # ------------------------------------------------------------ writes
-    def write_tags(self, file_id: int, changes: dict, expect: dict | None = None) -> WriteResult:
-        """Write any of the six tag fields into one file, in one atomic write
-        that takes one `rev` (docs/design/library.md, 4.3).
+    def write_tags(self, file_id: int, changes: dict, expect: dict | None = None,
+                   cover=tagger.KEEP, expect_cover=tagger.KEEP) -> WriteResult:
+        """Write any of the six tag fields, and the cover, into one file, in
+        one atomic write that takes one `rev` (docs/design/library.md, 4.3).
 
         With `expect`, the named fields are read from the file itself first; if
         one differs, nothing is written and the result's `differs` holds the
-        file's values of the fields that differ.
+        file's values of the fields that differ. `cover` is an image (bytes and
+        a mime type, which is replaced by what the bytes are), None to remove
+        it, or KEEP; `expect_cover` is the `cover_digest` the file's cover must
+        have, None for no cover, or KEEP not to look. The result holds the
+        cover the file had when the cover was written.
 
-        Raises LibraryError: 400 a field or value that is not valid, 404 unknown
-        id, 409 read-only format or fallback id, 410 trashed, gone or not on
-        disk, 423 another program holds the file.
+        Raises LibraryError: 400 a field or value that is not valid, 413 an
+        image over 10 MB, 404 unknown id, 409 read-only format or fallback id,
+        410 trashed, gone or not on disk, 423 another program holds the file.
         """
         changes = check_fields(changes)
         expect = check_fields(expect, "expect") if expect is not None else {}
+        if cover is not tagger.KEEP and cover is not None:
+            cover = check_image(cover[0])
         with self._writing:
             row, path = self._writable(file_id)
+            differs = {}
             if expect:
                 now_in_file = read_tags(path)
                 differs = {f: now_in_file[f] for f, v in expect.items() if now_in_file[f] != v}
-                if differs:
-                    return WriteResult(differs=differs)
-            if changes:
-                self._edit(row, path, changes, ", ".join(changes))
-        return WriteResult(item=self.item(file_id))
+            if expect_cover is not tagger.KEEP:
+                held = cover_digest(tagger.read_cover(path))
+                if held != expect_cover:
+                    differs["cover"] = held
+            if differs:
+                return WriteResult(differs=differs)
+            previous = None if cover is tagger.KEEP else tagger.read_cover(path)
+            if changes or cover is not tagger.KEEP:
+                what = [*changes, *(() if cover is tagger.KEEP else ("cover",))]
+                self._edit(row, path, changes, ", ".join(what), cover=cover)
+        return WriteResult(item=self.item(file_id), previous_cover=previous)
 
     def write_cover(self, file_id: int, image: tuple[bytes, str] | None) -> CoverResult:
         """Replace the embedded cover of one file with `image` (JPEG, PNG or WebP
@@ -987,13 +1011,8 @@ class Library:
         back. Raises LibraryError like write_tags, and 400 or 413 for an image
         that is not valid.
         """
-        if image is not None:
-            image = check_image(image[0])
-        with self._writing:
-            row, path = self._writable(file_id)
-            previous = tagger.read_cover(path)
-            self._edit(row, path, {}, "cover", cover=image)
-        return CoverResult(item=self.item(file_id), previous=previous)
+        result = self.write_tags(file_id, {}, cover=image)
+        return CoverResult(item=result.item, previous=result.previous_cover)
 
     def _writable(self, file_id: int) -> tuple[dict, Path]:
         """The row and path of a file a write may change; LibraryError if not."""

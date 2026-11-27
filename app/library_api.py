@@ -115,6 +115,13 @@ async def edit_changes(eid: int, field: str = "", state: str = "", warning: str 
     return await _call(edits.current().changes, eid, field, state, warning, limit, cursor)
 
 
+@router.post("/edits/covers", status_code=201)
+async def upload_cover(request: Request):
+    """An image for a `set_cover` step, as an upload or `{"url": ...}`; answers
+    `{"source": "upload:<token>"}`, kept a day unless an edit uses it."""
+    return await _call(edits.current().keep_image, await _image(request))
+
+
 @router.patch("/edits/{eid:int}")
 async def leave_out(eid: int, body: Annotated[dict, Body()]):
     """Leave tracks or changes out of a preview, or put them back."""
@@ -227,6 +234,13 @@ async def get_cover(fid: int, request: Request, v: int | None = None,
 async def set_cover(fid: int, request: Request):
     """Replace the embedded cover: an uploaded image (multipart, field `file`)
     or `{"url": "https://..."}` to download one. Answers with the updated item."""
+    result = await _call(library.current().write_cover, fid, (await _image(request), ""))
+    return result.item
+
+
+async def _image(request: Request) -> bytes:
+    """The image of a cover request: an upload (multipart, field `file`) or
+    `{"url": "https://..."}` to download. Its bytes are checked by the caller."""
     if request.headers.get("content-type", "").startswith("application/json"):
         try:
             url = (await request.json()).get("url")
@@ -248,8 +262,7 @@ async def set_cover(fid: int, request: Request):
         if not isinstance(upload, UploadFile):
             raise HTTPException(400, 'send {"url": "https://..."} or upload an image')
         data = await upload.read(tagger.MAX_COVER + 1)
-    result = await _call(library.current().write_cover, fid, (data, ""))
-    return result.item
+    return data
 
 
 # ------------------------------------------------------------------- audio

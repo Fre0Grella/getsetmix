@@ -21,6 +21,12 @@ again since is a `conflict` and never overwritten. The changes of an applied
 edit are kept `edit_history_days`; then its line stays in the history with
 its counts, and it can no longer be undone. An unused preview goes after 24
 hours. The purge runs at most once a day, when the edits are used.
+
+Covers (design 3.2, 4.7) are not rule work: `set_cover` and `clear_cover`
+steps are handled here. An image for `set_cover` is uploaded first and kept
+under `<data>/edits/uploads/`; the cover an edit replaces is kept under
+`<data>/edits/<edit id>/<file id>`, so an undo can put it back. A cover
+change is written in the same single write as the track's tags.
 """
 from __future__ import annotations
 
@@ -28,10 +34,14 @@ import base64
 import errno
 import json
 import logging
+import re
+import secrets
+import shutil
 import threading
 import time
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 
 from . import config, library, rules, tagger
 from . import db as dbmod
@@ -50,6 +60,8 @@ APPLIABLE = ("preview", "applied", "cancelled", "interrupted")
 FINISHED = ("applied", "cancelled", "interrupted")   # in the history; may be undone
 UNUSED = ("preview", "expired", "discarded")          # never applied: purged after a day
 DAY = 24 * 3600
+COVER_OPS = ("set_cover", "clear_cover")
+HAD_COVER = "cover"    # a cover change's old value before it is written: the file had one
 # Why a selected track takes no part (design 3.3).
 SKIPPED_STATE = {"trashed": "in the trash", "missing": "not on disk", "gone": "not in the library"}
 # How a failed write is named in a change's error (design 4.4).
@@ -91,6 +103,10 @@ def _filter(raw) -> dict[str, str]:
     return raw
 
 
+def _is_cover(step) -> bool:
+    return isinstance(step, dict) and step.get("op") in COVER_OPS
+
+
 def _steps(raw) -> list[dict]:
     """The steps, checked once before any track: 400 names what is wrong."""
     if not isinstance(raw, list) or not raw:
@@ -98,8 +114,12 @@ def _steps(raw) -> list[dict]:
     for step in raw:
         if isinstance(step, dict) and step.get("op") == "set" and step.get("field") in FIELDS:
             library.check_fields({step["field"]: step.get("value")})  # the year's range
+        if _is_cover(step) and step["op"] == "set_cover" and \
+                not str(step.get("source") or "").startswith("upload:"):
+            raise LibraryError(400, "set_cover takes the source an image upload answered with")
     try:
-        rules.run_steps({f: None if f == "year" else "" for f in FIELDS}, raw)
+        rules.run_steps({f: None if f == "year" else "" for f in FIELDS},
+                        [s for s in raw if not _is_cover(s)])
     except rules.RuleError as exc:
         raise LibraryError(400, str(exc)) from None
     return raw
@@ -107,9 +127,15 @@ def _steps(raw) -> list[dict]:
 
 def _label(steps: list[dict]) -> str:
     """What the history calls an edit: its steps in short."""
-    parts = [f"{s['field']} = {'' if s.get('value') is None else s['value']}" if "op" in s
-             else s["rule"] for s in steps]
-    return "; ".join(parts)[:200]
+    def part(s: dict) -> str:
+        if "rule" in s:
+            return s["rule"]
+        if _is_cover(s):
+            return "cover = " + ("new image" if s["op"] == "set_cover" else "none")
+        if s["op"] == "set":
+            return f"{s['field']} = {'' if s.get('value') is None else s['value']}"
+        return f"{s['field']}: {s['op']}"
+    return "; ".join(part(s) for s in steps)[:200]
 
 
 def _warnings(field: str, new, multi: set[str], flagged: list[dict]) -> list[str]:
@@ -130,8 +156,10 @@ class Edits:
 
     def __init__(self, database, lib: library.Library,
                  clock: Callable[[], float] = time.time,
-                 history_days: Callable[[], int] | None = None) -> None:
+                 history_days: Callable[[], int] | None = None,
+                 store: Path | None = None) -> None:
         self.db = database
+        self.store = store or config.DATA_DIR / "edits"   # images: uploads, replaced covers
         self.lib = lib
         self.clock = clock
         self.history_days = history_days or (lambda: int(config.settings["edit_history_days"]))
@@ -196,6 +224,11 @@ class Edits:
         skipped: dict[int, str] = {}
         unchanged: list[int] = []
         changes = []
+        tag_steps = [s for s in steps if not _is_cover(s)]
+        cover = next(((i, s) for i, s in reversed(list(enumerate(steps))) if _is_cover(s)), None)
+        source = cover[1].get("source") if cover else None
+        if source and self._image_file(source) is None:
+            raise LibraryError(400, "that image upload is not kept here: upload it again")
         for fid in ids:
             row = rows.get(fid)
             why = self._skip(row)
@@ -204,11 +237,18 @@ class Edits:
                 continue
             assert row is not None
             before = {f: row[f] for f in FIELDS}
-            result = rules.run_steps(before, steps)
+            result = rules.run_steps(before, tag_steps) if tag_steps else rules.StepsResult(before)
             differ = [f for f in FIELDS if result.fields[f] != before[f]]
-            if not differ:
+            # A new image always counts as a change; removing one only where there is one.
+            covered = cover is not None and (source is not None or bool(row["has_cover"]))
+            if not differ and not covered:
                 unchanged.append(fid)
                 continue
+            if covered and cover is not None:
+                changes.append((fid, row["audio_id"], "cover",
+                                HAD_COVER if row["has_cover"] else None, source,
+                                json.dumps([{"step": cover[0], "op": cover[1]["op"]}]), "[]",
+                                "pending"))
             multi = set(row["multi"].split(","))
             for f in differ:
                 warnings = _warnings(f, result.fields[f], multi, result.warnings)
@@ -388,6 +428,36 @@ class Edits:
             "new": _decode(r["field"], r["new_value"]), "by": json.loads(r["by"]),
             "warnings": json.loads(r["warnings"]), "state": r["state"], "error": r["error"],
         } for r in rows]}
+
+    # ----------------------------------------------------------- images
+    def keep_image(self, data: bytes) -> dict:
+        """Keep an uploaded image for a `set_cover` step; raises LibraryError
+        400 or 413 for one that is not a JPEG, PNG or WebP of at most 10 MB."""
+        data, _ = library.check_image(data)
+        token = secrets.token_hex(16)
+        path = self.store / "uploads" / token
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return {"source": f"upload:{token}"}
+
+    def _image_file(self, handle: str | None) -> Path | None:
+        """Where an image a change names is kept, if it is: `upload:<token>`
+        or `store:<edit id>/<file id>`. Nothing else is ever a path."""
+        kind, _, key = (handle or "").partition(":")
+        if kind == "upload" and re.fullmatch(r"[0-9a-f]{32}", key):
+            path = self.store / "uploads" / key
+        elif kind == "store" and re.fullmatch(r"\d+/\d+", key):
+            path = self.store / key
+        else:
+            return None
+        return path if path.is_file() else None
+
+    def _image(self, handle: str) -> tagger.Cover:
+        path = self._image_file(handle)
+        if path is None:
+            raise LibraryError(410, "the image is no longer kept")
+        data = path.read_bytes()
+        return data, tagger.image_type(data) or "image/jpeg"
 
     # ------------------------------------------------------- leave out
     def leave_out(self, eid: int, body) -> dict:
@@ -618,6 +688,15 @@ class Edits:
                         conn.execute("UPDATE edit_changes SET state = 'applied' "
                                      "WHERE id = ? AND state = 'undone'", (back["undo"],))
 
+    def _keep_replaced(self, eid: int, fid: int, previous: tagger.Cover | None) -> str | None:
+        """Keep the cover an edit replaced, for its undo; its handle, or None."""
+        if previous is None:
+            return None
+        path = self.store / str(eid) / str(fid)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(previous[0])
+        return f"store:{eid}/{fid}"
+
     # ------------------------------------------------------------- purge
     def purge(self) -> dict:
         """Remove previews unused for a day, and the changes of edits that
@@ -643,9 +722,26 @@ class Edits:
                 conn.execute("UPDATE edits SET purged_at = ?, summary = ? WHERE id = ?",
                              (dbmod.iso(now), json.dumps(line["counts"] if line else {}), eid))
                 conn.execute("DELETE FROM edit_changes WHERE edit_id = ?", (eid,))
+        for eid in (*unused, *done):
+            shutil.rmtree(self.store / str(eid), ignore_errors=True)
+        self._purge_uploads(now)
         if unused or done:
             log.info("edits: purged %d unused previews and %d old journals", len(unused), len(done))
         return {"previews": len(unused), "journals": len(done)}
+
+    def _purge_uploads(self, now: float) -> None:
+        """Uploads a day old that no change names any more."""
+        folder = self.store / "uploads"
+        if not folder.is_dir():
+            return
+        with self.db.transaction() as conn:
+            named = {r[0] for r in conn.execute(
+                "SELECT new_value FROM edit_changes WHERE field = 'cover' AND new_value LIKE "
+                "'upload:%' UNION SELECT old_value FROM edit_changes WHERE field = 'cover' "
+                "AND old_value LIKE 'upload:%'")}
+        for path in folder.iterdir():
+            if f"upload:{path.name}" not in named and now - path.stat().st_mtime > PREVIEW_SECONDS:
+                path.unlink(missing_ok=True)
 
     def purge_due(self) -> bool:
         """The purge, if it has not run in the last day; True if it ran."""
@@ -682,12 +778,22 @@ class Edits:
 
     def _write(self, eid: int, fid: int, rows: list[dict]) -> None:
         """All pending changes of one file in one write, expecting the old values."""
-        changes = {r["field"]: _decode(r["field"], r["new_value"]) for r in rows}
-        expect = {r["field"]: _decode(r["field"], r["old_value"]) for r in rows}
+        tags = [r for r in rows if r["field"] != "cover"]
+        changes = {r["field"]: _decode(r["field"], r["new_value"]) for r in tags}
+        expect = {r["field"]: _decode(r["field"], r["old_value"]) for r in tags}
+        pic = next((r for r in rows if r["field"] == "cover"), None)
         self._current[eid] = (self.lib.file(fid) or {}).get("path", "")
         state, error = "applied", ""
         try:
-            result = self.lib.write_tags(fid, changes, expect)
+            kw = {}
+            if pic:
+                old = pic["old_value"]
+                kw["cover"] = self._image(pic["new_value"]) if pic["new_value"] else None
+                kw["expect_cover"] = (tagger.KEEP if old == HAD_COVER else None if old is None
+                                      else library.cover_digest(self._image(old)))
+            result = self.lib.write_tags(fid, changes, expect, **kw)
+            if result.written and pic and pic["old_value"] == HAD_COVER:
+                pic["old_value"] = self._keep_replaced(eid, fid, result.previous_cover)
             if not result.written:
                 state, error = "conflict", "the file changed: " + ", ".join(result.differs or {})
         except LibraryError as exc:
@@ -696,8 +802,8 @@ class Edits:
             reason = "no space" if exc.errno == errno.ENOSPC else "write error"
             state, error = "failed", f"{reason}: {exc}"
         with self.db.transaction() as conn:
-            conn.executemany("UPDATE edit_changes SET state = ?, error = ? WHERE id = ?",
-                             [(state, error, r["id"]) for r in rows])
+            conn.executemany("UPDATE edit_changes SET state = ?, error = ?, old_value = ? "
+                             "WHERE id = ?", [(state, error, r["old_value"], r["id"]) for r in rows])
             if state == "applied":
                 self._reverted(conn, rows)
         log.info("edit %s: %s %s", eid, state, self._current[eid])

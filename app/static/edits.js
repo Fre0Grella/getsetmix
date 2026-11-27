@@ -5,7 +5,7 @@
    follows the progress. Files that failed can be tried again; a file changed
    meanwhile is left alone and said so. *Undo* writes the old values back,
    from the panel or from the History (slice 3). Loaded by app.js. */
-import { $, api, esc, libRules, toast } from "./core.js";
+import { $, api, errorOf, esc, libRules, request, toast } from "./core.js";
 import { lang, num, plural, serverError, STR, T } from "./i18n.js";
 import { cleanupOpen, cleanupSetId, cleanupSteps } from "./cleanup.js";
 import { addSelAction, libChanged, libView, selectedIds } from "./library.js";
@@ -26,6 +26,9 @@ Object.assign(STR.en, {
   edScopeIds: (n) => plural(n, "The selected track", "The {n} selected tracks"),
   edScopeAll: (n) => plural(n, "The 1 track in this view", "All {n} tracks in this view"),
   edPickOne: "Choose a change for at least one field.",
+  edCover: "Cover", edCoverOps: { leave: "Leave as it is", set_cover: "New image", clear_cover: "Remove" },
+  edCoverPick: "Image for the cover", edCoverNeeded: "Choose an image for the cover.",
+  edCoverNew: "new image", edCoverNone: "no cover", edCoverHad: "its cover",
   edAll: "All", edWarned: "With a warning", edKeepTrack: "Keep this track in the edit",
   edKeepChange: "Keep this change",
   edResend: (t, mb) => `${plural(t, "Each paired computer downloads 1 track again", "Each paired computer downloads {n} tracks again")} (${mb} MB).`,
@@ -63,6 +66,9 @@ Object.assign(STR.it, {
   edScopeIds: (n) => plural(n, "Il brano selezionato", "I {n} brani selezionati"),
   edScopeAll: (n) => plural(n, "L'unico brano di questa vista", "Tutti i {n} brani di questa vista"),
   edPickOne: "Scegli una modifica per almeno un campo.",
+  edCover: "Copertina", edCoverOps: { leave: "Lascia com'è", set_cover: "Nuova immagine", clear_cover: "Togli" },
+  edCoverPick: "Immagine per la copertina", edCoverNeeded: "Scegli un'immagine per la copertina.",
+  edCoverNew: "nuova immagine", edCoverNone: "nessuna copertina", edCoverHad: "la sua copertina",
   edAll: "Tutte", edWarned: "Con un avviso", edKeepTrack: "Tieni questo brano nella modifica",
   edKeepChange: "Tieni questa modifica",
   edResend: (t, mb) => `${plural(t, "Ogni computer abbinato riscarica 1 brano", "Ogni computer abbinato riscarica {n} brani")} (${mb} MB).`,
@@ -93,7 +99,7 @@ Object.assign(STR.it, {
 const SHOWN = 500;        // changes listed in the panel; the rest are counted
 const POLL_MS = 600;      // how often the progress of an apply is read
 const FIELD_LABEL = { title: "libTitle", artist: "libArtist", album: "album", genre: "genre",
-  year: "libYear", comment: "libComment" };
+  year: "libYear", comment: "libComment", cover: "edCover" };
 
 const modal = $("#edModal");
 const FIELDS = ["title", "artist", "album", "genre", "year", "comment"];
@@ -147,7 +153,12 @@ function edRows() {
         <label class="ed-check"><input class="ed-case" type="checkbox" /> ${esc(T.edCase)}</label>
       </div>
     </div>`;
-  }).join("");
+  }).join("") + `<div class="ed-frow" data-field="cover" data-op="leave">
+      <span class="ed-fname">${esc(T.edCover)}</span>
+      <select class="ed-select ed-op" aria-label="${esc(T.edCover)}">${["leave", "set_cover", "clear_cover"]
+    .map((op) => `<option value="${op}">${esc(T.edCoverOps[op])}</option>`).join("")}</select>
+      <div class="ed-args"><input class="ed-file-in" type="file" accept="image/jpeg,image/png,image/webp" aria-label="${esc(T.edCoverPick)}" /></div>
+    </div>`;
 }
 
 function edOpen() {
@@ -177,8 +188,8 @@ $("#edFields").addEventListener("change", (e) => {
   if (sel) {
     const row = sel.closest(".ed-frow");
     row.dataset.op = sel.value;
-    const first = row.querySelector(sel.value === "replace" ? ".ed-find" : ".ed-v");
-    if (sel.value !== "leave" && sel.value !== "clear") first.focus();
+    const first = row.querySelector(sel.value === "replace" ? ".ed-find" : ".ed-v, .ed-file-in");
+    if (first && !["leave", "clear", "clear_cover"].includes(sel.value)) first.focus();
   }
   if (Ed.edit && Ed.edit.state === "preview") edReset();
 });
@@ -192,6 +203,10 @@ function edSteps() {
     const op = row.dataset.op;
     const f = row.dataset.field;
     if (op === "leave") continue;
+    if (f === "cover") {   // the image is uploaded when the preview is made
+      steps.push(op === "set_cover" ? { op, file: row.querySelector(".ed-file-in").files[0] || null } : { op });
+      continue;
+    }
     const v = row.querySelector(".ed-v").value;
     if (op === "clear") steps.push({ op, field: f });
     else if (op === "replace") {
@@ -213,9 +228,19 @@ $("#edForm").addEventListener("submit", async (e) => {
   if (!steps.length) { toast(cleanup ? T.edNoRules : T.edPickOne); return; }
   if (steps.some((s) => Number.isNaN(s.value))) { toast(T.libBadYear(...(libRules.year || [1000, 9999]))); return; }
   const all = $('#edScope input[value="filter"]').checked && !$("#edScope").classList.contains("hidden");
+  const pic = steps.find((s) => s.op === "set_cover");
+  if (pic && !pic.file) { toast(T.edCoverNeeded); return; }
   Ed.busy = true;
   edReset();
   try {
+    if (pic) {
+      const form = new FormData();
+      form.append("file", pic.file);
+      const res = await request("/api/library/edits/covers", { method: "POST", body: form });
+      if (!res.ok) throw await errorOf(res);
+      pic.source = (await res.json()).source;
+      delete pic.file;
+    }
     const edit = await api("/api/library/edits", {
       method: "POST",
       body: JSON.stringify({ selection: all ? { filter: Ed.view.filter } : { ids: Ed.ids }, steps,
@@ -293,7 +318,9 @@ function edRender() {
     const label = T[FIELD_LABEL[c.field]] || c.field;
     const warn = c.warnings.filter((w) => T.edWarn[w]).map((w) => T.edWarn[w]);
     const why = c.error ? serverError(c.error) : warn.join(" · ");
-    const [was, now] = edDiff(c.old, c.new);
+    const [was, now] = c.field === "cover"
+      ? [esc(c.old ? T.edCoverHad : T.edCoverNone), esc(c.new ? T.edCoverNew : T.edCoverNone)]
+      : edDiff(c.old, c.new);
     const cbox = open && c.state !== "blocked"
       ? `<input type="checkbox" data-change="${c.change_id}" aria-label="${esc(T.edKeepChange)}"${c.state === "pending" ? " checked" : ""} />` : "<span></span>";
     return `<div class="ed-row" data-state="${esc(c.state)}">${cbox}<span class="ed-change">${esc(label)}: <span class="ed-old">${was}</span> → <span class="ed-new">${now}</span></span><span class="ed-state">${esc(T.edState[c.state] || "")}</span>${why ? `<span class="ed-why">${esc(why)}</span>` : ""}</div>`;
@@ -446,7 +473,8 @@ function edRowTexts() {
   for (const row of $("#edFields").querySelectorAll(".ed-frow")) {
     const name = T[FIELD_LABEL[row.dataset.field]];
     row.querySelector(".ed-fname").textContent = name;
-    row.querySelectorAll(".ed-op option").forEach((o) => { o.textContent = T.edOps[o.value]; });
+    row.querySelectorAll(".ed-op option").forEach((o) => { o.textContent = (T.edOps[o.value] || T.edCoverOps[o.value]); });
+    if (row.dataset.field === "cover") continue;
     row.querySelector(".ed-v").placeholder = T.edValuePh;
     row.querySelector(".ed-find").placeholder = T.edFind;
     row.querySelector(".ed-with").placeholder = T.edWith;

@@ -278,6 +278,8 @@ body.lib-selecting #libSearchForm { display: none; }
 .ed-frow:not([data-op="replace"]) .ed-find, .ed-frow:not([data-op="replace"]) .ed-with,
 .ed-frow:not([data-op="replace"]) .ed-check { display: none; }
 .ed-frow[data-op="replace"] .ed-v { display: none; }
+.ed-frow[data-op="clear_cover"] .ed-args { display: none; }
+.ed-file-in { flex: 1 1 12rem; min-width: 0; font-size: .86rem; }
 .ed-check { display: inline-flex; align-items: center; gap: 6px; font-size: .86rem; color: var(--text-2); }
 .ed-select, .ed-args input[type="text"] {
   height: 40px; padding: 0 12px; border: 1px solid transparent; border-radius: 10px;

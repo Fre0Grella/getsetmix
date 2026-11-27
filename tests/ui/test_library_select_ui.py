@@ -290,3 +290,30 @@ def test_a_copy_of_the_built_in_set_can_be_saved_changed_and_removed(open_tab, s
     tab.page.locator("#confirmYes").click()
     expect(tab.page.locator("#edSet option")).to_have_count(1)
     assert tab.dialogs == [] and tab.errors == []
+
+
+# --------------------------------------------------------- the cover (#51)
+def test_a_new_cover_for_the_selection_and_its_undo(open_tab, server, tmp_path):
+    from app import tagger
+    image = tmp_path / "cover.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n" + bytes.fromhex(
+        "0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360f8cfc0f01f0005000201"
+        "a5c2b4f10000000049454e44ae426082"))
+    tab = open_tab("/#library")
+    row(tab, "Midnight Drive").click(modifiers=["Control"])
+    bar(tab).locator('[data-bulk="edit"]').click()
+    frow = tab.page.locator('.ed-frow[data-field="cover"]')
+    frow.locator(".ed-op").select_option("set_cover")
+    tab.page.locator("#edPreviewBtn").click()
+    expect(tab.page.locator("#toast")).to_have_text("Choose an image for the cover.")
+    frow.locator(".ed-file-in").set_input_files(str(image))
+    tab.page.locator("#edPreviewBtn").click()
+    expect(tab.page.locator(".ed-row")).to_contain_text("Cover: no cover → new image")
+    tab.page.locator("#edApply").click()
+    expect(tab.page.locator("#edResult")).to_have_text("Written to 1 file.")
+    assert tagger.read_cover(server.music.path(MIDNIGHT))[0] == image.read_bytes()
+    tab.page.locator("#edUndo").click()
+    expect(tab.page.locator(".ed-row")).to_contain_text("Cover: its cover → no cover")
+    expect(tab.page.locator('.ed-row[data-state="applied"]')).to_have_count(1)
+    assert tagger.read_cover(server.music.path(MIDNIGHT)) is None
+    assert tab.errors == []
