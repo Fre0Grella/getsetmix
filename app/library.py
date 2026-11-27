@@ -29,6 +29,7 @@ import os
 import re
 import shutil
 import sqlite3
+import stat
 import threading
 import time
 from collections.abc import Callable
@@ -1033,6 +1034,11 @@ class Library:
 
     def _edit(self, row: dict, path: Path, changes: dict, what: str, cover=tagger.KEEP) -> None:
         """One atomic write, then the row: new tags, size and time, one `rev`."""
+        # Marked read-only by its owner (the read-only attribute on Windows): left
+        # alone. A file owned by someone else, in a folder this app may write, is
+        # still edited, as before.
+        if not path.stat().st_mode & stat.S_IWUSR:
+            raise LibraryError(409, "the file is marked read-only on disk")
         try:
             tagger.edit_file(path, changes, cover=cover)
         except PermissionError as exc:

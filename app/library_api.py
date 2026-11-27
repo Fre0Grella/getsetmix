@@ -156,6 +156,12 @@ async def apply_edit(eid: int):
     return await _call(edits.current().apply, eid)
 
 
+@router.post("/edits/{eid:int}/cancel", status_code=202)
+async def cancel_edit(eid: int):
+    """Stop an apply after the file in hand; applying again carries on."""
+    return await _call(edits.current().cancel, eid)
+
+
 @router.post("/edits/{eid:int}/undo", status_code=202)
 async def undo_edit(eid: int, body: Annotated[dict | None, Body()] = None):
     """Revert an edit, whole or for `{"files": [ids]}`, as a new edit applying now."""

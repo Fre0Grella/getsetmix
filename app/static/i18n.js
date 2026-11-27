@@ -124,6 +124,8 @@ const SERVER_ERRORS_IT = [
   [/^no such rule set$/, "Insieme di regole non trovato"],
   [/^that image upload is not kept here: upload it again$/, "Quell'immagine non è più qui: caricala di nuovo"],
   [/^the image is no longer kept$/, "L'immagine non è più conservata"],
+  [/^the file is marked read-only on disk$/, "Il file è segnato in sola lettura sul disco"],
+  [/^only an edit being applied can be stopped$/, "Si può fermare solo una modifica in corso"],
   [/^only a preview can be changed$/, "Si può cambiare solo un'anteprima"],
   [/^the built-in rule set cannot be changed: save a copy$/, "L'insieme predefinito non si cambia: salvane una copia"],
   [/^the built-in rule set cannot be removed$/, "L'insieme predefinito non si può eliminare"],

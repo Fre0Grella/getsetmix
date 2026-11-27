@@ -1280,3 +1280,27 @@ phone sheet:
 - **3. Apply**: the progress, the counts, then only the cards that failed or
   met a conflict, with *Try again* and *Undo*.
 - Checked with 154 tracks and 308 changes on a 360 px screen.
+
+**Slice 8** ([#53](https://github.com/Fre0Grella/getsetmix/issues/53)),
+hardening (the parts that need no real Rekordbox):
+
+- `POST /api/library/edits/{id}/cancel` (`202`; `409` unless applying)
+  stops the job after the file in hand; the edit is `cancelled`, what was
+  written stays, *apply again* carries on and *undo* reverts it. The panel
+  shows *Stop* while an edit is written, and after it *Change N tags* to
+  carry on.
+- An unexpected error from the tagger fails that file (`write error:`) and
+  the job goes on; before, it stopped the whole edit as `interrupted`.
+- A file whose owner may not write it (the read-only attribute on Windows)
+  is refused before any copy is made: `409`, "the file is marked read-only on
+  disk", `read-only:` in an edit. A file owned by someone else, in a folder
+  the app may write, is still edited as before.
+- Tests inject each failure of section 5: a read-only file, a file removed
+  after the preview, a full disk at the copy, a tagger that raises on the
+  third file, and a job killed after three files (no half-written file, the
+  journal matches the disk, it can be continued). On Windows a file held open
+  by another program, as a deck holds it, fails as `in use` and is written
+  when applied again (this test runs only on Windows, so locally; CI runs the
+  app's tests on Linux).
+- Still open: the manual checklist above, against a copy of a real
+  Rekordbox library, and the two questions of section 6 it answers.
