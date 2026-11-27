@@ -764,30 +764,72 @@ def run_rule(rule_id: str, fields: Fields, scope: list[str] | tuple[str, ...] | 
 
 
 # ------------------------------------------------------ field operations
-# The plain operations an edit can hold beside rules (design 3.4). `set` for
-# now; clear, append, prepend and replace come with #50.
+# The plain operations an edit can hold beside rules (design 3.4). Values are
+# taken as given, with no tidy pass: the DJ typed them. `replace` matches
+# plain text, never a pattern the DJ wrote.
 OP_FIELDS = ("title", "artist", "album", "genre", "year", "comment")
-OPS = ("set",)
+TEXT_FIELDS = ("title", "artist", "album", "genre", "comment")
+OPS = {
+    "set": OP_FIELDS,
+    "clear": ("album", "genre", "year", "comment"),   # title and artist are never emptied
+    "append": TEXT_FIELDS,
+    "prepend": TEXT_FIELDS,
+    "replace": TEXT_FIELDS,
+}
+MATCHES = ("text", "word")
+
+
+def _text(step: dict, key: str, op: str, empty: bool = True) -> str:
+    value = step.get(key)
+    if not isinstance(value, str) or (not empty and not value):
+        raise RuleError(f"{op}: {key} is text" + ("" if empty else ", not empty"))
+    return value
+
+
+def replace_text(value: str, find: str, with_: str, match: str = "text",
+                 ignore_case: bool = False) -> str:
+    """Every occurrence of `find` in `value` becomes `with_`; `word` matches
+    whole words only. `find` is plain text: it is escaped, never a pattern."""
+    pattern = re.escape(find)
+    if match == "word":
+        pattern = rf"(?<!\w){pattern}(?!\w)"
+    return re.sub(pattern, lambda _m: with_, value, flags=re.I if ignore_case else 0)
 
 
 def run_op(step: dict, fields: Fields) -> Fields:
     """Run one field operation over `fields`; `fields` is not modified.
 
-    The value is taken as given: no tidy pass, since the DJ typed it. Raises
-    RuleError for an unknown operation or field, or a value of the wrong type
-    (the year is an integer or None, every other field is text).
+    Raises RuleError for an unknown operation, a field it cannot be aimed at,
+    or a value of the wrong type (the year is an integer or None, every other
+    field text).
     """
     op, field_ = step.get("op"), step.get("field")
     if op not in OPS:
         raise RuleError(f"unknown operation {op!r}")
-    if field_ not in OP_FIELDS:
+    if not isinstance(field_, str) or field_ not in OPS[op]:
         raise RuleError(f"{op}: cannot be aimed at {field_!r}")
-    value = step.get("value")
-    if field_ == "year":
-        if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
-            raise RuleError("set: the year is an integer, or null")
-    elif not isinstance(value, str):
-        raise RuleError(f"set: {field_} is text")
+    current = fields.get(field_)
+    if op == "set":
+        value = step.get("value")
+        if field_ == "year":
+            if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
+                raise RuleError("set: the year is an integer, or null")
+        elif not isinstance(value, str):
+            raise RuleError(f"set: {field_} is text")
+    elif op == "clear":
+        value = None if field_ == "year" else ""
+    elif op in ("append", "prepend"):
+        add = _text(step, "value", op)
+        value = current if not current else current + add if op == "append" else add + current
+    else:
+        match = step.get("match", "text")
+        if match not in MATCHES:
+            raise RuleError("replace: match is text or word")
+        ignore_case = step.get("ignore_case", False)
+        if not isinstance(ignore_case, bool):
+            raise RuleError("replace: ignore_case is true or false")
+        value = replace_text(current or "", _text(step, "find", op, empty=False),
+                             _text(step, "with", op), match, ignore_case)
     return {**fields, field_: value}
 
 

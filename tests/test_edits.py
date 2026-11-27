@@ -103,7 +103,8 @@ def test_editing_a_field_with_several_values_warns_and_stays_pending(ed, shelf):
 @pytest.mark.parametrize("body", [
     None, [], {"selection": {"ids": [1]}},
     {"selection": {"ids": [1]}, "steps": []},
-    {"selection": {"filter": {"q": "x"}}, "steps": set_genre()},
+    {"selection": {"filter": {"bpm": "124"}}, "steps": set_genre()},
+    {"selection": {"filter": {"q": 3}}, "steps": set_genre()},
     {"selection": {"ids": []}, "steps": set_genre()},
     {"selection": {"ids": ["1"]}, "steps": set_genre()},
     {"selection": {"ids": [1]}, "steps": [{"op": "set", "field": "cover", "value": "x"}]},
