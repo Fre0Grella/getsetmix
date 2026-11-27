@@ -39,18 +39,18 @@ func Baseline(home string, inst rekordbox.Install, folders []string, importExist
 	if err != nil {
 		return rep, err
 	}
-	state := &ledger.Synced{Baseline: now, Seen: map[string]ledger.Handled{}}
+	state := ledger.NewSynced(now)
 	for _, f := range found.Ready {
 		rep.Files++
 		switch {
 		case known[f.Key]:
 			rep.InCollection++
-			state.Mark(now, f)
+			state.Handled(now, f)
 		case importExisting:
 			rep.Outside++
 		default:
 			rep.Outside++
-			state.Mark(now, f)
+			state.Handled(now, f)
 		}
 	}
 	lock, err := ledger.LockSync(home, syncWait)

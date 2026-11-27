@@ -467,13 +467,13 @@ func cmdStatus(home string) error {
 	if err != nil {
 		return err
 	}
-	var stale map[string]string
+	work := ledger.WorkFor(nil, state, "")
 	if cfg.Server != nil && cfg.Server.Folder != "" {
 		if fetched, err := ledger.ReadFetched(home); err == nil {
-			stale = fetched.Stale(cfg.Server.Folder)
+			work = ledger.WorkFor(fetched, state, cfg.Server.Folder)
 		}
 	}
-	pending, changed := importer.Split(found.Ready, state, stale)
+	pending, changed := importer.Split(found.Ready, state, work)
 	fmt.Printf("pending     %d new, %d changed on the server, %d still syncing\n",
 		len(pending), len(changed), len(found.Settling))
 	fmt.Printf("log         %s\n", filepath.Join(home, "companion.log"))

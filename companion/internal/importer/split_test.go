@@ -12,14 +12,14 @@ import (
 func TestSplitTellsNewFromChangedAndLeavesTheRest(t *testing.T) {
 	ready := []scan.File{{Key: "new"}, {Key: "changed"}, {Key: "done"}}
 	state := &ledger.Synced{Seen: map[string]ledger.Handled{"changed": {}, "done": {}}}
-	pending, changed := Split(ready, state, map[string]string{"changed": "a1_x", "new": "a1_y"})
+	pending, changed := Split(ready, state, ledger.Work{Changed: map[string]ledger.Item{"changed": {ID: "a1_x"}, "new": {ID: "a1_y"}}})
 	if len(pending) != 1 || pending[0].Key != "new" {
 		t.Fatalf("pending %v", pending)
 	}
 	if len(changed) != 1 || changed[0].Key != "changed" {
 		t.Fatalf("changed %v", changed)
 	}
-	if p, c := Split(ready, state, nil); len(p) != 1 || len(c) != 0 {
+	if p, c := Split(ready, state, ledger.Work{}); len(p) != 1 || len(c) != 0 {
 		t.Fatalf("without a fetch state: pending %v changed %v", p, c)
 	}
 }

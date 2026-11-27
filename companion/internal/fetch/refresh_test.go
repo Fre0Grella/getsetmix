@@ -207,23 +207,6 @@ func TestASecondRefreshKeepsTheBase(t *testing.T) {
 	}
 }
 
-// A server path replaced by other audio holds two ids; only the newest speaks
-// for the file, and a tombstoned track never counts as waiting.
-func TestStaleNamesTheNewestTrackOfAPathAndSkipsTombstones(t *testing.T) {
-	folder := t.TempDir()
-	key := func(p string) string { return track.PathKey(filepath.Join(folder, p)) }
-	state := ledger.NewFetched()
-	state.Tracks["a1_old"] = ledger.Track{Path: "a.mp3", Rev: 3, Pending: true}
-	state.Tracks["a1_new"] = ledger.Track{Path: "a.mp3", Rev: 8}
-	state.Tracks["a1_edited"] = ledger.Track{Path: "b.mp3", Rev: 4, Pending: true}
-	state.Tracks["a1_removed"] = ledger.Track{Path: "c.mp3", Rev: 5, Pending: true}
-	state.Removed["a1_removed"] = ledger.Tombstone{Path: "c.mp3"}
-	got := state.Stale(folder)
-	if len(got) != 1 || got[key("b.mp3")] != "a1_edited" {
-		t.Fatalf("stale %v", got)
-	}
-}
-
 // A track removed on the server is not fetched again, whatever its rev was.
 func TestATombstonedTrackIsNotFetchedAgain(t *testing.T) {
 	v1, v2 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
