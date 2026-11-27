@@ -121,7 +121,55 @@ GetSetMix on your home Wi-Fi but can't install it or share to it.
 
 Windows may say it doesn't know the publisher (*More info* > *Run anyway*);
 on macOS, right-click *GetSetMix Setup* > *Open* the first time. Neither is
-signed yet.
+signed yet; see the [code signing policy](#code-signing-policy).
+
+### What Setup changes on your computer, and how to remove it
+
+Setup asks before it does anything, needs no administrator rights, and
+changes only your own user account:
+
+- **The programs**: the companion (`gsm-companion`) and, for *Just this
+  computer*, the GetSetMix app with ffmpeg and Deno, downloaded from their
+  publishers' releases at pinned versions and checked against a SHA-256
+  before use. Windows:
+  `%LOCALAPPDATA%\GetSetMix`; macOS: `~/Library/Application Support/GetSetMix`
+  and the apps in `~/Applications`.
+- **Its own settings and memory**: Windows `%APPDATA%\GetSetMix`; macOS
+  `~/Library/Application Support/GetSetMix`. Backups of Rekordbox's
+  `master.db` taken before each import are kept there too.
+- **A launcher** that imports new tracks and then starts Rekordbox (a
+  Start-menu shortcut on Windows, an app in `~/Applications` on macOS), and,
+  with a home server, a **scheduled task** that fetches new tracks every 15
+  minutes (Windows Task Scheduler, a launchd agent on macOS).
+- **Rekordbox's collection**: new tracks are added to `master.db` and to the
+  *GetSetMix* playlist, only while Rekordbox is closed and after a backup.
+
+To remove it, run `gsm-companion uninstall` (in the programs folder above):
+it removes the launcher, the autostart and the scheduled task. Then delete
+the two folders above. Tracks already in Rekordbox stay there; remove them in
+Rekordbox if you want.
+
+### Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io),
+certificate by [SignPath Foundation](https://signpath.org) (applied for;
+releases are not signed yet).
+
+- **What is signed**: GetSetMix Setup and the companion for Windows, built by
+  [GitHub Actions](.github/workflows/companion.yml) from the source code in
+  this repository. Nothing built elsewhere is signed.
+- **Committers and reviewers**: [Fre0Grella](https://github.com/Fre0Grella).
+  A change proposed by anyone else is reviewed before it is merged.
+- **Approvers**: [Fre0Grella](https://github.com/Fre0Grella), who approves
+  each signed release by hand.
+
+### Privacy
+
+This program will not transfer any information to other networked systems
+unless specifically requested by the user or the person installing or
+operating it. The companion talks only to the GetSetMix server you pair it
+with; the app downloads only the links you give it. No usage data is
+collected.
 
 The sections below are the same installs by hand.
 
