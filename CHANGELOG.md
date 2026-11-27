@@ -1,6 +1,44 @@
 # CHANGELOG
 
 
+## v1.24.1 (2026-11-27)
+
+### Bug Fixes
+
+- **ui**: Show a new version without a refresh
+  ([`efe9a01`](https://github.com/Fre0Grella/getsetmix/commit/efe9a015e44e944b3f6c4e4084f247b95430f1d6))
+
+The page and its scripts were sent without cache headers, so browsers kept old copies after an
+  update (the maintainer could not see the new Library features on 1.24.0). They now carry
+  Cache-Control: no-cache, so each load checks the ETag (a cheap 304); covers keep their long cache.
+
+Also clears main.py's six old lint findings (the hook checks touched files): ruff ceiling 30 -> 24.
+
+Closes #106
+
+Claude-Session: https://claude.ai/code/session_01P6dL1ubJcR7rkeStcK3oqS
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+### Documentation
+
+- Redesign selection, filters and edit flow
+  ([`7e3e26e`](https://github.com/Fre0Grella/getsetmix/commit/7e3e26eb6a74008dbde8ba815fbd76e0ac4ebb49))
+
+An interaction review (interaction-design skill) found selection invisible and the edit panel hard
+  to use. Decided and approved with the maintainer on 2026-11-27:
+
+- library.md 4.5.1: a visible Select button starts selection mode; gestures stay as shortcuts;
+  Select all always in sight. - library.md 4.5.2: an artist filter that also finds featured
+  appearances, and problem filters that only filter the list. - batch-editing.md 4.10: one
+  three-step dialog everywhere (What, Check, Done), Clean up first, a live dry-run preview, field
+  changes as sentences.
+
+Claude-Session: https://claude.ai/code/session_01P6dL1ubJcR7rkeStcK3oqS
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.24.0 (2026-11-27)
 
 ### Features
