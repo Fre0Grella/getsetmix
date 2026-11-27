@@ -19,6 +19,8 @@ INTERNAL = [
     r"^. is not one of .$", r"^cursor does not belong to this list$",
     r"^limit must be between 1 and (500|200)$", r"^selection must hold the track ids or a filter$",
     r"^filter takes q, genre and folder, as text$",
+    r"^a rule set has a name and steps$", r"^files and changes are lists of ids$",
+    r"^ruleset_id is a rule set id$", r"^send exclude and include, each with files and changes$",
     r"^steps must be a non-empty list$", r"^the edit must be an object$",
     r"^notices not found in this build$", r"^license not found in this build$",
     r'^send \{"url": "https://\.\.\."\} or upload an image$',

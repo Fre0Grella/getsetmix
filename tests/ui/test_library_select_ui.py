@@ -236,3 +236,57 @@ def test_several_fields_and_the_whole_view_in_one_edit(open_tab, server):
     assert server.item(MIDNIGHT)["title"] == "Midnight Ride"
     assert {i["album"] for i in server.items()} == {"Night Set"}
     assert tab.errors == []
+
+
+# ------------------------------------------------------- rule sets (#49)
+def test_cleanup_with_a_rule_set_and_a_change_left_out(open_tab, server):
+    server.music.mp3("Messy.mp3", seed=9, title="night drive (original mix) [free download]",
+                     artist="Nova ft Kito", genre="tech-house")
+    server.http.post("/api/library/rescan")
+    server.wait_for_index(len(TRACKS) + 1)
+    tab = open_tab("/#library")
+    row(tab, "free download").click(modifiers=["Control"])
+    bar(tab).locator('[data-bulk="edit"]').click()
+    tab.page.locator('.ed-tab[data-tab="cleanup"]').click()
+    expect(tab.page.locator("#edSet")).to_have_value(str(server.http.get("/api/library/rulesets").json()[0]["id"]))
+    expect(tab.page.locator(".ed-rule")).to_have_count(11)
+    expect(tab.page.locator("#edSetNote")).to_be_visible()   # built in: copy to change
+    tab.page.locator("#edPreviewBtn").click()
+    expect(tab.page.locator(".ed-track")).to_have_count(1)
+    expect(tab.page.locator(".ed-row")).to_have_count(3)    # title, artist, genre
+    expect(tab.page.locator(".ed-new mark").first).to_be_visible()   # the changed part is marked
+    # leave the genre out
+    genre = tab.page.locator(".ed-row", has_text="tech-house")
+    genre.locator("input[data-change]").uncheck()
+    expect(genre).to_have_attribute("data-state", "excluded")
+    expect(tab.page.locator("#edApply")).to_have_text("Change 2 tags on 1 track")
+    tab.page.locator("#edApply").click()
+    expect(tab.page.locator("#edResult")).to_have_text("Written to 1 file.")
+    item = server.item("Messy.mp3")
+    assert (item["title"], item["artist"], item["genre"]) == ("night drive (feat. Kito)", "Nova", "tech-house")
+    assert tab.errors == []
+
+
+def test_a_copy_of_the_built_in_set_can_be_saved_changed_and_removed(open_tab, server):
+    tab = open_tab("/#library")
+    row(tab, "Midnight Drive").click(modifiers=["Control"])
+    bar(tab).locator('[data-bulk="edit"]').click()
+    tab.page.locator('.ed-tab[data-tab="cleanup"]').click()
+    expect(tab.page.locator(".ed-rule")).to_have_count(11)
+    tab.page.locator(".ed-rule").nth(0).locator("[data-on]").uncheck()
+    tab.page.locator("#edSetCopy").click()
+    tab.page.locator("#edSetName").fill("Mine")
+    tab.page.locator("#edSetNewSave").click()
+    expect(tab.page.locator(".ed-rule")).to_have_count(10)
+    expect(tab.page.locator("#edSetSave")).to_be_visible()
+    sets = server.http.get("/api/library/rulesets").json()
+    assert [s["name"] for s in sets] == ["Standard cleanup", "Mine"] and len(sets[1]["steps"]) == 10
+    tab.page.locator(".ed-rule").nth(1).locator('[data-move="-1"]').click()
+    tab.page.locator("#edSetSave").click()
+    expect(tab.page.locator("#toast")).to_have_text("Rule set saved")
+    mine = server.http.get("/api/library/rulesets").json()[1]
+    assert [s["rule"] for s in mine["steps"][:2]] == [sets[1]["steps"][1]["rule"], sets[1]["steps"][0]["rule"]]
+    tab.page.locator("#edSetDelete").click()
+    tab.page.locator("#confirmYes").click()
+    expect(tab.page.locator("#edSet option")).to_have_count(1)
+    assert tab.dialogs == [] and tab.errors == []

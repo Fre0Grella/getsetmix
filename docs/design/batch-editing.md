@@ -1208,3 +1208,27 @@ field operations and selection by filter (built before slice 4):
   than the selection, the panel offers *All N tracks in this view*, which
   sends the view's filter instead of ids. The preview notes say what each
   paired computer downloads again.
+
+**Slice 4** ([#49](https://github.com/Fre0Grella/getsetmix/issues/49)), rules
+in edits and rule sets:
+
+- Rules and field operations are steps of one list, run by `rules.run_steps`.
+  A rule's warnings (`not_in_genre_list`) join its change's own; a warning on
+  a field the steps leave as it is has no change to sit on and is not shown.
+- `rule_sets` is seeded with the built-in sets of the catalogue (*Standard
+  cleanup*) the first time sets are read, and their steps follow the
+  catalogue after that. `PUT` or `DELETE` on a built-in set is `409`; a name
+  is unique (`409`), at most 100 characters.
+- `POST /api/library/edits` with `ruleset_id` uses the set's steps; with
+  `steps` too, the steps run and the set only names the edit; an unknown set
+  is `404`.
+- `PATCH /api/library/edits/{id}` moves `pending` changes to `excluded` and
+  back, by `files` or `changes`; blocked ones stay blocked; only a preview
+  (`409`). Counts and `resend` are computed from the changes, so they follow.
+- UI: the panel has two tabs. **Cleanup** (`app/static/cleanup.js`) lists
+  the chosen set's rules with a switch, ↑ ↓ to reorder, a description and
+  *Settings* for the parameters; *Save* changes your own set, *Save as new*
+  makes one (the only way to change the built-in one), *Delete* asks first.
+  The preview is grouped by track, with a checkbox per track and per change,
+  the changed part marked (`<del>` before, `<mark>` after), and chips to
+  show only the changes with a warning or of one field.

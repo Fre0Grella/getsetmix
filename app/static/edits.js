@@ -7,6 +7,7 @@
    from the panel or from the History (slice 3). Loaded by app.js. */
 import { $, api, esc, libRules, toast } from "./core.js";
 import { lang, num, plural, serverError, STR, T } from "./i18n.js";
+import { cleanupOpen, cleanupSetId, cleanupSteps } from "./cleanup.js";
 import { addSelAction, libChanged, libView, selectedIds } from "./library.js";
 
 const SKIP_IT = {
@@ -25,6 +26,8 @@ Object.assign(STR.en, {
   edScopeIds: (n) => plural(n, "The selected track", "The {n} selected tracks"),
   edScopeAll: (n) => plural(n, "The 1 track in this view", "All {n} tracks in this view"),
   edPickOne: "Choose a change for at least one field.",
+  edAll: "All", edWarned: "With a warning", edKeepTrack: "Keep this track in the edit",
+  edKeepChange: "Keep this change",
   edResend: (t, mb) => `${plural(t, "Each paired computer downloads 1 track again", "Each paired computer downloads {n} tracks again")} (${mb} MB).`,
   edCounts: (c, t) => `${plural(c, "1 change", "{n} changes")} on ${plural(t, "1 track", "{n} tracks")}`,
   edNothing: "Nothing to change: the selected tracks already hold this value.",
@@ -60,6 +63,8 @@ Object.assign(STR.it, {
   edScopeIds: (n) => plural(n, "Il brano selezionato", "I {n} brani selezionati"),
   edScopeAll: (n) => plural(n, "L'unico brano di questa vista", "Tutti i {n} brani di questa vista"),
   edPickOne: "Scegli una modifica per almeno un campo.",
+  edAll: "Tutte", edWarned: "Con un avviso", edKeepTrack: "Tieni questo brano nella modifica",
+  edKeepChange: "Tieni questa modifica",
   edResend: (t, mb) => `${plural(t, "Ogni computer abbinato riscarica 1 brano", "Ogni computer abbinato riscarica {n} brani")} (${mb} MB).`,
   edCounts: (c, t) => `${plural(c, "1 modifica", "{n} modifiche")} su ${plural(t, "1 brano", "{n} brani")}`,
   edNothing: "Niente da cambiare: i brani selezionati hanno già questo valore.",
@@ -96,7 +101,8 @@ const FIELDS = ["title", "artist", "album", "genre", "year", "comment"];
 const FIELD_OPS = { title: ["set", "prepend", "append", "replace"], artist: ["set", "prepend", "append", "replace"],
   album: ["set", "clear", "prepend", "append", "replace"], genre: ["set", "clear", "prepend", "append", "replace"],
   year: ["set", "clear"], comment: ["set", "clear", "prepend", "append", "replace"] };
-const Ed = { ids: [], view: null, edit: null, timer: null, busy: false };
+const Ed = { ids: [], view: null, edit: null, timer: null, busy: false, tab: "fields",
+  items: [], filter: "all" };
 
 function edReset() {
   clearTimeout(Ed.timer);
@@ -107,7 +113,22 @@ function edReset() {
   $("#edResult").classList.add("hidden");
   $("#edProgress").classList.add("hidden");
   $("#edList").innerHTML = "";
+  $("#edFilter").innerHTML = "";
+  Ed.items = [];
+  Ed.filter = "all";
 }
+
+// Fields or Cleanup: the preview is made from the tab that shows.
+function edTab(tab) {
+  Ed.tab = tab;
+  document.querySelectorAll(".ed-tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  $("#edFields").classList.toggle("hidden", tab !== "fields");
+  $("#edCleanup").classList.toggle("hidden", tab !== "cleanup");
+  if (tab === "cleanup") cleanupOpen();
+  if (Ed.edit && Ed.edit.state === "preview") edReset();
+}
+document.querySelectorAll(".ed-tab").forEach((b) => b.addEventListener("click", () => edTab(b.dataset.tab)));
+$("#edCleanup").addEventListener("cleanup-change", () => { if (Ed.edit && Ed.edit.state === "preview") edReset(); });
 
 // One row per field (design 4.3, the Fields tab): what to do, and its inputs.
 function edRows() {
@@ -142,6 +163,7 @@ function edOpen() {
   $('#edScope input[value="ids"]').checked = true;
   edScopeTexts();
   edRows();
+  edTab("fields");
   modal.classList.remove("hidden");
   $("#edFields .ed-op").focus();
 }
@@ -186,8 +208,9 @@ function edSteps() {
 $("#edForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (Ed.busy) return;
-  const steps = edSteps();
-  if (!steps.length) { toast(T.edPickOne); return; }
+  const cleanup = Ed.tab === "cleanup";
+  const steps = cleanup ? cleanupSteps() : edSteps();
+  if (!steps.length) { toast(cleanup ? T.edNoRules : T.edPickOne); return; }
   if (steps.some((s) => Number.isNaN(s.value))) { toast(T.libBadYear(...(libRules.year || [1000, 9999]))); return; }
   const all = $('#edScope input[value="filter"]').checked && !$("#edScope").classList.contains("hidden");
   Ed.busy = true;
@@ -195,7 +218,8 @@ $("#edForm").addEventListener("submit", async (e) => {
   try {
     const edit = await api("/api/library/edits", {
       method: "POST",
-      body: JSON.stringify({ selection: all ? { filter: Ed.view.filter } : { ids: Ed.ids }, steps }),
+      body: JSON.stringify({ selection: all ? { filter: Ed.view.filter } : { ids: Ed.ids }, steps,
+        ...(cleanup && cleanupSetId() ? { ruleset_id: cleanupSetId() } : {}) }),
     });
     Ed.edit = edit;
     await edShow(edit);
@@ -219,24 +243,93 @@ function edSummary(edit) {
   $("#edNotes").textContent = notes.join(" ");
 }
 
-// The changes as rows: the track, then before -> after, and once written, what happened.
+// The part of a value that changed, marked: what goes in <del>, what comes in <mark>.
+function edDiff(before, after) {
+  const a = String(before ?? ""), b = String(after ?? "");
+  let p = 0;
+  while (p < a.length && p < b.length && a[p] === b[p]) p += 1;
+  let s = 0;
+  while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s += 1;
+  const part = (t, tag) => esc(t.slice(0, p)) + (t.length - p - s > 0 ? `<${tag}>${esc(t.slice(p, t.length - s))}</${tag}>` : "") + esc(t.slice(t.length - s));
+  return [part(a, "del"), part(b, "mark")];
+}
+
+// The changes, grouped by track (they come adjacent): a checkbox per track
+// and per change while it is a preview, then what happened once written.
 async function edList(edit) {
   const page = await api(`/api/library/edits/${edit.id}/changes?limit=${SHOWN}`);
-  const rows = page.items.map((c) => {
-    const name = c.path.slice(c.path.lastIndexOf("/") + 1);
+  Ed.items = page.items;
+  edFilters(edit);
+  edRender();
+}
+
+function edFilters(edit) {
+  const fields = Object.keys(edit.counts.by_field || {});
+  const chips = [["all", T.edAll]];
+  if (Ed.items.some((c) => c.warnings.length)) chips.push(["warn", T.edWarned]);
+  if (fields.length > 1) fields.forEach((f) => chips.push([`field:${f}`, T[FIELD_LABEL[f]] || f]));
+  if (!chips.some(([k]) => k === Ed.filter)) Ed.filter = "all";
+  $("#edFilter").innerHTML = chips.length > 1 ? chips.map(([k, label]) =>
+    `<button type="button" class="chip" data-filter="${esc(k)}" aria-pressed="${k === Ed.filter}">${esc(label)}</button>`).join("") : "";
+}
+
+function edRender() {
+  const open = Ed.edit && Ed.edit.state === "preview";
+  const shown = Ed.items.filter((c) => Ed.filter === "all" || (Ed.filter === "warn" ? c.warnings.length
+    : c.field === Ed.filter.slice(6)));
+  const groups = [];
+  for (const c of shown) {
+    if (!groups.length || groups[groups.length - 1].id !== c.file_id) groups.push({ id: c.file_id, path: c.path, items: [] });
+    groups[groups.length - 1].items.push(c);
+  }
+  const html = groups.map((g) => {
+    const name = g.path.slice(g.path.lastIndexOf("/") + 1);
+    const kept = g.items.some((c) => c.state === "pending");
+    const can = g.items.some((c) => c.state === "pending" || c.state === "excluded");
+    const box = open && can ? `<input type="checkbox" data-file="${g.id}" aria-label="${esc(T.edKeepTrack)}"${kept ? " checked" : ""} />` : "";
+    return `<div class="ed-track">
+      <label class="ed-file" title="${esc(g.path)}">${box}<span>${esc(name)}</span></label>
+      ${g.items.map((c) => {
     const label = T[FIELD_LABEL[c.field]] || c.field;
     const warn = c.warnings.filter((w) => T.edWarn[w]).map((w) => T.edWarn[w]);
     const why = c.error ? serverError(c.error) : warn.join(" · ");
-    return `<div class="ed-row" data-state="${esc(c.state)}">
-      <span class="ed-file" title="${esc(c.path)}">${esc(name)}</span>
-      <span class="ed-state">${esc(T.edState[c.state] || "")}</span>
-      <span class="ed-change">${esc(label)}: <span class="ed-old">${esc(c.old ?? "")}</span> → <span class="ed-new">${esc(c.new ?? "")}</span></span>
-      ${why ? `<span class="ed-why">${esc(why)}</span>` : ""}
+    const [was, now] = edDiff(c.old, c.new);
+    const cbox = open && c.state !== "blocked"
+      ? `<input type="checkbox" data-change="${c.change_id}" aria-label="${esc(T.edKeepChange)}"${c.state === "pending" ? " checked" : ""} />` : "<span></span>";
+    return `<div class="ed-row" data-state="${esc(c.state)}">${cbox}<span class="ed-change">${esc(label)}: <span class="ed-old">${was}</span> → <span class="ed-new">${now}</span></span><span class="ed-state">${esc(T.edState[c.state] || "")}</span>${why ? `<span class="ed-why">${esc(why)}</span>` : ""}</div>`;
+  }).join("")}
     </div>`;
   });
-  const more = edit.counts.changes - page.items.length;
-  $("#edList").innerHTML = rows.join("") + (more > 0 ? `<p class="ed-more">${esc(T.edMore(more))}</p>` : "");
+  const more = Ed.edit ? Ed.edit.counts.changes - Ed.items.length : 0;
+  $("#edList").innerHTML = html.join("") + (more > 0 ? `<p class="ed-more">${esc(T.edMore(more))}</p>` : "");
 }
+
+$("#edFilter").addEventListener("click", (e) => {
+  const chip = e.target.closest("[data-filter]");
+  if (!chip) return;
+  Ed.filter = chip.dataset.filter;
+  $("#edFilter").querySelectorAll("[data-filter]").forEach((b) => b.setAttribute("aria-pressed", String(b === chip)));
+  edRender();
+});
+
+// Leaving out a track or a change, or putting it back, before Apply.
+$("#edList").addEventListener("change", async (e) => {
+  const box = e.target;
+  const edit = Ed.edit;
+  if (!edit || edit.state !== "preview" || !(box.dataset.file || box.dataset.change)) return;
+  const what = box.dataset.file ? { files: [Number(box.dataset.file)] } : { changes: [Number(box.dataset.change)] };
+  try {
+    Ed.edit = await api(`/api/library/edits/${edit.id}`, {
+      method: "PATCH", body: JSON.stringify({ [box.checked ? "include" : "exclude"]: what }),
+    });
+    edSummary(Ed.edit);
+    edButton(Ed.edit);
+    await edList(Ed.edit);
+  } catch (err) {
+    toast(err.message);
+    box.checked = !box.checked;
+  }
+});
 
 // The Apply button names the numbers; after an apply it offers to retry failures.
 function edButton(edit) {
