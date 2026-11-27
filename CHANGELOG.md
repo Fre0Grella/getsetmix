@@ -1,6 +1,38 @@
 # CHANGELOG
 
 
+## v1.22.0 (2026-11-27)
+
+### Features
+
+- **library**: Covers, year and comment in edits
+  ([`f88b889`](https://github.com/Fre0Grella/getsetmix/commit/f88b889bfbf4d48c12eea4da70573bb6aaa7963b))
+
+* feat(library): covers, year and comment in edits
+
+Batch editing, slice 6.
+
+- set_cover and clear_cover steps for a selection: an image is uploaded first (POST
+  /api/library/edits/covers), tags and cover go in one write, the cover an edit replaces is kept so
+  undo puts it back, and undo leaves a cover changed since alone. - Library.write_tags takes the
+  cover and a digest precondition; write_cover is a wrapper over it. - Tests for year.extract in an
+  edit, a full date kept when the year is not edited, and every rule leaving the comment alone
+  unless the step names it. - The purge removes kept covers with their journal, and old uploads. -
+  UI: a Cover row in the Fields tab.
+
+Closes #51
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+Claude-Session: https://claude.ai/code/session_01P6dL1ubJcR7rkeStcK3oqS
+
+* test(ui): allow the cover 404 an undo can race
+
+---------
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.21.0 (2026-11-27)
 
 ### Features
