@@ -74,6 +74,7 @@ func (e *env) count(t *testing.T, q string) int {
 }
 
 func TestSyncImportsNewTracksOnce(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.add(t, "new one.mp3")
 	e.add(t, "new two.mp3")
@@ -113,6 +114,7 @@ func TestSyncImportsNewTracksOnce(t *testing.T) {
 }
 
 func TestDeletedFromRekordboxStaysDeleted(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.add(t, "keeper.mp3")
 	if _, err := e.im.Sync(false); err != nil {
@@ -129,6 +131,7 @@ func TestDeletedFromRekordboxStaysDeleted(t *testing.T) {
 }
 
 func TestSyncDefersWhileRekordboxRuns(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.add(t, "later.mp3")
 	e.running = true
@@ -146,6 +149,7 @@ func TestSyncDefersWhileRekordboxRuns(t *testing.T) {
 }
 
 func TestDryRunChangesNothing(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.add(t, "maybe.mp3")
 	rep, err := e.im.Sync(true)
@@ -161,6 +165,7 @@ func TestDryRunChangesNothing(t *testing.T) {
 }
 
 func TestUnreadableFilesAreRetriedNotImported(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	bad := filepath.Join(e.music, "broken.mp3")
 	os.WriteFile(bad, bytes.Repeat([]byte("junk"), 500), 0o644)
@@ -177,6 +182,7 @@ func TestUnreadableFilesAreRetriedNotImported(t *testing.T) {
 }
 
 func TestFailedIntegrityRestoresBackup(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.add(t, "x.mp3")
 	if err := snapshot(e.rbDir, filepath.Join(e.im.Home, "backup")); err != nil {
@@ -198,6 +204,7 @@ func TestFailedIntegrityRestoresBackup(t *testing.T) {
 // first sync widens each value to {at, size, mtime} in place and acts on
 // nothing (docs/design/library.md, 4.6).
 func TestOldStateIsWidenedInPlace(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	kept := e.add(t, "removed in rekordbox.mp3") // handled, then deleted from the collection
 	already := filepath.Join(e.music, "already.mp3")

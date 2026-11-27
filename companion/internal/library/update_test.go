@@ -15,6 +15,7 @@ import (
 // comment cleared on the server is cleared in the row; a path with no row is
 // reported, not imported.
 func TestUpdateClearsAndReportsMissingRows(t *testing.T) {
+	t.Parallel()
 	dir, existing := setup(t)
 	db, err := library.Open(filepath.Join(dir, "master.db"))
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 // The one rule sync and status share: a file never handled is new; a handled
 // file is acted on only when fetch put a newer server copy in its place.
 func TestSplitTellsNewFromChangedAndLeavesTheRest(t *testing.T) {
+	t.Parallel()
 	ready := []scan.File{{Key: "new"}, {Key: "changed"}, {Key: "done"}}
 	state := &ledger.Synced{Seen: map[string]ledger.Handled{"changed": {}, "done": {}}}
 	pending, changed := Split(ready, state, ledger.Work{Changed: map[string]ledger.Item{"changed": {ID: "a1_x"}, "new": {ID: "a1_y"}}})

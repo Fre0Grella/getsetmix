@@ -83,6 +83,7 @@ func idOf(t *testing.T, dir, path string) string {
 // removed playlist lists it, and a restore takes that row out again. The
 // file still counts once as known.
 func TestADuplicatedPathIsAlwaysItsOldestRow(t *testing.T) {
+	t.Parallel()
 	dir, paths := removedSetup(t)
 	oldest := idOf(t, dir, paths[1])
 	db, err := library.Open(filepath.Join(dir, "master.db"))
@@ -123,6 +124,7 @@ func TestADuplicatedPathIsAlwaysItsOldestRow(t *testing.T) {
 // for the file, even if the other one is older: the duplicate is usually a
 // leftover Rekordbox does not use.
 func TestThisComputersRowWinsOverAnOlderRowOfAnotherDevice(t *testing.T) {
+	t.Parallel()
 	dir, paths := removedSetup(t)
 	ours := idOf(t, dir, paths[1])
 	duplicate(t, dir, ours, "usb1", "1999-01-01 00:00:00.000 +00:00", librarytest.USBDeviceID)
@@ -140,6 +142,7 @@ func TestThisComputersRowWinsOverAnOlderRowOfAnotherDevice(t *testing.T) {
 // When only another device holds a row for the file, that row is still the
 // one written, so no file is left without updates.
 func TestAnotherDevicesRowIsUsedWhenThisComputerHasNone(t *testing.T) {
+	t.Parallel()
 	dir, paths := removedSetup(t)
 	id := idOf(t, dir, paths[1])
 	raw := librarytest.Open(t, filepath.Join(dir, "master.db"))

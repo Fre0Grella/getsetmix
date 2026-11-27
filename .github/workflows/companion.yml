@@ -74,9 +74,9 @@ jobs:
 
   # GetSetMix Setup (the companion opened with no arguments), built on every
   # PR and push so it can be tried before a release. Releases attach it via
-  # release.yml.
+  # release.yml. It runs beside the tests, not after them: it only builds,
+  # and a release still waits for the tests (build needs test).
   setup:
-    needs: test
     strategy:
       fail-fast: false
       matrix:

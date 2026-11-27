@@ -69,6 +69,7 @@ func (e *env) inRemoved(t *testing.T) int {
 }
 
 func TestARemovedTrackLandsInThePlaylistOnce(t *testing.T) {
+	t.Parallel()
 	e, path := pairedEnv(t)
 	e.serverRemoves(t, "House - Gone.mp3", true)
 
@@ -118,6 +119,7 @@ func TestARemovedTrackLandsInThePlaylistOnce(t *testing.T) {
 }
 
 func TestARestoreTakesTheTrackOutOfThePlaylist(t *testing.T) {
+	t.Parallel()
 	e, path := pairedEnv(t)
 	e.serverRemoves(t, "House - Gone.mp3", true)
 	if _, err := e.im.Sync(false); err != nil {
@@ -146,6 +148,7 @@ func TestARestoreTakesTheTrackOutOfThePlaylist(t *testing.T) {
 }
 
 func TestNothingIsMarkedWhileRekordboxRuns(t *testing.T) {
+	t.Parallel()
 	e, path := pairedEnv(t)
 	e.serverRemoves(t, "House - Gone.mp3", true)
 	dbPath := filepath.Join(e.rbDir, "master.db")
@@ -173,6 +176,7 @@ func TestNothingIsMarkedWhileRekordboxRuns(t *testing.T) {
 }
 
 func TestADryRunShowsTheRemovedTracksAndWritesNothing(t *testing.T) {
+	t.Parallel()
 	e, path := pairedEnv(t)
 	e.serverRemoves(t, "House - Gone.mp3", true)
 	rep, err := e.im.Sync(true)
@@ -185,6 +189,7 @@ func TestADryRunShowsTheRemovedTracksAndWritesNothing(t *testing.T) {
 }
 
 func TestATrackTheDJRemovedFromRekordboxIsNotLookedForAgain(t *testing.T) {
+	t.Parallel()
 	e, _ := pairedEnv(t)
 	e.exec(t, "DELETE FROM djmdContent WHERE FileNameL = 'House - Gone.mp3'")
 	e.serverRemoves(t, "House - Gone.mp3", true)
@@ -202,6 +207,7 @@ func TestATrackTheDJRemovedFromRekordboxIsNotLookedForAgain(t *testing.T) {
 }
 
 func TestWithoutAServerNothingIsMarked(t *testing.T) {
+	t.Parallel()
 	e, _ := pairedEnv(t)
 	e.serverRemoves(t, "House - Gone.mp3", true)
 	e.im.Config.Server = nil
