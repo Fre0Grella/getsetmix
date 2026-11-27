@@ -1041,8 +1041,8 @@ acted on.
 
 #### 4.6.1 The companion's view of server changes (consolidation)
 
-**Status: approved** on 2026-11-24 (see the decisions below); slices 1 to 3
-of the build plan are built, and the first half of slice 4. It changes how the companion's code is arranged,
+**Status: approved** on 2026-11-24 (see the decisions below); slices 1 to 4
+of the build plan are built. It changes how the companion's code is arranged,
 not what it does.
 It is numbered under 4.6 so that 4.7 and 4.8 keep their numbers: the code
 cites "4.7" for local mode.
@@ -1403,7 +1403,14 @@ and the existing tests pass unchanged in what they assert.
    `internal/ledger/testdata`, checked with a frozen copy of the decoder.
    They pin one old answer: a tombstone in its first form (the time alone)
    names no path, so it lists nothing, and a track listed for it counts as
-   restored. *4b, the fetch side:* `Plan` and its record calls.
+   restored. *4b, the fetch side:* `Fetched.Plan` says what a fetch does
+   with a listing: `Get`, `Refresh` and `Keep` steps in listing order (one
+   per audio id, so a track listed at two server paths is fetched once;
+   `Keep` is a newer copy of a track deleted here), the tombstones to
+   record, the ones the server lists again (with the files to fetch again),
+   and the files for the recycle bin. `fetch` does the network and file
+   work and records each outcome: `Got`, `Refreshed`, `Kept`, `Tombstoned`,
+   `Restored`, `Recycled`.
 5. **Clean-up.** Remove the aliases. Bring the `fetch` and `config` package
    comments, and 4.6 above, in line with the code.
 

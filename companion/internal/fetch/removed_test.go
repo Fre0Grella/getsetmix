@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
 )
@@ -92,7 +93,7 @@ func TestAProtocol1ListingHandlesNoTombstones(t *testing.T) {
 	_, c, state := twoTracks(t)
 	l := Listing{Files: []File{{Path: "a.mp3", Size: 4}}, Removed: []Removed{tomb("a1_b", "House/b.mp3", "deleted")}}
 	var rep Report
-	c.tombstones(l, state, time.Now(), &rep)
+	c.tombstones(state.Plan(l, c.Server.Folder, audio.Supported, false, time.Now()), state, &rep)
 	if len(state.Removed) != 0 || len(rep.Removed) != 0 {
 		t.Fatalf("%+v", state.Removed)
 	}

@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -170,43 +169,27 @@ func (c *Client) download(ctx context.Context, f File, dest string, checkID bool
 }
 
 // Run downloads every track the server has that this computer hasn't fetched
-// before and Rekordbox can import, until ctx ends. state is updated in place;
-// the caller saves it.
+// before and Rekordbox can import, until ctx ends. It asks the ledger what
+// to do with the listing (ledger.Fetched.Plan), does the network and file
+// work, and records each outcome. state is updated in place; the caller
+// saves it.
 func (c *Client) Run(ctx context.Context, state *ledger.Fetched, now func() time.Time) (Report, error) {
-	rep := Report{Failed: map[string]string{}, Skipped: map[string]int{}}
+	rep := Report{Failed: map[string]string{}}
 	listing, err := c.List(ctx)
 	if err != nil {
 		return rep, err
 	}
-	state.Begin(listing, c.Server.Folder)
-	c.tombstones(listing, state, now(), &rep)
-	var todo []File
-	for _, f := range listing.Files {
-		// The server keeps listing what Rekordbox cannot import, so its Library
-		// view stays complete; downloading it would only fill the disk (#31).
-		if !audio.Supported(f.Path) {
-			rep.Skipped[strings.ToLower(path.Ext(f.Path))]++
-			continue
-		}
-		rep.Offered++
-		if !state.Has(f) || state.Newer(f) {
-			todo = append(todo, f)
-		}
-	}
-	state.Skipped = rep.Skipped
-	for i, f := range todo {
+	plan := state.Plan(listing, c.Server.Folder, audio.Supported, c.Server.DeleteRemovedFiles, now())
+	rep.Offered, rep.Skipped = plan.Offered, plan.Skipped
+	c.tombstones(plan, state, &rep)
+	for i, step := range plan.Steps {
 		if ctx.Err() != nil {
-			rep.Remaining = len(todo) - i
+			rep.Remaining = len(plan.Steps) - i
 			break
 		}
-		var err error
-		if state.Has(f) {
-			if !state.Newer(f) {
-				continue
-			}
-			err = c.refresh(ctx, f, state, now, &rep)
-		} else {
-			err = c.fetchNew(ctx, f, state, now, &rep)
+		err := step.Err
+		if err == nil {
+			err = c.do(ctx, step, state, now, &rep)
 		}
 		if err == nil {
 			continue
@@ -215,65 +198,55 @@ func (c *Client) Run(ctx context.Context, state *ledger.Fetched, now func() time
 			return rep, err
 		}
 		if ctx.Err() != nil {
-			rep.Remaining = len(todo) - i
+			rep.Remaining = len(plan.Steps) - i
 			break
 		}
-		rep.Failed[f.Path] = err.Error()
+		rep.Failed[step.File.Path] = err.Error()
 	}
 	return rep, nil
 }
 
-// fetchNew downloads a track this computer has not fetched before.
-func (c *Client) fetchNew(ctx context.Context, f File, state *ledger.Fetched, now func() time.Time, rep *Report) error {
-	dest, err := Local(c.Server.Folder, f.Path)
-	if err != nil {
-		return err
-	}
-	// Already here (copied by hand, or a first run over an old library).
-	if !track.HasSize(dest, f.Size) {
-		if err := c.download(ctx, f, dest, false); err != nil {
+// do carries out one step of the plan.
+//
+// Get: a track this computer has not fetched before, downloaded unless a
+// file of its size is in place already (copied by hand, or a first run over
+// an old library). Refresh: a track that changed on the server
+// (docs/design/library.md, 4.6); the newer copy is downloaded, checked
+// against the audio id, and renamed over the local file, and the tags this
+// computer saw before stay in the state, so the importer can tell which
+// fields changed on the server. Keep: a newer copy of a track deleted here,
+// which is not fetched again.
+func (c *Client) do(ctx context.Context, step ledger.Step, state *ledger.Fetched, now func() time.Time,
+	rep *Report) error {
+	f, dest := step.File, step.Dest
+	switch step.Kind {
+	case ledger.Keep:
+		state.Kept(f)
+		rep.Kept = append(rep.Kept, f.Path)
+	case ledger.Refresh:
+		var was *track.Tags
+		if step.NeedTags {
+			if tags, err := audio.ReadTags(dest); err == nil {
+				was = &tags
+			}
+		}
+		if err := c.download(ctx, f, dest, true); err != nil {
 			return err
 		}
-		rep.Downloaded = append(rep.Downloaded, dest)
-	}
-	state.Record(f, now())
-	if tags, err := audio.ReadTags(dest); err == nil && f.ID != "" {
-		state.Remember(f.ID, tags)
-	}
-	return nil
-}
-
-// refresh replaces the local copy of a track that changed on the server
-// (docs/design/library.md, 4.6). A track deleted here is not fetched again:
-// its new rev is recorded and nothing else happens. Otherwise the newer copy
-// is downloaded, checked against the audio id, and renamed over the local
-// file; the tags this computer saw before stay in the state, so the importer
-// can tell which fields changed on the server.
-func (c *Client) refresh(ctx context.Context, f File, state *ledger.Fetched, now func() time.Time, rep *Report) error {
-	held := state.Tracks[f.ID]
-	dest, err := Local(c.Server.Folder, held.Path)
-	if err != nil {
-		return err
-	}
-	if info, err := os.Stat(dest); err != nil || !info.Mode().IsRegular() {
-		held.Rev = f.Rev
-		state.Tracks[f.ID] = held
-		rep.Kept = append(rep.Kept, f.Path)
-		return nil
-	}
-	if held.Tags == nil && !held.Pending {
-		// Fetched before tags were remembered: the copy here is what was
-		// imported, so its tags are the ones to compare with. Not when a newer
-		// copy is already waiting: Rekordbox has not seen that one.
-		if tags, err := audio.ReadTags(dest); err == nil {
-			held.Tags = &tags
+		state.Refreshed(f, now(), was)
+		rep.Updated = append(rep.Updated, dest)
+	default:
+		if !track.HasSize(dest, f.Size) {
+			if err := c.download(ctx, f, dest, false); err != nil {
+				return err
+			}
+			rep.Downloaded = append(rep.Downloaded, dest)
 		}
+		var tags *track.Tags
+		if t, err := audio.ReadTags(dest); err == nil {
+			tags = &t
+		}
+		state.Got(f, now(), tags)
 	}
-	if err := c.download(ctx, f, dest, true); err != nil {
-		return err
-	}
-	held.Rev, held.At, held.Pending = f.Rev, now(), true
-	state.Tracks[f.ID] = held
-	rep.Updated = append(rep.Updated, dest)
 	return nil
 }
