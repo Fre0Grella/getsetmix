@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
 )
@@ -49,19 +50,17 @@ func (e *env) exec(t *testing.T, q string) {
 // gone false, restores) the track at serverPath.
 func (e *env) serverRemoves(t *testing.T, serverPath string, gone bool) {
 	t.Helper()
-	state, err := fetch.LoadState(e.im.Home)
+	state, err := ledger.ReadFetched(e.im.Home)
 	if err != nil {
 		t.Fatal(err)
 	}
 	state.Version = 2
 	if gone {
-		state.Removed["a1_gone"] = fetch.Tombstone{Path: serverPath, At: time.Now(), Reason: "deleted"}
+		state.Removed["a1_gone"] = ledger.Tombstone{Path: serverPath, At: time.Now(), Reason: "deleted"}
 	} else {
 		delete(state.Removed, "a1_gone")
 	}
-	if err := state.Save(e.im.Home); err != nil {
-		t.Fatal(err)
-	}
+	ledgertest.Save(t, e.im.Home, state)
 }
 
 func (e *env) inRemoved(t *testing.T) int {
@@ -135,7 +134,7 @@ func TestARestoreTakesTheTrackOutOfThePlaylist(t *testing.T) {
 	if n := e.count(t, "SELECT count(*) FROM djmdSongPlaylist WHERE ID = 'mine1'"); n != 1 {
 		t.Error("the DJ's own playlist lost the track")
 	}
-	state, _ := config.LoadState(e.im.Home)
+	state, _ := ledger.ReadSynced(e.im.Home)
 	if len(state.Removed) != 0 {
 		t.Errorf("state %+v", state.Removed)
 	}
@@ -163,7 +162,7 @@ func TestNothingIsMarkedWhileRekordboxRuns(t *testing.T) {
 	if !bytes.Equal(before, after) || !bytes.Equal(xmlBefore, xmlAfter) {
 		t.Fatal("wrote while Rekordbox was running")
 	}
-	if state, _ := config.LoadState(e.im.Home); len(state.Removed) != 0 {
+	if state, _ := ledger.ReadSynced(e.im.Home); len(state.Removed) != 0 {
 		t.Fatal("recorded as done while nothing was written")
 	}
 

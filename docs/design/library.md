@@ -1041,7 +1041,7 @@ acted on.
 
 #### 4.6.1 The companion's view of server changes (consolidation)
 
-**Status: approved** on 2026-11-24 (see the decisions below); slices 1 and 2
+**Status: approved** on 2026-11-24 (see the decisions below); slices 1 to 3
 of the build plan are built. It changes how the companion's code is arranged,
 not what it does.
 It is numbered under 4.6 so that 4.7 and 4.8 keep their numbers: the code
@@ -1373,6 +1373,22 @@ and the existing tests pass unchanged in what they assert.
    the ledger. Setup's seed and dry-run fetch go through `fetch`'s single
    run. Add `sync.lock`, if open question 1 is approved. This closes
    findings 5 to 7.
+   **Built:** `internal/ledger` holds `Fetched` (`fetched.json`) and
+   `Synced` (`state.json`). Either file can be saved only through its held
+   lock (`FetchLock`, `SyncLock`); `ReadFetched` and `ReadSynced` are the
+   snapshots for questions. `fetch.lock` behaves as before: refused at
+   once, taken over after two hours, since an older companion may hold it.
+   `sync.lock` is waited for up to 30 seconds; its holder refreshes it
+   every minute, so a sync that died blocks the next one for at most five
+   minutes, not hours. A skipped sync returns `ErrSyncRunning`: the
+   launcher still starts Rekordbox, a fetch logs it, the watcher tries
+   again. A dry run takes no lock. One sync reads `fetched.json` once (and
+   again only under `fetch.lock`), so it no longer sees two versions.
+   `Baseline` writes under `sync.lock`; Setup's seed is `fetch.Seed`.
+   `config` is `companion.json` alone, with `config.Server`. Tests write
+   state through `ledger/ledgertest`. The layers test now also checks the
+   ledger and `config`, and that no code outside the ledger names its
+   files.
 4. **The ledger's questions.** Add `Plan`, `Unhandled`, `Work` and the
    record calls. Remove `importer.removals`, `fetch.State.Stale`, the key
    handling in `loadFetched` and the re-keying at the end of `Sync`. The

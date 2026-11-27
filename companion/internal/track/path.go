@@ -2,6 +2,7 @@ package track
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -24,4 +25,11 @@ func Local(folder, serverPath string) (string, error) {
 		return "", fmt.Errorf("unsafe path %q", serverPath)
 	}
 	return filepath.Join(folder, filepath.FromSlash(clean)), nil
+}
+
+// HasSize reports whether file is a regular file of size bytes: a track
+// already in place, as far as a listing can tell.
+func HasSize(file string, size int64) bool {
+	info, err := os.Stat(file)
+	return err == nil && info.Mode().IsRegular() && info.Size() == size
 }

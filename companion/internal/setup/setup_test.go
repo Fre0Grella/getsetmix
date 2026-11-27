@@ -16,6 +16,8 @@ import (
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
 )
 
 func newWizard(t *testing.T) *Wizard {
@@ -294,15 +296,13 @@ func TestLicensesPageServesTheNotices(t *testing.T) {
 // what the server removed: reseeding would fetch again over local files.
 func TestRunningSetupAgainKeepsTheFetchState(t *testing.T) {
 	w := newWizard(t)
-	held := fetch.NewState()
+	held := ledger.NewFetched()
 	held.Record(fetch.File{Path: "Mine.mp3", Size: 3, ID: "a1_mine", Rev: 4}, time.Now())
-	if err := held.Save(w.opts.Home); err != nil {
-		t.Fatal(err)
-	}
+	ledgertest.Save(t, w.opts.Home, held)
 	before, _ := os.ReadFile(filepath.Join(w.opts.Home, "fetched.json"))
 	// copyExisting would reseed an empty state: it must not touch this one.
 	srv := fetch.Server{URL: "http://127.0.0.1:1", Token: "t", Folder: t.TempDir()}
-	if err := w.seedFetchState(t.Context(), srv, true); err != nil {
+	if err := fetch.Seed(t.Context(), w.opts.Home, srv, true, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := os.ReadFile(filepath.Join(w.opts.Home, "fetched.json"))

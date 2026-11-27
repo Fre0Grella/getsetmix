@@ -319,9 +319,11 @@ that way.
   the worker nor the routes.
 - **The UI** talks to the app only through the API.
 - **The companion** (decision 10): `track` holds the track types and imports
-  nothing else of the companion. `track`, `audio`, `scan`, `fetch` and
-  `config` never reach `library`, the SQLCipher package, even from their
-  tests; only `importer`, `setup` and the command write `master.db`
+  nothing else of the companion. `track`, `audio`, `scan`, `fetch`,
+  `config` and `ledger` never reach `library`, the SQLCipher package, even
+  from their tests; only `importer`, `setup` and the command write
+  `master.db`. Only `ledger` reads or writes `fetched.json`, `state.json`
+  and their locks, and `config` is `companion.json` alone
   ([design 4.6.1](design/library.md#461-the-companions-view-of-server-changes-consolidation)).
 - **One definition per thing:** search before writing a helper, a constant
   or an allowed value; extend the one that exists.

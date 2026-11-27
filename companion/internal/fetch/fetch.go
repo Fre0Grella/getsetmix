@@ -31,21 +31,14 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
+	"github.com/Fre0Grella/getsetmix/companion/internal/config"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
-// Server is where tracks come from: written by the setup when it pairs this
-// computer.
-type Server struct {
-	URL   string `json:"url"`   // e.g. https://getsetmix.tailnet.ts.net
-	Token string `json:"token"` // this computer's link token
-	// Folder receives the tracks; it is also one of the watched folders.
-	Folder string `json:"folder"`
-	// DeleteRemovedFiles is the option "Delete the local file too": a track
-	// the server removed then goes to the system's recycle bin. Off by
-	// default; the file stays.
-	DeleteRemovedFiles bool `json:"delete_removed_files,omitempty"`
-}
+// Server is config.Server, where tracks come from; this name stays for one
+// release while callers move (docs/design/library.md, 4.6.1).
+type Server = config.Server
 
 // The listing types live in track (docs/design/library.md, 4.6.1); these
 // names stay while callers move.
@@ -179,7 +172,7 @@ func (c *Client) download(ctx context.Context, f File, dest string, checkID bool
 // Run downloads every track the server has that this computer hasn't fetched
 // before and Rekordbox can import, until ctx ends. state is updated in place;
 // the caller saves it.
-func (c *Client) Run(ctx context.Context, state *State, now func() time.Time) (Report, error) {
+func (c *Client) Run(ctx context.Context, state *ledger.Fetched, now func() time.Time) (Report, error) {
 	rep := Report{Failed: map[string]string{}, Skipped: map[string]int{}}
 	listing, err := c.List(ctx)
 	if err != nil {
@@ -231,13 +224,13 @@ func (c *Client) Run(ctx context.Context, state *State, now func() time.Time) (R
 }
 
 // fetchNew downloads a track this computer has not fetched before.
-func (c *Client) fetchNew(ctx context.Context, f File, state *State, now func() time.Time, rep *Report) error {
+func (c *Client) fetchNew(ctx context.Context, f File, state *ledger.Fetched, now func() time.Time, rep *Report) error {
 	dest, err := Local(c.Server.Folder, f.Path)
 	if err != nil {
 		return err
 	}
 	// Already here (copied by hand, or a first run over an old library).
-	if !sizeIs(dest, f.Size) {
+	if !track.HasSize(dest, f.Size) {
 		if err := c.download(ctx, f, dest, false); err != nil {
 			return err
 		}
@@ -256,7 +249,7 @@ func (c *Client) fetchNew(ctx context.Context, f File, state *State, now func() 
 // is downloaded, checked against the audio id, and renamed over the local
 // file; the tags this computer saw before stay in the state, so the importer
 // can tell which fields changed on the server.
-func (c *Client) refresh(ctx context.Context, f File, state *State, now func() time.Time, rep *Report) error {
+func (c *Client) refresh(ctx context.Context, f File, state *ledger.Fetched, now func() time.Time, rep *Report) error {
 	held := state.Tracks[f.ID]
 	dest, err := Local(c.Server.Folder, held.Path)
 	if err != nil {
@@ -283,9 +276,4 @@ func (c *Client) refresh(ctx context.Context, f File, state *State, now func() t
 	state.Tracks[f.ID] = held
 	rep.Updated = append(rep.Updated, dest)
 	return nil
-}
-
-func sizeIs(file string, size int64) bool {
-	info, err := os.Stat(file)
-	return err == nil && info.Mode().IsRegular() && info.Size() == size
 }

@@ -13,8 +13,9 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
-	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
 	"github.com/Fre0Grella/getsetmix/companion/internal/track/tracktest"
@@ -49,12 +50,10 @@ func newFetchedTrack(t *testing.T) *fetchedTrack {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st := fetch.NewState()
+	st := ledger.NewFetched()
 	st.Version = 2
-	st.Tracks[ft.id] = fetch.Track{Path: "Night Drive.mp3", Rev: 5, At: time.Now(), Tags: &tags}
-	if err := st.Save(e.im.Home); err != nil {
-		t.Fatal(err)
-	}
+	st.Tracks[ft.id] = ledger.Track{Path: "Night Drive.mp3", Rev: 5, At: time.Now(), Tags: &tags}
+	ledgertest.Save(t, e.im.Home, st)
 	if rep, err := e.im.Sync(false); err != nil || len(rep.Imported) != 1 {
 		t.Fatalf("import: %+v, %v", rep, err)
 	}
@@ -99,16 +98,14 @@ func (ft *fetchedTrack) place(t *testing.T, tags tracktest.Tags, mtime time.Time
 func (ft *fetchedTrack) refresh(t *testing.T) {
 	t.Helper()
 	ft.place(t, onServerAfter, time.Now().Add(-30*time.Minute))
-	st, err := fetch.LoadState(ft.im.Home)
+	st, err := ledger.ReadFetched(ft.im.Home)
 	if err != nil {
 		t.Fatal(err)
 	}
 	held := st.Tracks[ft.id]
 	held.Rev, held.Pending = 9, true
 	st.Tracks[ft.id] = held
-	if err := st.Save(ft.im.Home); err != nil {
-		t.Fatal(err)
-	}
+	ledgertest.Save(t, ft.im.Home, st)
 }
 
 func (ft *fetchedTrack) db(t *testing.T) *sql.DB {
@@ -257,7 +254,7 @@ func TestAChangedTrackUpdatesExactlyItsColumns(t *testing.T) {
 	}
 
 	// What was written is now what this computer has seen.
-	st, _ := fetch.LoadState(ft.im.Home)
+	st, _ := ledger.ReadFetched(ft.im.Home)
 	if got := st.Tracks[ft.id].Tags; got == nil || got.Genre != "Tech House" || got.Year != 2019 {
 		t.Errorf("remembered tags %+v", got)
 	}
@@ -347,14 +344,12 @@ func TestATrackWithATombstoneIsNotUpdated(t *testing.T) {
 	ft := newFetchedTrack(t)
 	before := ft.row(t)
 	ft.refresh(t)
-	st, err := fetch.LoadState(ft.im.Home)
+	st, err := ledger.ReadFetched(ft.im.Home)
 	if err != nil {
 		t.Fatal(err)
 	}
-	st.Removed[ft.id] = fetch.Tombstone{Path: "Night Drive.mp3", At: time.Now(), Reason: "deleted"}
-	if err := st.Save(ft.im.Home); err != nil {
-		t.Fatal(err)
-	}
+	st.Removed[ft.id] = ledger.Tombstone{Path: "Night Drive.mp3", At: time.Now(), Reason: "deleted"}
+	ledgertest.Save(t, ft.im.Home, st)
 	rep, err := ft.im.Sync(false)
 	if err != nil || rep.Changed != 0 || len(rep.Updated) != 0 || len(rep.MarkedRemoved) != 1 {
 		t.Fatalf("%+v, %v", rep, err)
@@ -388,14 +383,12 @@ func TestANewerCopyIsNotLostWhenTheStateIsWidened(t *testing.T) {
 	ft := newFetchedTrack(t)
 	ft.refresh(t)
 	key := library.PathKey(ft.path)
-	seen, err := config.LoadState(ft.im.Home)
+	seen, err := ledger.ReadSynced(ft.im.Home)
 	if err != nil {
 		t.Fatal(err)
 	}
-	seen.Seen[key] = config.Handled{At: seen.Seen[key].At} // as an older companion left it
-	if err := seen.Save(ft.im.Home); err != nil {
-		t.Fatal(err)
-	}
+	seen.Seen[key] = ledger.Handled{At: seen.Seen[key].At} // as an older companion left it
+	ledgertest.Save(t, ft.im.Home, seen)
 	if rep, err := ft.im.Sync(false); err != nil || len(rep.Updated) != 1 {
 		t.Fatalf("%+v, %v", rep, err)
 	}
@@ -431,13 +424,13 @@ func TestAChangeWithoutAFetchedTrackIsLeftAlone(t *testing.T) {
 func TestChangedTracksWaitWhileAFetchRuns(t *testing.T) {
 	ft := newFetchedTrack(t)
 	ft.refresh(t)
-	unlock, err := fetch.Lock(ft.im.Home)
+	lock, err := ledger.LockFetch(ft.im.Home)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ft.add(t, "brand new.mp3")
 	rep, err := ft.im.Sync(false)
-	unlock()
+	lock.Unlock()
 	if err != nil || len(rep.Imported) != 1 || len(rep.Updated) != 0 {
 		t.Fatalf("%+v, %v", rep, err)
 	}

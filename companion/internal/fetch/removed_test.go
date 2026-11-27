@@ -8,6 +8,9 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
 )
 
 func tomb(id, path, reason string) Removed {
@@ -37,12 +40,12 @@ var (
 	onlyA = Listing{Protocol: 2, Rev: 6, Files: both.Files[:1], Removed: []Removed{tomb("a1_b", "House/b.mp3", "deleted")}}
 )
 
-func twoTracks(t *testing.T) (*server, *Client, *State) {
+func twoTracks(t *testing.T) (*server, *Client, *ledger.Fetched) {
 	t.Helper()
 	s := &server{files: map[string]string{"a.mp3": "aaaa", "House/b.mp3": "bbbbb"}}
 	s.listing = both
 	c := s.start(t)
-	state := NewState()
+	state := ledger.NewFetched()
 	run(t, c, state)
 	return s, c, state
 }
@@ -56,7 +59,7 @@ func TestARemovedTrackIsRecordedOnce(t *testing.T) {
 	if !reflect.DeepEqual(rep.Removed, []string{"House/b.mp3"}) || len(rep.Restored) != 0 {
 		t.Fatalf("report %+v", rep)
 	}
-	want := Tombstone{Path: "House/b.mp3", At: time.Unix(1_800_000_000, 0), Reason: "deleted"}
+	want := ledger.Tombstone{Path: "House/b.mp3", At: time.Unix(1_800_000_000, 0), Reason: "deleted"}
 	if len(state.Removed) != 1 || state.Removed["a1_b"] != want {
 		t.Fatalf("removed %+v", state.Removed) // a track never fetched here is not recorded
 	}
@@ -98,7 +101,7 @@ func TestAProtocol1ListingHandlesNoTombstones(t *testing.T) {
 func TestATombstoneForAPathKnownFromProtocol1(t *testing.T) {
 	s := &server{files: map[string]string{"old.mp3": "oooo"}}
 	c := s.start(t)
-	state := NewState()
+	state := ledger.NewFetched()
 	state.Legacy["old.mp3"] = time.Unix(1_700_000_000, 0)
 	s.listing = Listing{Protocol: 2, Removed: []Removed{tomb("a1_o", "old.mp3", "missing")}}
 	rep := run(t, c, state)
@@ -179,18 +182,16 @@ func TestTurningTheOptionOnLaterLeavesOldTombstonesAlone(t *testing.T) {
 
 func TestTombstonesSurviveASaveAndTheFirstForm(t *testing.T) {
 	dir := t.TempDir()
-	state := NewState()
+	state := ledger.NewFetched()
 	state.Version = 2
-	state.Removed["a1_b"] = Tombstone{Path: "House/b.mp3", At: time.Unix(1_800_000_000, 0).UTC(),
+	state.Removed["a1_b"] = ledger.Tombstone{Path: "House/b.mp3", At: time.Unix(1_800_000_000, 0).UTC(),
 		Reason: "deleted", Recycled: true}
-	if err := state.Save(dir); err != nil {
-		t.Fatal(err)
-	}
-	back, err := LoadState(dir)
+	ledgertest.Save(t, dir, state)
+	back, err := ledger.ReadFetched(dir)
 	if err != nil || !reflect.DeepEqual(back.Removed, state.Removed) {
 		t.Fatalf("%+v, %v", back.Removed, err)
 	}
-	var old State
+	var old ledger.Fetched
 	if err := json.Unmarshal([]byte(`{"version": 2, "tracks": {}, "legacy": {},
 		"removed": {"a1_9b2e": "2026-11-12T22:15:00Z"}}`), &old); err != nil {
 		t.Fatal(err)

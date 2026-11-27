@@ -28,7 +28,7 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/atomicfile"
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
 	"github.com/Fre0Grella/getsetmix/companion/internal/config"
-	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/rekordbox"
 	"github.com/Fre0Grella/getsetmix/companion/internal/scan"
@@ -70,30 +70,27 @@ var quickCheck = (*library.DB).QuickCheck
 // fetched is what the importer needs from fetched.json to update rows: the
 // tracks whose newer copy fetch put in place and Rekordbox does not have yet.
 type fetched struct {
-	state  *fetch.State
-	stale  map[string]string       // library.PathKey -> audio id
-	seen   map[string]library.Tags // library.PathKey -> the tags that file holds now
-	unlock func()
+	state *ledger.Fetched
+	stale map[string]string       // library.PathKey -> audio id
+	seen  map[string]library.Tags // library.PathKey -> the tags that file holds now
+	lock  *ledger.FetchLock
 }
 
-// loadFetched takes the fetch lock and reads fetched.json when a file in
-// ready waits for its row to be updated. It returns nil when none does (the
-// common case: no lock is taken), when no server is paired, or while a fetch
-// runs (the changed tracks then wait for the next sync).
-func (im *Importer) loadFetched(ready []scan.File) (*fetched, error) {
-	if im.Config.Server == nil || im.Config.Server.Folder == "" {
+// loadFetched takes fetch.lock and reads fetched.json again when a file in
+// ready waits for its row to be updated, as snap (the sync's first look)
+// tells. It returns nil when none does (the common case: no lock is taken),
+// when no server is paired, or while a fetch runs (the changed tracks then
+// wait for the next sync).
+func (im *Importer) loadFetched(ready []scan.File, snap *ledger.Fetched) (*fetched, error) {
+	if snap == nil {
 		return nil, nil
 	}
-	state, err := fetch.LoadState(im.Home)
-	if err != nil {
-		return nil, err
-	}
-	stale := state.Stale(im.Config.Server.Folder)
+	stale := snap.Stale(im.Config.Server.Folder)
 	if !slices.ContainsFunc(ready, func(f scan.File) bool { return stale[f.Key] != "" }) {
 		return nil, nil
 	}
-	unlock, err := fetch.Lock(im.Home)
-	if errors.Is(err, fetch.ErrLocked) {
+	lock, err := ledger.LockFetch(im.Home)
+	if errors.Is(err, ledger.ErrFetchRunning) {
 		im.Log.Printf("a fetch is running: changed tracks are updated in Rekordbox on the next sync")
 		return nil, nil
 	}
@@ -101,19 +98,29 @@ func (im *Importer) loadFetched(ready []scan.File) (*fetched, error) {
 		return nil, err
 	}
 	// Read again: a fetch may have finished between the first read and the lock.
-	if state, err = fetch.LoadState(im.Home); err != nil {
-		unlock()
+	state, err := lock.Load()
+	if err != nil {
+		lock.Unlock()
 		return nil, err
 	}
 	return &fetched{state: state, stale: state.Stale(im.Config.Server.Folder),
-		seen: map[string]library.Tags{}, unlock: unlock}, nil
+		seen: map[string]library.Tags{}, lock: lock}, nil
+}
+
+// snapshot is fetched.json as the sync first sees it; nil without a paired
+// server.
+func (im *Importer) snapshot() (*ledger.Fetched, error) {
+	if im.Config.Server == nil || im.Config.Server.Folder == "" {
+		return nil, nil
+	}
+	return ledger.ReadFetched(im.Home)
 }
 
 // Split sorts the ready files into what a sync acts on: pending ones were
 // never handled; changed ones were, and fetch has since put a newer copy
 // from the server in their place (stale: PathKey -> audio id, as
 // fetch.State.Stale gives it; nil when none). `status` counts with it too.
-func Split(ready []scan.File, state *config.State, stale map[string]string) (pending, changed []scan.File) {
+func Split(ready []scan.File, state *ledger.Synced, stale map[string]string) (pending, changed []scan.File) {
 	for _, f := range ready {
 		_, done := state.Seen[f.Key]
 		switch {
@@ -129,15 +136,37 @@ func Split(ready []scan.File, state *config.State, stale map[string]string) (pen
 // ErrRekordboxRunning is returned by Sync when files wait but Rekordbox is open.
 var ErrRekordboxRunning = errors.New("tracks wait while Rekordbox is running; they will be imported once it is closed")
 
+// ErrSyncRunning is returned by Sync when another sync still ran after
+// syncWait: this one did nothing, and the next one picks its files up.
+var ErrSyncRunning = ledger.ErrSyncRunning
+
+// syncWait is how long a sync waits for another one to end. Long enough for
+// the launcher to import right after the scheduled sync; tests shorten it.
+var syncWait = 30 * time.Second
+
 // Sync performs one sync. With dryRun it reports what it would import and
 // writes nothing at all (not even state).
+//
+// One sync runs at a time: a sync holds sync.lock throughout, and waits up
+// to syncWait for another one to end; then it returns ErrSyncRunning. A dry
+// run writes nothing and takes no lock.
 func (im *Importer) Sync(dryRun bool) (Report, error) {
 	rep := Report{Failed: map[string]string{}, DryRun: dryRun}
-	now := im.Now()
-	state, err := config.LoadState(im.Home)
+	var state *ledger.Synced
+	var lock *ledger.SyncLock
+	var err error
+	if dryRun {
+		state, err = ledger.ReadSynced(im.Home)
+	} else if lock, err = ledger.LockSync(im.Home, syncWait); err == nil {
+		defer lock.Unlock()
+		state, err = lock.Load()
+	} else if errors.Is(err, ErrSyncRunning) {
+		im.Log.Printf("another sync is still running: this one is skipped")
+	}
 	if err != nil {
 		return rep, err
 	}
+	now := im.Now()
 	found, err := scan.Folders(im.Config.Folders, now)
 	if err != nil {
 		return rep, err
@@ -147,7 +176,7 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 	// not its size and time: they are taken from the file as it is now, and
 	// nothing is acted on (docs/design/library.md, 4.6).
 	if state.Widen(found.Ready) && !dryRun {
-		if err := state.Save(im.Home); err != nil {
+		if err := lock.Save(state); err != nil {
 			return rep, err
 		}
 	}
@@ -155,16 +184,20 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 	// its place: only then are the fields that changed on the server known.
 	// Changes in folders a sync client fills come with local mode
 	// (docs/design/library.md, 4.7) and are left alone here.
-	known, err := im.loadFetched(found.Ready)
+	// One look at fetched.json for the whole sync; read again only under
+	// fetch.lock, for the changed tracks.
+	snap, err := im.snapshot()
 	if err != nil {
 		return rep, err
 	}
-	if known != nil {
-		defer known.unlock()
+	known, err := im.loadFetched(found.Ready, snap)
+	if err != nil {
+		return rep, err
 	}
 	var stale map[string]string
 	if known != nil {
-		stale = known.stale
+		defer known.lock.Unlock()
+		stale, snap = known.stale, known.state
 	}
 	pending, changed := Split(found.Ready, state, stale)
 	byKey := map[string]scan.File{}
@@ -173,10 +206,7 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 	}
 	rep.New = len(pending)
 	rep.Changed = len(changed)
-	marks, err := im.removals(state)
-	if err != nil {
-		return rep, err
-	}
+	marks := im.removals(state, snap)
 	if len(pending) == 0 && len(changed) == 0 && marks.empty() {
 		return rep, nil
 	}
@@ -229,9 +259,9 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 				known.state.Remember(known.stale[key], tags)
 			}
 		}
-		fetchedErr = known.state.Save(im.Home)
+		fetchedErr = known.lock.Save(known.state)
 	}
-	return rep, errors.Join(fetchedErr, state.Save(im.Home))
+	return rep, errors.Join(fetchedErr, lock.Save(state))
 }
 
 // prepare drops files the collection already has and probes the rest, and

@@ -82,6 +82,8 @@ func Run(ctx context.Context, im *importer.Importer) error {
 						}
 					}()
 				}
+			case errors.Is(err, importer.ErrSyncRunning):
+				time.AfterFunc(Debounce, poke) // try again once that sync is done
 			case err != nil:
 				im.Log.Printf("sync failed: %v", err)
 			case len(rep.Imported) > 0:

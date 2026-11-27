@@ -20,6 +20,7 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
 	"github.com/Fre0Grella/getsetmix/companion/internal/importer"
 	"github.com/Fre0Grella/getsetmix/companion/internal/install"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/notices"
 	"github.com/Fre0Grella/getsetmix/companion/internal/rekordbox"
@@ -287,7 +288,9 @@ func cmdLaunch(home string, logger *log.Logger) error {
 	if running, _ := rekordbox.IsRunning(); !running {
 		if im, err := newImporter(home, logger); err != nil {
 			logger.Printf("launch: import skipped: %v", err)
-		} else if rep, err := im.Sync(false); err != nil {
+		} else if rep, err := im.Sync(false); errors.Is(err, importer.ErrSyncRunning) {
+			logger.Printf("launch: import skipped: another sync is still running")
+		} else if err != nil {
 			logger.Printf("launch: import failed: %v", err)
 		} else {
 			if len(rep.Imported) > 0 {
@@ -365,6 +368,10 @@ func cmdFetch(home string, logger *log.Logger, args []string) error {
 		logger.Printf("fetch: %d track(s) wait for Rekordbox to close", irep.New)
 		return nil
 	}
+	if errors.Is(err, importer.ErrSyncRunning) {
+		logger.Printf("fetch: another sync is still running; the track(s) are imported on the next sync")
+		return nil
+	}
 	if err == nil && len(irep.Imported) > 0 {
 		logger.Printf("fetch: imported %d track(s) into %q", len(irep.Imported), cfg.Playlist)
 	}
@@ -379,9 +386,9 @@ func cmdFetch(home string, logger *log.Logger, args []string) error {
 // never download at the same time.
 func runFetch(home string, cfg config.Config, logger *log.Logger, budget time.Duration) (fetch.Report, error) {
 	// The summary before the run, to log the skipped files only when they
-	// change. No lock needed to read: fetched.json is replaced atomically.
+	// change: a snapshot is enough for that.
 	skippedBefore := ""
-	if before, err := fetch.LoadState(home); err == nil {
+	if before, err := ledger.ReadFetched(home); err == nil {
 		skippedBefore = before.SkippedSummary()
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), budget)
@@ -452,7 +459,7 @@ func cmdStatus(home string) error {
 	} else {
 		fmt.Printf("collection  unreadable: %v\n", err)
 	}
-	state, err := config.LoadState(home)
+	state, err := ledger.ReadSynced(home)
 	if err != nil {
 		return err
 	}
@@ -462,8 +469,7 @@ func cmdStatus(home string) error {
 	}
 	var stale map[string]string
 	if cfg.Server != nil && cfg.Server.Folder != "" {
-		// No lock needed to read: fetched.json is replaced atomically.
-		if fetched, err := fetch.LoadState(home); err == nil {
+		if fetched, err := ledger.ReadFetched(home); err == nil {
 			stale = fetched.Stale(cfg.Server.Folder)
 		}
 	}

@@ -3,7 +3,7 @@ package importer
 import (
 	"testing"
 
-	"github.com/Fre0Grella/getsetmix/companion/internal/config"
+	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/scan"
 )
 
@@ -11,7 +11,7 @@ import (
 // file is acted on only when fetch put a newer server copy in its place.
 func TestSplitTellsNewFromChangedAndLeavesTheRest(t *testing.T) {
 	ready := []scan.File{{Key: "new"}, {Key: "changed"}, {Key: "done"}}
-	state := &config.State{Seen: map[string]config.Handled{"changed": {}, "done": {}}}
+	state := &ledger.Synced{Seen: map[string]ledger.Handled{"changed": {}, "done": {}}}
 	pending, changed := Split(ready, state, map[string]string{"changed": "a1_x", "new": "a1_y"})
 	if len(pending) != 1 || pending[0].Key != "new" {
 		t.Fatalf("pending %v", pending)
