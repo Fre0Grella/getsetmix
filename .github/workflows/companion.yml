@@ -45,10 +45,14 @@ jobs:
           msystem: UCRT64
           install: mingw-w64-ucrt-x86_64-gcc
           path-type: inherit
+      # One test at a time on Windows: the importer and library tests run in
+      # parallel elsewhere (Linux 76 s -> 30 s), but on the Windows runner
+      # parallel runs were slower (72 s -> 156 s), each test writing and
+      # copying encrypted databases on disk.
       - name: Vet and test (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: go vet ./... && go test ./...
+        run: go vet ./... && go test -parallel 1 ./...
       - name: Vet and test
         if: runner.os != 'Windows'
         run: |
@@ -74,9 +78,9 @@ jobs:
 
   # GetSetMix Setup (the companion opened with no arguments), built on every
   # PR and push so it can be tried before a release. Releases attach it via
-  # release.yml.
+  # release.yml. It runs beside the tests, not after them: it only builds,
+  # and a release still waits for the tests (build needs test).
   setup:
-    needs: test
     strategy:
       fail-fast: false
       matrix:

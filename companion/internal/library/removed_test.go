@@ -93,6 +93,7 @@ func markRemoved(t *testing.T, dir string, add, drop []string, at time.Time) lib
 }
 
 func TestMarkRemovedListsATrackOnceAndKeepsEverythingElse(t *testing.T) {
+	t.Parallel()
 	dir, paths := removedSetup(t)
 	before := librarytest.Open(t, filepath.Join(dir, "master.db"))
 	var contentBefore, songsBefore int
@@ -138,6 +139,7 @@ func TestMarkRemovedListsATrackOnceAndKeepsEverythingElse(t *testing.T) {
 }
 
 func TestMarkRemovedTakesARestoredTrackOut(t *testing.T) {
+	t.Parallel()
 	dir, paths := removedSetup(t)
 	markRemoved(t, dir, paths, nil, now)
 	res := markRemoved(t, dir, nil, []string{paths[0], "/Users/dj/Music/unknown.mp3"}, now.Add(time.Hour))
@@ -160,6 +162,7 @@ func TestMarkRemovedTakesARestoredTrackOut(t *testing.T) {
 }
 
 func TestMarkRemovedWithNothingToDoWritesNothing(t *testing.T) {
+	t.Parallel()
 	dir, paths := removedSetup(t)
 	res := markRemoved(t, dir, nil, paths, now) // no removed playlist yet
 	if len(res.Dropped) != 0 || res.Playlist.ID != "" {

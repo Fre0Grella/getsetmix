@@ -174,6 +174,7 @@ func usn(t *testing.T, db *sql.DB) int64 {
 // changed track updates exactly the columns in the design, only for the
 // fields that changed on the server, and leaves everything else alone.
 func TestAChangedTrackUpdatesExactlyItsColumns(t *testing.T) {
+	t.Parallel()
 	ft := newFetchedTrack(t)
 	db := ft.db(t)
 	// The DJ changed the artist and the genre in Rekordbox meanwhile.
@@ -278,6 +279,7 @@ func mapsEqual(a, b map[string]string) bool {
 }
 
 func TestNothingIsUpdatedWhileRekordboxRuns(t *testing.T) {
+	t.Parallel()
 	ft := newFetchedTrack(t)
 	before := ft.row(t)
 	ft.refresh(t)
@@ -301,6 +303,8 @@ func TestNothingIsUpdatedWhileRekordboxRuns(t *testing.T) {
 }
 
 func TestTheBackupIsRestoredWhenTheCheckFails(t *testing.T) {
+	// Not parallel: it replaces quickCheck, which every sync reads. Go runs the
+	// sequential tests before the parallel ones, so none sees the change.
 	ft := newFetchedTrack(t)
 	before := ft.row(t)
 	ft.refresh(t)
@@ -320,6 +324,7 @@ func TestTheBackupIsRestoredWhenTheCheckFails(t *testing.T) {
 }
 
 func TestAChangedTrackRemovedFromRekordboxIsNotImportedAgain(t *testing.T) {
+	t.Parallel()
 	ft := newFetchedTrack(t)
 	db := ft.db(t)
 	if _, err := db.Exec("DELETE FROM djmdContent WHERE ID = ?", ft.contentID); err != nil {
@@ -342,6 +347,7 @@ func TestAChangedTrackRemovedFromRekordboxIsNotImportedAgain(t *testing.T) {
 // A track the server removed after its newer copy arrived is not updated: its
 // tombstone counts, and only the "removed on server" playlist hears of it.
 func TestATrackWithATombstoneIsNotUpdated(t *testing.T) {
+	t.Parallel()
 	ft := newFetchedTrack(t)
 	before := ft.row(t)
 	ft.refresh(t)
@@ -366,6 +372,7 @@ func TestATrackWithATombstoneIsNotUpdated(t *testing.T) {
 // The DJ's own edit of a fetched file (Mp3tag, say) did not come from the
 // server: nothing is written to Rekordbox for it.
 func TestALocalEditOfAFetchedFileIsLeftAlone(t *testing.T) {
+	t.Parallel()
 	ft := newFetchedTrack(t)
 	before := ft.row(t)
 	ft.place(t, onServerAfter, time.Now().Add(-30*time.Minute))
@@ -381,6 +388,7 @@ func TestALocalEditOfAFetchedFileIsLeftAlone(t *testing.T) {
 // A newer copy that arrives before the first sync of this version is not lost
 // when that sync widens state.json to the file as it is now.
 func TestANewerCopyIsNotLostWhenTheStateIsWidened(t *testing.T) {
+	t.Parallel()
 	ft := newFetchedTrack(t)
 	ft.refresh(t)
 	key := track.PathKey(ft.path)
@@ -401,6 +409,7 @@ func TestANewerCopyIsNotLostWhenTheStateIsWidened(t *testing.T) {
 // A handled file that changes in a folder no fetch fills (a sync client's)
 // is left alone in this version: local mode and synced folders come later.
 func TestAChangeWithoutAFetchedTrackIsLeftAlone(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	path := e.add(t, "synced.mp3")
 	if _, err := e.im.Sync(false); err != nil {
@@ -423,6 +432,7 @@ func TestAChangeWithoutAFetchedTrackIsLeftAlone(t *testing.T) {
 // While a fetch holds the lock, fetched.json may change under the importer:
 // changed tracks wait for the next sync; new ones are still imported.
 func TestChangedTracksWaitWhileAFetchRuns(t *testing.T) {
+	t.Parallel()
 	ft := newFetchedTrack(t)
 	ft.refresh(t)
 	lock, err := ledger.LockFetch(ft.im.Home)
@@ -441,6 +451,7 @@ func TestChangedTracksWaitWhileAFetchRuns(t *testing.T) {
 }
 
 func TestDryRunListsUpdatesAndWritesNothing(t *testing.T) {
+	t.Parallel()
 	ft := newFetchedTrack(t)
 	before := ft.row(t)
 	ft.refresh(t)

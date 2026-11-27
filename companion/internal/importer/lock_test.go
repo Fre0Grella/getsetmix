@@ -14,6 +14,8 @@ import (
 // another one running past its wait does nothing at all, not even a backup,
 // and the next sync imports what it left.
 func TestASyncWhileAnotherRunsIsSkipped(t *testing.T) {
+	// Not parallel: it replaces syncWait, which every sync reads. Go runs the
+	// sequential tests before the parallel ones, so none sees the change.
 	wait := syncWait
 	syncWait = 200 * time.Millisecond
 	t.Cleanup(func() { syncWait = wait })
@@ -45,6 +47,7 @@ func TestASyncWhileAnotherRunsIsSkipped(t *testing.T) {
 
 // A dry run reads only, so it runs while a sync holds the lock.
 func TestADryRunTakesNoLock(t *testing.T) {
+	t.Parallel()
 	e := newEnv(t)
 	e.add(t, "new one.mp3")
 	other, err := ledger.LockSync(e.im.Home, 0)

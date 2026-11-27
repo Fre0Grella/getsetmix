@@ -6,6 +6,36 @@ on:
   pull_request:
 
 jobs:
+  # Which parts a pull request touches. The app's tests, browser tests and
+  # image build are skipped when every changed file is one they never read:
+  # the companion (its own workflow tests it), the docs, the site, and the
+  # files of other workflows. Anything else, or a push to main, runs them all.
+  # lint always runs: its ratchet covers the companion's duplication too.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.diff.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          others=$(git diff --name-only "$BASE"...HEAD | grep -vE '^(companion/|docs/|site/|\.github/workflows/(companion|pages|commitlint)\.yml$|commitlint\.config\.mjs$|\.pre-commit-config\.yaml$|CLAUDE\.md$|README\.md$)' || true)
+          if [ -n "$others" ]; then
+            echo "The app's jobs run for:"; echo "$others"
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the app's jobs read changed: they are skipped."
+            echo "app=false" >> "$GITHUB_OUTPUT"
+          fi
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -31,6 +61,8 @@ jobs:
       - run: python scripts/ratchet.py
 
   test:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +81,8 @@ jobs:
 
   ui:
     # Browser smoke tests (tests/ui): the real app on a free port, in Chromium.
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +96,8 @@ jobs:
 
   docker-build:
     # PR safety net: make sure the image still builds (no push)
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

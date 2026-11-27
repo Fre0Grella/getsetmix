@@ -335,7 +335,9 @@ ceiling in the same change. A ceiling is never raised.
 The fast checks also run on the developer's computer, as git hooks
 (`.pre-commit-config.yaml`): commitlint on each commit message, ruff and
 gofmt on each commit, `go vet` and the staticcheck ratchet before a push
-that touches the companion. The tests run in CI.
+that touches the companion. The tests run in CI: the app's only when a
+pull request touches more than the companion, the docs or the site, the
+companion's only when it touches the companion.
 
 | Rule | Check | In CI |
 |---|---|---|

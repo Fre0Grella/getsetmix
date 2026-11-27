@@ -34,6 +34,7 @@ func trackAt(path string) track.Track {
 }
 
 func TestImportWritesRowsLikeRekordbox(t *testing.T) {
+	t.Parallel()
 	dir, _ := setup(t)
 	db, err := library.Open(filepath.Join(dir, "master.db"))
 	if err != nil {
@@ -120,6 +121,7 @@ func TestImportWritesRowsLikeRekordbox(t *testing.T) {
 }
 
 func TestImportReusesNamesAndSkipsKnownPaths(t *testing.T) {
+	t.Parallel()
 	dir, existing := setup(t)
 	db, err := library.Open(filepath.Join(dir, "master.db"))
 	if err != nil {
@@ -163,6 +165,7 @@ func TestImportReusesNamesAndSkipsKnownPaths(t *testing.T) {
 }
 
 func TestDominantFolder(t *testing.T) {
+	t.Parallel()
 	dir, _ := setup(t)
 	db, err := library.OpenReadOnly(filepath.Join(dir, "master.db"))
 	if err != nil {
@@ -176,6 +179,7 @@ func TestDominantFolder(t *testing.T) {
 }
 
 func TestOpenRejectsAPlainSQLiteFile(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "master.db")
 	os.WriteFile(path, []byte("SQLite format 3\x00 but not really"), 0o644)
 	if _, err := library.OpenReadOnly(path); err == nil {
@@ -184,6 +188,7 @@ func TestOpenRejectsAPlainSQLiteFile(t *testing.T) {
 }
 
 func TestPlaylistXML(t *testing.T) {
+	t.Parallel()
 	dir, _ := setup(t)
 	path := filepath.Join(dir, "masterPlaylists6.xml")
 	created := library.Playlist{ID: "2880967891", Created: true, UpdatedAt: now}
@@ -214,6 +219,7 @@ func TestPlaylistXML(t *testing.T) {
 }
 
 func TestOpenPathWithURIMetacharacters(t *testing.T) {
+	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "DJ #1 100%")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
