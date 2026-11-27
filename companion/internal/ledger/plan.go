@@ -72,11 +72,11 @@ type FetchPlan struct {
 // them would only fill the disk (#31). recycle is the option "Delete the
 // local file too".
 //
-// Plan first brings the state in line with the listing's protocol (Begin)
+// Plan first brings the state in line with the listing's protocol (begin)
 // and keeps its count of skipped files; it changes nothing else.
 func (s *Fetched) Plan(l track.Listing, folder string, wanted func(path string) bool,
 	recycle bool, now time.Time) FetchPlan {
-	s.Begin(l, folder)
+	s.begin(l, folder)
 	p := FetchPlan{Skipped: map[string]int{}, Tombstones: map[string]Tombstone{}}
 	refetch := s.planTombstones(l, folder, recycle, now, &p)
 
@@ -89,7 +89,7 @@ func (s *Fetched) Plan(l track.Listing, folder string, wanted func(path string) 
 		}
 		p.Offered++
 		known := has(f)
-		if known && !s.Newer(f) {
+		if known && !s.newer(f) {
 			continue
 		}
 		if f.ID != "" {
@@ -230,7 +230,7 @@ func (s *Fetched) Recycled(id string, moved bool) {
 func (s *Fetched) Got(f track.File, now time.Time, tags *track.Tags) {
 	s.Record(f, now)
 	if tags != nil && f.ID != "" {
-		s.Remember(f.ID, *tags)
+		s.remember(f.ID, *tags)
 	}
 }
 

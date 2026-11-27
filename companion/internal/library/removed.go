@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 // RemovedPlaylist is the root playlist that lists the tracks the server
@@ -53,7 +55,7 @@ func (d *DB) MarkRemoved(add, drop []string, now time.Time) (RemovedResult, erro
 	var toAdd []string
 	listed := map[string]bool{}
 	for _, p := range add {
-		cid, ok := ids[PathKey(p)]
+		cid, ok := ids[track.PathKey(p)]
 		if !ok {
 			res.NotFound = append(res.NotFound, p)
 			continue
@@ -87,7 +89,7 @@ func (d *DB) MarkRemoved(add, drop []string, now time.Time) (RemovedResult, erro
 	if plID != "" {
 		dropped := false
 		for _, p := range drop {
-			cid, ok := ids[PathKey(p)]
+			cid, ok := ids[track.PathKey(p)]
 			if !ok {
 				continue
 			}

@@ -141,5 +141,5 @@ func NewSynced(baseline time.Time) *Synced {
 // Applied records that the Rekordbox row of a Changed item now holds tags:
 // they are the ones seen from here on, and nothing waits any more.
 func (s *Fetched) Applied(it Item, tags track.Tags) {
-	s.Remember(it.ID, tags)
+	s.remember(it.ID, tags)
 }

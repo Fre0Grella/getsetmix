@@ -18,6 +18,7 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger/ledgertest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 func newWizard(t *testing.T) *Wizard {
@@ -110,7 +111,7 @@ func fakeGSM(t *testing.T, token string) *httptest.Server {
 			rw.WriteHeader(401)
 			return
 		}
-		json.NewEncoder(rw).Encode(fetch.Listing{Version: "1.6.0", Files: []fetch.File{{Path: "House/A - B.mp3", Size: 5}}})
+		json.NewEncoder(rw).Encode(track.Listing{Version: "1.6.0", Files: []track.File{{Path: "House/A - B.mp3", Size: 5}}})
 	})
 	mux.HandleFunc("/api/link/file", func(rw http.ResponseWriter, r *http.Request) { rw.Write([]byte("audio")) })
 	srv := httptest.NewServer(mux)
@@ -297,11 +298,11 @@ func TestLicensesPageServesTheNotices(t *testing.T) {
 func TestRunningSetupAgainKeepsTheFetchState(t *testing.T) {
 	w := newWizard(t)
 	held := ledger.NewFetched()
-	held.Record(fetch.File{Path: "Mine.mp3", Size: 3, ID: "a1_mine", Rev: 4}, time.Now())
+	held.Record(track.File{Path: "Mine.mp3", Size: 3, ID: "a1_mine", Rev: 4}, time.Now())
 	ledgertest.Save(t, w.opts.Home, held)
 	before, _ := os.ReadFile(filepath.Join(w.opts.Home, "fetched.json"))
 	// copyExisting would reseed an empty state: it must not touch this one.
-	srv := fetch.Server{URL: "http://127.0.0.1:1", Token: "t", Folder: t.TempDir()}
+	srv := config.Server{URL: "http://127.0.0.1:1", Token: "t", Folder: t.TempDir()}
 	if err := fetch.Seed(t.Context(), w.opts.Home, srv, true, time.Now()); err != nil {
 		t.Fatal(err)
 	}

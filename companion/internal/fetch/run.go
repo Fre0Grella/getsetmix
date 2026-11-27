@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 )
 
@@ -13,7 +14,7 @@ import (
 // launcher, the scheduled task and Setup's dry run all run it. It returns the
 // report and the state as saved, for the caller's own reporting; while
 // another fetch runs it returns ledger.ErrFetchRunning.
-func RunLocked(ctx context.Context, dir string, s Server, now func() time.Time) (Report, *ledger.Fetched, error) {
+func RunLocked(ctx context.Context, dir string, s config.Server, now func() time.Time) (Report, *ledger.Fetched, error) {
 	lock, err := ledger.LockFetch(dir)
 	if err != nil {
 		return Report{}, nil, err
@@ -36,7 +37,7 @@ func RunLocked(ctx context.Context, dir string, s Server, now func() time.Time) 
 // Only on first pairing: a computer that already fetched keeps its state,
 // whatever the choice, or Setup run again would forget what it holds and
 // what the server removed, and fetch again over local files.
-func Seed(ctx context.Context, dir string, s Server, all bool, now time.Time) error {
+func Seed(ctx context.Context, dir string, s config.Server, all bool, now time.Time) error {
 	lock, err := ledger.LockFetch(dir)
 	if err != nil {
 		return err

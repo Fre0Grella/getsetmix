@@ -15,6 +15,7 @@ import (
 
 	"rsc.io/qr"
 
+	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/fetch"
 	"github.com/Fre0Grella/getsetmix/companion/internal/serverscript"
 )
@@ -277,7 +278,7 @@ func (w *Wizard) candidates() []string {
 }
 
 func (w *Wizard) probe(ctx context.Context, base string) (int, error) {
-	c := &fetch.Client{Server: fetch.Server{URL: base, Token: w.token}, HTTP: &http.Client{Timeout: 8 * time.Second}}
+	c := &fetch.Client{Server: config.Server{URL: base, Token: w.token}, HTTP: &http.Client{Timeout: 8 * time.Second}}
 	l, err := c.List(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "HTTP 404") {

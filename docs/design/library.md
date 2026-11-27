@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **approved** by the maintainer on 2026-11-14. The two proposals left open on approval, 17 (fields with several values) and 18 (a full date when the year is edited), were decided on 2026-11-14 as proposed; see [section 6](#6-decisions-and-open-questions). Section [4.6.1](#461-the-companions-view-of-server-changes-consolidation), added on 2026-11-24, was **approved** on 2026-11-24 with its five open questions decided as recommended |
+| **Status** | **approved** by the maintainer on 2026-11-14. The two proposals left open on approval, 17 (fields with several values) and 18 (a full date when the year is edited), were decided on 2026-11-14 as proposed; see [section 6](#6-decisions-and-open-questions). Section [4.6.1](#461-the-companions-view-of-server-changes-consolidation), added on 2026-11-24, was **approved** on 2026-11-24 with its five open questions decided as recommended, and **implemented** on 2026-11-27 |
 | **Issues** | design [#19](https://github.com/Fre0Grella/getsetmix/issues/19), feature [#11](https://github.com/Fre0Grella/getsetmix/issues/11), roadmap [#12](https://github.com/Fre0Grella/getsetmix/issues/12) |
 | **Date** | 2026-11-13 |
 
@@ -952,13 +952,14 @@ imports do.
 
 **As built** for deleted tracks ([#38](https://github.com/Fre0Grella/getsetmix/issues/38)):
 
-- *Fetch* owns `fetched.json`. It records a tombstone only for a track this
-  computer holds (in `tracks`, or by path in `legacy`), drops it when the id
-  is listed again, and does the opt-in local delete. It never opens
-  `master.db`.
-- *The importer* compares the tombstones in `fetched.json` with the paths it
-  has listed (`state.json`, `removed`), without writing them. The
-  difference is written in the same sync as the imports, under the same
+- *Fetch* handles the tombstones, through the ledger's plan (4.6.1), which
+  alone reads and writes `fetched.json`. A tombstone is recorded only for a
+  track this computer holds (in `tracks`, or by path in `legacy`) and
+  dropped when the id is listed again; fetch does the opt-in local delete.
+  It never opens `master.db`.
+- *The importer* lists what the ledger's work names: tombstones in
+  `fetched.json` not yet among the paths listed in `state.json` (`removed`),
+  and listed paths whose tombstone is gone. The difference is written in the same sync as the imports, under the same
   backup, after the imports, so a track fetched and removed while Rekordbox
   was open has its row by then. Nothing to list means `master.db` is not
   opened. A path with no row in the collection (the DJ removed it) is
@@ -991,9 +992,9 @@ imports do.
   fetched before this version has none; its local copy, read just before the
   newer copy replaces it, gives them. A file with no tags at all has none,
   and then all six fields are written.
-- *Who writes `fetched.json`.* `fetch`, and the importer for one thing: once
-  a row is updated it stores the file's tags and clears `pending`. Both take
-  the same lock file (`fetch.lock`). While a fetch runs, changed tracks wait
+- *Who writes `fetched.json`.* The ledger, for `fetch`, and for the importer
+  for one thing: once a row is updated it stores the file's tags and clears
+  `pending` (`Applied`). Both hold the same lock (`fetch.lock`). While a fetch runs, changed tracks wait
   for the next sync; new tracks are still imported.
 - *Which files.* Step 3 above is narrowed: the importer acts on a track that
   `fetch` marked `pending` when it put a newer copy in place, not on any
@@ -1041,8 +1042,8 @@ acted on.
 
 #### 4.6.1 The companion's view of server changes (consolidation)
 
-**Status: approved** on 2026-11-24 (see the decisions below); slices 1 to 4
-of the build plan are built. It changes how the companion's code is arranged,
+**Status: implemented.** Approved on 2026-11-24 (see the decisions below);
+all five slices of the build plan are built. It changes how the companion's code is arranged,
 not what it does.
 It is numbered under 4.6 so that 4.7 and 4.8 keep their numbers: the code
 cites "4.7" for local mode.
@@ -1413,6 +1414,8 @@ and the existing tests pass unchanged in what they assert.
    `Restored`, `Recycled`.
 5. **Clean-up.** Remove the aliases. Bring the `fetch` and `config` package
    comments, and 4.6 above, in line with the code.
+   **Built:** the aliases are gone; `Changed`, `PathKey` and `Local` are
+   tested in `track`.
 
 Slice 7 of the library plan (local mode and synced folders) is then built
 on the ledger. "A handled file is gone" becomes one more kind of item that

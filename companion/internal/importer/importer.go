@@ -32,6 +32,7 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/rekordbox"
 	"github.com/Fre0Grella/getsetmix/companion/internal/scan"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 // Importer syncs the configured folders into one Rekordbox library.
@@ -73,7 +74,7 @@ var quickCheck = (*library.DB).QuickCheck
 type fetched struct {
 	state *ledger.Fetched
 	lock  *ledger.FetchLock
-	seen  map[string]library.Tags // path key -> the tags that file holds now
+	seen  map[string]track.Tags // path key -> the tags that file holds now
 }
 
 // work is what the sync does about the server's tracks (ledger.WorkFor),
@@ -110,7 +111,7 @@ func (im *Importer) work(ready []scan.File, state *ledger.Synced) (ledger.Work, 
 		return ledger.Work{}, nil, err
 	}
 	return ledger.WorkFor(fresh, state, folder),
-		&fetched{state: fresh, lock: lock, seen: map[string]library.Tags{}}, nil
+		&fetched{state: fresh, lock: lock, seen: map[string]track.Tags{}}, nil
 }
 
 // Split sorts the ready files into what a sync acts on: pending ones were
@@ -206,7 +207,7 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 		return rep, ErrRekordboxRunning
 	}
 
-	var tracks []library.Track
+	var tracks []track.Track
 	var updates []library.Change
 	if len(pending) > 0 || len(changed) > 0 {
 		if tracks, updates, err = im.prepare(pending, changed, work, known, &rep); err != nil {
@@ -257,7 +258,7 @@ func (im *Importer) Sync(dryRun bool) (Report, error) {
 // works out what to write for each changed file: the fields that changed on
 // the server since this computer last saw them.
 func (im *Importer) prepare(pending, changed []scan.File, work ledger.Work, ft *fetched,
-	rep *Report) ([]library.Track, []library.Change, error) {
+	rep *Report) ([]track.Track, []library.Change, error) {
 	// Read-write mode although we only read: Rekordbox is known to be closed,
 	// and only a writable connection checkpoints and removes the WAL file on
 	// close instead of leaving an empty one in Rekordbox's folder.
@@ -270,7 +271,7 @@ func (im *Importer) prepare(pending, changed []scan.File, work ledger.Work, ft *
 	if err != nil {
 		return nil, nil, err
 	}
-	var tracks []library.Track
+	var tracks []track.Track
 	for _, f := range pending {
 		_, stale := work.Changed[f.Key]
 		if inCollection[f.Key] {
@@ -313,7 +314,7 @@ func (im *Importer) prepare(pending, changed []scan.File, work ledger.Work, ft *
 		// same field, the server's value wins.
 		was := work.Changed[f.Key].Was
 		updates = append(updates, library.Change{Path: f.Path, Tags: tags,
-			Fields: library.Changed(was, tags), FileSize: t.FileSize, FileID: t.FileID})
+			Fields: track.Changed(was, tags), FileSize: t.FileSize, FileID: t.FileID})
 	}
 	return tracks, updates, nil
 }
@@ -321,7 +322,7 @@ func (im *Importer) prepare(pending, changed []scan.File, work ledger.Work, ft *
 // write imports tracks, updates the rows of changed files and updates the
 // "removed on server" playlist, under a backup that is restored if anything
 // is off.
-func (im *Importer) write(tracks []library.Track, updates []library.Change, marks removals,
+func (im *Importer) write(tracks []track.Track, updates []library.Change, marks removals,
 	now time.Time, rep *Report) error {
 	backup := filepath.Join(im.Home, "backup")
 	if err := snapshot(im.Install.Dir, backup); err != nil {

@@ -7,10 +7,14 @@
 // Rekordbox cannot import (Ogg, Opus) stay on the server and are not
 // downloaded; the state counts them for `gsm-companion status`.
 //
-// A protocol 2 listing also names the tracks the server removed. Fetch only
-// records the ones this computer holds (removed.go); the importer lists them
+// A protocol 2 listing also names the tracks the server removed. Only the
+// ones this computer holds are recorded (removed.go); the importer lists them
 // in a playlist. With the option "Delete the local file too" the local file
 // goes to the recycle bin, never further.
+//
+// What to do with a listing is the ledger's to say (ledger.Fetched.Plan), and
+// what this computer holds is the ledger's to remember (fetched.json). Fetch
+// does the network and file work and records each outcome.
 //
 // Files land as "name.part" and are renamed when complete, which the scanner
 // already ignores, so the importer never sees half a track.
@@ -35,18 +39,6 @@ import (
 	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
-// Server is config.Server, where tracks come from; this name stays for one
-// release while callers move (docs/design/library.md, 4.6.1).
-type Server = config.Server
-
-// The listing types live in track (docs/design/library.md, 4.6.1); these
-// names stay while callers move.
-type (
-	File    = track.File      // one track the server offers
-	Removed = track.Tombstone // a tombstone in a protocol 2 listing
-	Listing = track.Listing   // the server's answer to /api/link/files
-)
-
 // Report says what a fetch did.
 type Report struct {
 	Offered    int               // tracks this computer can import
@@ -69,7 +61,7 @@ var ErrUnauthorized = errors.New("the server doesn't recognise this computer any
 
 // Client talks to one server.
 type Client struct {
-	Server Server
+	Server config.Server
 	HTTP   *http.Client
 	// Recycle sends a local file to the recycle bin (recycle.Move when nil;
 	// replaced in tests).
@@ -110,8 +102,8 @@ func (c *Client) get(ctx context.Context, endpoint string, q url.Values) (*http.
 }
 
 // List asks the server what it has.
-func (c *Client) List(ctx context.Context) (Listing, error) {
-	var l Listing
+func (c *Client) List(ctx context.Context) (track.Listing, error) {
+	var l track.Listing
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	resp, err := c.get(ctx, "/api/link/files", nil)
@@ -123,14 +115,9 @@ func (c *Client) List(ctx context.Context) (Listing, error) {
 	return l, err
 }
 
-// Local maps a server path onto this computer: track.Local.
-func Local(folder, serverPath string) (string, error) {
-	return track.Local(folder, serverPath)
-}
-
 // download fetches f into dest through dest.part. With checkID, the audio id
 // of the download must be f's before it replaces anything.
-func (c *Client) download(ctx context.Context, f File, dest string, checkID bool) error {
+func (c *Client) download(ctx context.Context, f track.File, dest string, checkID bool) error {
 	resp, err := c.get(ctx, "/api/link/file", url.Values{"path": {f.Path}})
 	if err != nil {
 		return err

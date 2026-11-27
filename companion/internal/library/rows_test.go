@@ -8,6 +8,7 @@ import (
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 // duplicate adds a second live row for the file of row id, as Rekordbox can
@@ -38,8 +39,8 @@ func edit(t *testing.T, dir, path string) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	res, err := db.Update([]library.Change{{Path: path, Tags: library.Tags{Comment: "edited"},
-		Fields: []string{library.FieldComment}, FileSize: 1}}, now)
+	res, err := db.Update([]library.Change{{Path: path, Tags: track.Tags{Comment: "edited"},
+		Fields: []string{track.FieldComment}, FileSize: 1}}, now)
 	if err != nil || len(res.Updated) != 1 {
 		t.Fatalf("update: %+v, %v", res, err)
 	}

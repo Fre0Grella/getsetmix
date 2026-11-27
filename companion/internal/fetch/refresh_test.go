@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/audio"
+	"github.com/Fre0Grella/getsetmix/companion/internal/config"
 	"github.com/Fre0Grella/getsetmix/companion/internal/ledger"
 	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 	"github.com/Fre0Grella/getsetmix/companion/internal/track/tracktest"
@@ -45,7 +46,7 @@ func TestATrackChangedOnTheServerIsFetchedAgain(t *testing.T) {
 		t.Fatal("a tag edit must keep the audio id")
 	}
 	s := &server{files: map[string]string{"a.mp3": v1}}
-	s.listing = Listing{Protocol: 2, Rev: 5, Files: []File{file("a.mp3", v1, id, 5)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 5, Files: []track.File{file("a.mp3", v1, id, 5)}}
 	c := s.start(t)
 	state := ledger.NewFetched()
 	if rep := run(t, c, state); len(rep.Downloaded) != 1 {
@@ -65,7 +66,7 @@ func TestATrackChangedOnTheServerIsFetchedAgain(t *testing.T) {
 
 	// The DJ edits the genre and the year on the server.
 	s.files["a.mp3"] = v2
-	s.listing = Listing{Protocol: 2, Rev: 9, Files: []File{file("a.mp3", v2, id, 9)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 9, Files: []track.File{file("a.mp3", v2, id, 9)}}
 	s.served = nil
 	rep := run(t, c, state)
 	local := filepath.Join(c.Server.Folder, "a.mp3")
@@ -88,14 +89,14 @@ func TestARefreshWithOtherAudioIsRefused(t *testing.T) {
 	v1 := string(tracktest.MP3(1, before))
 	id := idOf(t, "a.mp3", v1)
 	s := &server{files: map[string]string{"a.mp3": v1}}
-	s.listing = Listing{Protocol: 2, Rev: 5, Files: []File{file("a.mp3", v1, id, 5)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 5, Files: []track.File{file("a.mp3", v1, id, 5)}}
 	c := s.start(t)
 	state := ledger.NewFetched()
 	run(t, c, state)
 
 	other := string(tracktest.MP3(2, after))
 	s.files["a.mp3"] = other
-	s.listing = Listing{Protocol: 2, Rev: 9, Files: []File{file("a.mp3", other, id, 9)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 9, Files: []track.File{file("a.mp3", other, id, 9)}}
 	rep := run(t, c, state)
 	if !strings.Contains(rep.Failed["a.mp3"], "audio id") || len(rep.Updated) != 0 {
 		t.Fatalf("report %+v", rep)
@@ -117,14 +118,14 @@ func TestAChangedTrackDeletedHereIsNotFetchedAgain(t *testing.T) {
 	v1, v2 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v1)
 	s := &server{files: map[string]string{"a.mp3": v1}}
-	s.listing = Listing{Protocol: 2, Rev: 5, Files: []File{file("a.mp3", v1, id, 5)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 5, Files: []track.File{file("a.mp3", v1, id, 5)}}
 	c := s.start(t)
 	state := ledger.NewFetched()
 	run(t, c, state)
 	os.Remove(filepath.Join(c.Server.Folder, "a.mp3"))
 
 	s.files["a.mp3"] = v2
-	s.listing = Listing{Protocol: 2, Rev: 9, Files: []File{file("a.mp3", v2, id, 9)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 9, Files: []track.File{file("a.mp3", v2, id, 9)}}
 	s.served = nil
 	rep := run(t, c, state)
 	if len(s.served) != 0 || len(rep.Updated) != 0 || strings.Join(rep.Kept, ",") != "a.mp3" {
@@ -148,13 +149,13 @@ func TestARefreshLandsAtTheLocalPath(t *testing.T) {
 	v1, v2 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v1)
 	s := &server{files: map[string]string{"a.mp3": v1}}
-	s.listing = Listing{Protocol: 2, Rev: 5, Files: []File{file("a.mp3", v1, id, 5)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 5, Files: []track.File{file("a.mp3", v1, id, 5)}}
 	c := s.start(t)
 	state := ledger.NewFetched()
 	run(t, c, state)
 
 	s.files["House/a.mp3"] = v2
-	s.listing = Listing{Protocol: 2, Rev: 9, Files: []File{file("House/a.mp3", v2, id, 9)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 9, Files: []track.File{file("House/a.mp3", v2, id, 9)}}
 	rep := run(t, c, state)
 	if len(rep.Updated) != 1 {
 		t.Fatalf("report %+v", rep)
@@ -173,7 +174,7 @@ func TestTagsOfAnOldFetchAreReadBeforeTheRefresh(t *testing.T) {
 	v1, v2 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v1)
 	s := &server{files: map[string]string{"a.mp3": v2}}
-	s.listing = Listing{Protocol: 2, Rev: 9, Files: []File{file("a.mp3", v2, id, 9)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 9, Files: []track.File{file("a.mp3", v2, id, 9)}}
 	c := s.start(t)
 	writeFile(t, c.Server.Folder, "a.mp3", v1)
 	state := ledger.NewFetched()
@@ -194,7 +195,7 @@ func TestASecondRefreshKeepsTheBase(t *testing.T) {
 	v2, v3 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v2)
 	s := &server{files: map[string]string{"a.mp3": v3}}
-	s.listing = Listing{Protocol: 2, Rev: 12, Files: []File{file("a.mp3", v3, id, 12)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 12, Files: []track.File{file("a.mp3", v3, id, 12)}}
 	c := s.start(t)
 	// A first newer copy is in place, and nothing is known of the one before it.
 	writeFile(t, c.Server.Folder, "a.mp3", v2)
@@ -212,13 +213,13 @@ func TestATombstonedTrackIsNotFetchedAgain(t *testing.T) {
 	v1, v2 := string(tracktest.MP3(1, before)), string(tracktest.MP3(1, after))
 	id := idOf(t, "a.mp3", v1)
 	s := &server{files: map[string]string{"a.mp3": v1}}
-	s.listing = Listing{Protocol: 2, Rev: 5, Files: []File{file("a.mp3", v1, id, 5)}}
+	s.listing = track.Listing{Protocol: 2, Rev: 5, Files: []track.File{file("a.mp3", v1, id, 5)}}
 	c := s.start(t)
 	state := ledger.NewFetched()
 	run(t, c, state)
 
 	s.files["a.mp3"] = v2
-	s.listing = Listing{Protocol: 2, Rev: 9, Removed: []Removed{
+	s.listing = track.Listing{Protocol: 2, Rev: 9, Removed: []track.Tombstone{
 		{ID: id, Path: "a.mp3", At: "2026-11-14T10:00:00+00:00", Reason: "deleted"}}}
 	s.served = nil
 	rep := run(t, c, state)
@@ -242,7 +243,7 @@ func TestAFetchWhileAnotherRunsDoesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lock.Unlock()
-	srv := Server{URL: "http://127.0.0.1:1", Token: "t", Folder: t.TempDir()}
+	srv := config.Server{URL: "http://127.0.0.1:1", Token: "t", Folder: t.TempDir()}
 	if _, _, err := RunLocked(context.Background(), dir, srv, time.Now); err != ledger.ErrFetchRunning {
 		t.Fatalf("got %v, want ErrFetchRunning", err)
 	}

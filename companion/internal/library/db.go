@@ -20,7 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 	_ "github.com/mutecomm/go-sqlcipher/v4" // registers the "sqlite3" driver
 )
 
@@ -81,11 +80,6 @@ func (d *DB) QuickCheck() error {
 		return fmt.Errorf("integrity check failed: %s", res)
 	}
 	return nil
-}
-
-// PathKey normalises a file path for identity comparisons: track.PathKey.
-func PathKey(p string) string {
-	return track.PathKey(p)
 }
 
 // FolderPath is the form Rekordbox stores in djmdContent.FolderPath: the

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Fre0Grella/getsetmix/companion/internal/library"
 	"github.com/Fre0Grella/getsetmix/companion/internal/library/librarytest"
+	"github.com/Fre0Grella/getsetmix/companion/internal/track"
 )
 
 // removedSetup is a collection of three imported tracks; the first has a hot
@@ -21,9 +22,9 @@ func removedSetup(t *testing.T) (dir string, paths []string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var tracks []library.Track
+	var tracks []track.Track
 	for _, p := range paths {
-		tracks = append(tracks, track(p))
+		tracks = append(tracks, trackAt(p))
 	}
 	if _, err := db.Import(tracks, "GetSetMix", now); err != nil {
 		t.Fatal(err)

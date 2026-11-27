@@ -266,7 +266,7 @@ func (w *Wizard) pcStep(ctx context.Context, mode, id string) (string, error) {
 			cfg.RekordboxDir = filepath.Join(o.Home, "no-rekordbox")
 		}
 		if mode == "server" && c.Delivery == "download" {
-			cfg.Server = &fetch.Server{URL: srvURL, Token: token, Folder: c.Folder}
+			cfg.Server = &config.Server{URL: srvURL, Token: token, Folder: c.Folder}
 		}
 		if mode == "local" {
 			if err := writeAppSettings(appDataDir(o), c.Folder); err != nil {
