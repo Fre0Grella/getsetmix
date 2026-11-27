@@ -898,6 +898,97 @@ a dialog with the count. No confirmation phrase: a delete is recoverable for
 - The download of a cover address only takes `http` and `https`, and at most
   10 MB; this also closes `file:` addresses for the download path.
 
+#### 4.5.1 Selecting, redesigned (approved 2026-11-27)
+
+**Status: approved** by the maintainer on 2026-11-27. It replaces the
+selection *as built* above. Why: on the built version the maintainer could
+not find how to select. Ctrl-click, a click on the cover and a long press
+are all invisible, and the cover looks like a picture, not a control
+(review with the interaction-design skill, 2026-11-27).
+
+**Decided:** a visible **Select** button starts selection mode; the gestures
+stay as shortcuts.
+
+```
+Library list ──[Select] / long press / Ctrl-click──▶ selection mode
+   ▲                                                    │
+   └──[✕] / Escape / new search, filter or sort ────────┤
+                                                        ▼
+                    bar: ✕  N selected  [Select all M]  [Edit tags] [Delete]
+```
+
+| State | What shows | How you get there |
+|---|---|---|
+| **Browsing** | rows as today; on a computer, hovering a row shows an empty checkbox over its cover | default |
+| **Selecting, none picked** | every row has a checkbox where its cover's corner is; the bar says *Pick tracks* with ✕ and *Select all M* | *Select*, or a long press / Ctrl-click (which also picks that row) |
+| **Selecting, some picked** | picked rows washed in the accent with a ticked box; the bar says *N selected* | tap or click any row; Shift-click picks a range |
+| **All picked** | every row ticked; the bar says *All M selected* and the actions work on the view's filter, however long the list | *Select all M* |
+
+- **In selection mode a tap or click on a row picks it**, never opens it,
+  and the screen shows the mode (checkboxes everywhere, the bar), so the
+  same tap is never two things without a sign.
+- **A click on the cover no longer selects** outside the mode; the hover
+  checkbox replaces it as the visible way in on a computer.
+- **The bar** keeps *Edit tags* (first, primary) and *Delete*. *Set genre*
+  leaves the bar (decided 2026-11-27): it is *Change fields* inside *Edit
+  tags* ([batch editing 4.10](batch-editing.md#410-the-edit-flow-redesigned-approved-2026-11-27));
+  the bulk API keeps `set_genre`. In the trash the bar offers *Restore*.
+- **Select all M** sends the view's filter to batch editing (its selection
+  by filter, design 3.3) and, for *Delete*, the ids of the whole view.
+- Words: *Select* / *Seleziona*, *Pick tracks* / *Scegli i brani*,
+  *N selected* / *N selezionati*, *Select all M* / *Seleziona tutti (M)*.
+
+#### 4.5.2 Finding tracks: artist and problem filters (approved 2026-11-27)
+
+**Status: approved** by the maintainer on 2026-11-27. He found plain
+batch editing of little use alone: one change rarely fits many songs. What he needs is to *find* the
+right tracks, then either fix them one by one or select them all and edit.
+
+**The flow it serves.**
+
+```
+Artist: [Kito ▾]  ──▶  "8 tracks · Select all"  ──▶  untick 2  ──▶  Edit tags
+  (as main artist or featured)                                    → Set Genre
+```
+
+**Artist filter.** A search box with suggestions (the library's artists,
+with their counts) beside the genre filter. `GET /api/library?artist=Kito`
+matches a track when Kito is **one of its artists**: the artist field split
+on the separators the rules know (`,` `;` `&` `x` `vs` `feat.` `ft.`), and a
+featured artist in the title (`(feat. Kito)`). Case and accents are folded,
+as in search. So after *Standard cleanup* moved a name into the title, the
+track is still found under that artist.
+
+**Problem filters.** A *Problems* menu beside it, each with its count; they
+only filter the list, nothing is changed:
+
+| Filter | Matches |
+|---|---|
+| No genre | an empty genre |
+| No year | no year |
+| No cover | no embedded picture |
+| All lowercase | a title or artist with letters, none of them capital |
+| "feat." in the artist | the artist names a featured artist (what `feat.move` would move) |
+| Promo text in the title | what `promo.remove` would take out |
+| Same audio | the audio of another file in the library |
+
+**How it is stored.** The index gains two columns, filled whenever a row's
+tags are indexed or written, from the row's own values (no file is read):
+`artists`, the folded artist names of the row joined by a separator, and
+`problems`, the ids of the problems above that apply (except *Same audio*,
+which is a query on `audio_id`). The checks come from `app/rules.py`, so a
+filter and the rule that fixes it can never disagree. Rows indexed before
+get the columns filled once at start-up.
+
+**Select all, always in sight.** When a search or a filter is active, the
+count line says *8 tracks · Select all*; in selection mode the bar offers
+*Select all M* from the first moment, before anything is picked.
+
+**On a phone** the filters move into a *Filters* sheet (genre, artist,
+problems, folder), opened from one button that shows how many are on.
+
+**Not done:** problem filters never start an edit by themselves.
+
 ### 4.6 What a computer does
 
 The rule that a computer never changes the server stays. So does the rule

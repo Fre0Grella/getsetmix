@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | approved by the maintainer on 2026-11-14. The decisions are in [section 6](#6-decisions-and-open-questions); three questions there wait for a check against a real Rekordbox |
+| **Status** | approved by the maintainer on 2026-11-14. The decisions are in [section 6](#6-decisions-and-open-questions); three questions there wait for a check against a real Rekordbox. Section [4.10](#410-the-edit-flow-redesigned-approved-2026-11-27), the redesigned edit flow, was approved on 2026-11-27 |
 | **Issues** | design [#20](https://github.com/Fre0Grella/getsetmix/issues/20), roadmap [#12](https://github.com/Fre0Grella/getsetmix/issues/12) |
 | **Depends on** | the [Library module](library.md) ([#19](https://github.com/Fre0Grella/getsetmix/issues/19)), approved on 2026-11-14 |
 | **Date** | 2026-11-13 |
@@ -1006,6 +1006,131 @@ every field before the download, as today.
 When that is built, `metadata.clean_title` and `split_artist_title` become
 calls to `promo.remove` and `split.artist_title`, so ingest and cleanup
 cannot disagree.
+
+### 4.10 The edit flow, redesigned (approved 2026-11-27)
+
+**Status: approved** by the maintainer on 2026-11-27. It replaces the
+desktop panel and the phone sheet of [4.3](#43-preview) as built (slices 2
+to 7). Why: the maintainer found *Edit tags* "not intuitive". The review
+(interaction-design skill, 2026-11-27) found:
+
+| Problem as built | Principle |
+|---|---|
+| The panel opens on seven menus all saying *Leave as it is*, a scope choice and two tabs | simplicity, defaults |
+| The current values of the selected tracks are not shown | visibility |
+| *Preview* is a separate click before anything is seen | feedback |
+| *Fields*, *Cleanup*, *Add before*, *Rule set* | words |
+| Steps on a phone, one long panel on a computer | consistency |
+
+**Decided with the maintainer:** the same three steps on every screen; a
+live preview; field changes written as sentences.
+
+#### The flow
+
+```
+[Edit tags] ─▶ 1 What ──Next──▶ 2 Check ──Apply──▶ 3 Done
+                 │  ▲              │                  │
+                 │  └────Back──────┘                  ├─ Undo ─▶ 3 Done (undo)
+                 └─ ✕ closes, nothing written         └─ Close
+```
+
+One dialog: a bottom sheet on a phone, a centred dialog about 720 px wide on
+a computer. The head says *Edit N tracks* and *1 of 3 · What*. *Back* keeps
+everything chosen in step 1.
+
+#### Step 1 · What
+
+Two large choices; the step shows only the one picked.
+
+**Clean up.** The rule sets, one card each, its rules named under it (from
+the catalogue, in the UI's language). One tap picks a set. *Customise*
+opens the set's rules (switches, order, settings, *Save as new*): the
+Cleanup tab of today, moved behind one link because few need it.
+
+**Change fields.** Changes written as sentences, one per row:
+
+```
+Set      [Genre ▾]   to [Tech House        ]                ✕
+Replace  in [Title ▾] [Orig. Mix ] with [Original Mix]
+         ☐ whole words  ☐ match case                        ✕
+Add      [ (Live)    ] [after ▾] [Title ▾]                   ✕
+Clear    [Album ▾]                                          ✕
+[+ Add a change]
+```
+
+- A new row starts as *Set [Genre] to …*, the commonest change. The verb
+  is the row's first menu (*Set*, *Replace*, *Add*, *Clear*) and the rest
+  of the row follows it. Title and artist are not offered to *Clear*; the
+  year takes only *Set* and *Clear*.
+- Under the field, a hint of what the tracks hold now: *Now: House (8) ·
+  Techno (3) · empty (1)*. A tap on a value fills it in.
+- The cover keeps its own row: *Set cover to [Choose image]* or *Remove
+  cover*.
+
+**The live preview.** Half a second after the last change of step 1, the
+foot of the step says what would happen: *15 changes on 12 tracks*, and the
+first three as *before → after*. It is a dry run (`"dry": true`, below):
+nothing is stored. **Next** is enabled once there is at least one change,
+and makes the stored preview of [4.3](#43-preview).
+
+#### Step 2 · Check
+
+The changes of [4.3](#43-preview), as built: grouped by track, tracks with a
+warning first, the changed part marked, a switch per track and a tap per
+change to leave out, chips for warnings and fields. A computer shows rows,
+a phone cards. **Apply** names the numbers (*Change 15 tags on 12 tracks*).
+
+#### Step 3 · Done
+
+The progress with *Stop*, then the outcome: what was written, what failed
+and why with *Try again*, and **Undo**. Closing during the apply leaves it
+running; a toast says *Editing 12 tracks…* and, at the end, *Edited 12
+tracks · Undo*.
+
+#### States of the dialog
+
+| State | Shows | Leaves by |
+|---|---|---|
+| 1, nothing chosen | the two choices | a choice, ✕ |
+| 1, building | the sentences or the sets; the live summary; *Next* disabled until a change | *Next*, ✕ |
+| 1, live preview loading | the last summary, faded, with a small spinner | its answer |
+| 1, nothing would change | *Nothing to change: the tracks already hold this.*; *Next* disabled | editing the sentences |
+| 2, checking | the list; *Apply* | *Apply*, *Back*, ✕ |
+| 2, all left out | *Nothing left to write*; *Apply* disabled | putting something back, *Back* |
+| 3, applying | progress, *Stop* | the end, or *Stop* |
+| 3, done | outcome, *Try again* if any failed, *Undo* | *Close*, *Undo* |
+| any, error | the server's reason, in words, at the step it happened; nothing typed is lost | retry, *Back* |
+
+#### What changes on the server
+
+- `POST /api/library/edits` takes `"dry": true`: the same checks and steps,
+  answered with the counts and the first 3 changes, and nothing stored. It
+  is cheap (string work on the index, design 4.3) and is what the live
+  preview calls.
+- `GET /api/library/facets` takes `ids` (or the view's filter) and answers
+  the values of each field with their counts, for the *Now:* hint.
+- Nothing else: steps, rule sets, preview, apply and undo stay as built.
+
+#### Words
+
+| Today | Becomes (en / it) |
+|---|---|
+| Fields / Cleanup tabs | *Change fields* / *Cambia i campi*, *Clean up* / *Pulisci* |
+| Leave as it is, Add before, Add after | gone; rows say *Set*, *Replace*, *Add … before/after*, *Clear* |
+| Preview | gone (live) |
+| Rule set | *Cleanup* in titles (*Standard cleanup*); *Customise* / *Personalizza* to open its rules |
+
+#### Decided on approval (2026-11-27)
+
+1. A **centred dialog** about 720 px wide on a computer, not a side panel.
+2. *Set genre* lives **only inside *Edit tags*** (*Change fields*, whose
+   first row is *Set Genre to …*); the selection bar keeps *Edit tags* and
+   *Delete*.
+3. **Clean up comes first.** The maintainer finds the rule sets the useful
+   part and plain field changes of little use alone; step 1 puts *Clean up*
+   first, and the value of batch editing comes with finding the right
+   tracks: the artist and problem filters of the
+   [Library design 4.5.2](library.md#452-finding-tracks-artist-and-problem-filters-approved-2026-11-27).
 
 ## 5. Testing
 
