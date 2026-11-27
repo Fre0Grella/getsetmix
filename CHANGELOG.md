@@ -1,6 +1,27 @@
 # CHANGELOG
 
 
+## v1.23.0 (2026-11-27)
+
+### Features
+
+- **library**: Batch edit tags on a phone
+  ([`f0e3575`](https://github.com/Fre0Grella/getsetmix/commit/f0e35753565fe8d1f40645558e8504b6ae4dc352))
+
+Batch editing, slice 7: on a phone the edit panel is a sheet in three steps.
+
+- What: every rule set as one tap, its rules named under it in the UI's language from the catalogue;
+  or the field rows. - Check: one card per track, warnings first; a switch keeps or leaves out a
+  track, a tap leaves out or puts back one change. - Apply: progress, counts, then only the
+  failures, with Try again and Undo. - The resend note is cleared once an edit is written.
+
+Closes #52
+
+Claude-Session: https://claude.ai/code/session_01P6dL1ubJcR7rkeStcK3oqS
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+
+
 ## v1.22.0 (2026-11-27)
 
 ### Features
