@@ -1,7 +1,7 @@
 """The Library API (docs/design/library.md, 3.3), behind the same auth as /api.
 
 This module serves the list, the facets, the status, the rescan, bulk actions,
-one file and its tag edit, its cover (read and replace) and audio (with range
+batch edits (app/edits.py), one file and its tag edit, its cover (read and replace) and audio (with range
 requests, for the preview), and the trash: delete, restore and purge. The index and the
 writes are in app/library.py; the routes here are thin callers.
 
@@ -19,7 +19,7 @@ from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.datastructures import UploadFile
 
-from . import library, tagger, thumbs
+from . import edits, library, tagger, thumbs
 
 router = APIRouter(prefix="/api/library")
 
@@ -81,6 +81,35 @@ async def library_bulk(body: Annotated[dict, Body()]):
     """Delete, restore or set the genre of many tracks; the outcome per id."""
     return await _call(library.current().bulk, body.get("ids"), body.get("action"),
                        body.get("genre"))
+
+
+# ------------------------------------------------- batch editing (edits)
+@router.post("/edits", status_code=201)
+async def make_edit(body: Annotated[dict, Body()]):
+    """Preview an edit: a selection and steps; the changes are stored, not written."""
+    return await _call(edits.current().preview, body)
+
+
+@router.get("/edits/{eid:int}")
+async def get_edit(eid: int):
+    """One edit: state, counts and the progress of its apply."""
+    item = await asyncio.to_thread(edits.current().get, eid)
+    if item is None:
+        raise HTTPException(404, "no such edit")
+    return item
+
+
+@router.get("/edits/{eid:int}/changes")
+async def edit_changes(eid: int, field: str = "", state: str = "", warning: str = "",
+                       limit: int = 200, cursor: str | None = None):
+    """The changes of an edit, per track and field, paged."""
+    return await _call(edits.current().changes, eid, field, state, warning, limit, cursor)
+
+
+@router.post("/edits/{eid:int}/apply", status_code=202)
+async def apply_edit(eid: int):
+    """Write a previewed edit, one file at a time; also retries what failed."""
+    return await _call(edits.current().apply, eid)
 
 
 @router.get("/{fid:int}")

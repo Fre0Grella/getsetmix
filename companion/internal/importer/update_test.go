@@ -466,3 +466,66 @@ func TestDryRunListsUpdatesAndWritesNothing(t *testing.T) {
 		t.Fatal("a dry run marked the change handled")
 	}
 }
+
+// A batch edit on the server changes many tracks at once (batch-editing
+// design 4.6): every one that was fetched again is updated in the same sync,
+// under one backup and one transaction, and each row shows its new value.
+func TestSeveralChangedTracksAreUpdatedInOneSync(t *testing.T) {
+	t.Parallel()
+	ft := newFetchedTrack(t)
+	second := filepath.Join(ft.music, "Blue Hour.mp3")
+	write := func(path string, seed byte, tags tracktest.Tags, mtime time.Time) {
+		t.Helper()
+		if err := os.WriteFile(path+".part", tracktest.MP3(seed, tags), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		os.Chtimes(path+".part", mtime, mtime)
+		if err := os.Rename(path+".part", path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	blueBefore, blueAfter := onServerBefore, onServerAfter
+	blueBefore.Title, blueAfter.Title = "Blue Hour", "Blue Hour"
+	write(second, 8, blueBefore, time.Now().Add(-time.Hour))
+	secondID, err := audio.ID(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tags, _ := audio.ReadTags(second)
+	st, _ := ledger.ReadFetched(ft.im.Home)
+	st.Tracks[secondID] = ledger.Track{Path: "Blue Hour.mp3", Rev: 6, At: time.Now(), Tags: &tags}
+	ledgertest.Save(t, ft.im.Home, st)
+	if rep, err := ft.im.Sync(false); err != nil || len(rep.Imported) != 1 {
+		t.Fatalf("import of the second track: %+v, %v", rep, err)
+	}
+
+	// The edit reaches this computer: both files are fetched again.
+	ft.refresh(t)
+	write(second, 8, blueAfter, time.Now().Add(-30*time.Minute))
+	st, _ = ledger.ReadFetched(ft.im.Home)
+	held := st.Tracks[secondID]
+	held.Rev, held.Pending = 10, true
+	st.Tracks[secondID] = held
+	ledgertest.Save(t, ft.im.Home, st)
+
+	rep, err := ft.im.Sync(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sort.Strings(rep.Updated)
+	if rep.Changed != 2 || !slices.Equal(rep.Updated, []string{second, ft.path}) {
+		t.Fatalf("report %+v", rep)
+	}
+	db := ft.db(t)
+	defer db.Close()
+	for _, name := range []string{"Night Drive.mp3", "Blue Hour.mp3"} {
+		var genre string
+		if err := db.QueryRow(`SELECT g.Name FROM djmdContent c JOIN djmdGenre g ON g.ID = c.GenreID
+			WHERE c.FileNameL = ?`, name).Scan(&genre); err != nil {
+			t.Fatal(err)
+		}
+		if genre != "Tech House" {
+			t.Errorf("%s: genre %q in master.db", name, genre)
+		}
+	}
+}

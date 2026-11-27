@@ -1123,3 +1123,43 @@ after the Library module's slice 3 (edit one track, all the way).
 7. **The phone sheet.** The three-step sheet, cards, both languages.
 8. **Hardening.** Cancel, restart, failure injection, the manual checklist
    against a real Rekordbox, local mode on Windows with a loaded deck.
+
+### 8.1 As built
+
+**Slice 2** ([#47](https://github.com/Fre0Grella/getsetmix/issues/47)), one
+field operation previewed and applied:
+
+- `app/edits.py` holds the edits; the routes are thin callers in
+  `app/library_api.py`. The three tables of 3.6 are in `app/db.py`
+  (`rule_sets` is empty until slice 4).
+- Field operations run in `rules.run_steps` beside the rules, so one runner
+  makes every change and names its steps in `by` (`{"step", "op"}` for an
+  operation). `set` is the only operation so far; the year is an integer or
+  `null`, every other field text.
+- `POST /api/library/edits` answers `201` with the edit. A selection is
+  `{"ids": [...]}`, each id once, at most 10,000 (`413`). The preview answer
+  adds `selected`, `unchanged`, `skipped` and `skipped_by_reason` to the
+  counts; `GET /api/library/edits/{id}` counts from the stored changes only
+  (`changed`, `changes`, `by_field`, `by_state`, `warnings`) and adds
+  `progress` and `current`. Skip reasons: `read-only format`, `damaged
+  file`, `in the trash`, `not on disk`, `not in the library`, `no such
+  track`.
+- Warnings in this slice: `would_empty` and `too_long` (blocked) and
+  `merges_values` (pending).
+- Apply: `202`; `409` while another edit applies, for an edit that is not
+  appliable, or with nothing left to write; `410` for an expired preview
+  (24 hours, or another edit applied since it was made), which also marks it
+  `expired`. A change's `error` starts with the reason of 4.4 (`in use`,
+  `gone`, `read-only`, `no space`, `write error`; `the file changed: <fields>`
+  for a conflict). A conflict is not retried; applying again writes only
+  `pending` and `failed` changes.
+- An apply left `applying` by a stop becomes `interrupted` when the edits are
+  first used after the start.
+- The bulk bar's **Edit tags** opens a panel: a field, a value, *Preview*
+  (the changes as before → after, up to 500 listed), then *Change N tags on
+  M tracks*, the progress, and the outcome per file; failures can be tried
+  again. The phone sheet is slice 7.
+- The bulk `set_genre` of the Library still writes directly; it moves onto
+  edits with the undo of slice 3 (L9).
+- Companion: nothing new travels; `TestSeveralChangedTracksAreUpdatedInOneSync`
+  checks that the tracks an edit changed are updated together in one sync.

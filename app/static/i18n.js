@@ -110,6 +110,11 @@ export let T = STR[lang];
 const SERVER_ERRORS_IT = [
   [/^no such track$/, "Brano non trovato"],
   [/^at most (\d+) tracks at once$/, "Al massimo $1 brani alla volta"],
+  [/^no such edit$/, "Modifica non trovata"],
+  [/^another edit is being applied: wait for it to end$/, "Un'altra modifica è in corso: aspetta che finisca"],
+  [/^nothing is left to apply$/, "Non resta nulla da applicare"],
+  [/^the preview expired: make it again$/, "L'anteprima è scaduta: rifalla"],
+  [/^an edit that is (\w+) cannot be applied$/, "Questa modifica ($1) non si può applicare"],
   [/^Track not found$/, "Brano non trovato"],
   [/^no such file$/, "File non trovato"],
   [/^the file is not on disk$/, "Il file non è sul disco"],

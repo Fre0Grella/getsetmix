@@ -6,6 +6,7 @@ import {
 import { openCoverModal } from "./cover.js";
 import { lang, setLang, T } from "./i18n.js";
 import { openSheet } from "./library.js";
+import "./edits.js";   // batch editing: adds Edit tags to the Library's bulk bar
 
 
 // The genre list and the one-tap picks live on the server (app/genres.py) and

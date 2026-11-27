@@ -63,7 +63,7 @@ Object.assign(STR.en, {
   libChanged: "The file changed meanwhile. The sheet now shows what it holds; check and save again.",
   libInUse: "Another program has this file open, maybe a deck in Rekordbox. Unload it and try again.",
   libSelBar: "Selected tracks", libSelClear: "Clear the selection",
-  libSelCount: (n) => plural(n, "1 selected", "{n} selected"),
+  libSelWord: (n) => plural(n, "selected", "selected"),
   libSetGenre: "Set genre",
   libSetGenreTitle: (n) => plural(n, "Genre for 1 track", "Genre for {n} tracks"),
   libGenreEmpty: "Type a genre or pick one",
@@ -125,7 +125,7 @@ Object.assign(STR.it, {
   libChanged: "Nel frattempo il file è cambiato. Ora la scheda mostra cosa contiene: controlla e salva di nuovo.",
   libInUse: "Un altro programma ha aperto questo file, forse un deck di Rekordbox. Scaricalo dal deck e riprova.",
   libSelBar: "Brani selezionati", libSelClear: "Annulla la selezione",
-  libSelCount: (n) => plural(n, "1 selezionato", "{n} selezionati"),
+  libSelWord: (n) => plural(n, "selezionato", "selezionati"),
   libSetGenre: "Imposta genere",
   libSetGenreTitle: (n) => plural(n, "Genere per 1 brano", "Genere per {n} brani"),
   libGenreEmpty: "Scrivi un genere o scegline uno",
@@ -909,7 +909,8 @@ function selPaint() {
   const n = Sel.ids.size;
   document.body.classList.toggle("lib-selecting", n > 0);
   $("#libSelBar").classList.toggle("hidden", !n);
-  $("#libSelCount").textContent = n ? T.libSelCount(n) : "";
+  // the number always; the word only where there is room for it (library.css)
+  $("#libSelCount").innerHTML = n ? `${num(n)}<span class="lib-sel-word"> ${esc(T.libSelWord(n))}</span>` : "";
   document.querySelectorAll("#libSelActions [data-bulk]").forEach((b) =>
     b.classList.toggle("hidden", (b.dataset.bulk === "restore") !== Lib.trash));
   shown.forEach((el) => {
@@ -1051,6 +1052,14 @@ $("#libGenreForm").addEventListener("submit", async (e) => {
 });
 
 const SEL_ACTIONS = { delete: bulkDelete, restore: () => bulkRestore(), set_genre: genreOpen };
+// Another screen adds its action to the bar (a button with that `data-bulk`).
+export function addSelAction(name, fn) { SEL_ACTIONS[name] = fn; }
+// Another screen wrote to files: the selection goes and the list reloads.
+export function libChanged() {
+  selClear();
+  libReload();
+  libFacets();
+}
 $("#libSelActions").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-bulk]");
   if (btn && Sel.ids.size) SEL_ACTIONS[btn.dataset.bulk]();
