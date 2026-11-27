@@ -90,6 +90,48 @@
         <span data-i18n="viewLibrary">Library</span>
       </button>
       <span id="libCount" class="stats-text"></span>
+      <button id="libCountAll" type="button" class="lib-link hidden" data-i18n="libSelectAll">Select all</button>
+      <button id="libFiltersBtn" type="button" class="btn-pill lib-trash-btn lib-filters-btn" aria-label="Filters" data-i18n-aria="libFilters">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span class="lib-trash-label" data-i18n="libFilters">Filters</span>
+        <span id="libFiltersBadge" class="count count--dot hidden" aria-hidden="true"></span>
+      </button>
+      <button id="libSelectBtn" type="button" class="btn-pill lib-trash-btn" aria-pressed="false" aria-label="Select" data-i18n-aria="libSelect">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 12.5l2.5 2.5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="lib-trash-label" data-i18n="libSelect">Select</span>
+      </button>
+      <button id="libHistoryBtn" type="button" class="btn-pill lib-trash-btn" aria-label="History" data-i18n-aria="edHistory">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4M12 8v4l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="lib-trash-label" data-i18n="edHistory">History</span>
+      </button>
+      <button id="libTrashBtn" type="button" class="btn-pill lib-trash-btn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trash" /></svg>
+        <span id="libTrashLabel" class="lib-trash-label">Trash</span>
+        <span id="libTrashBadge" class="count count--dot hidden" aria-hidden="true"></span>
+      </button>
+      <button id="libEmptyTrash" type="button" class="btn-pill lib-empty-trash hidden" data-i18n="libEmptyTrash">Empty trash</button>
+    </div>
+    <p id="libTrashNote" class="lib-note hidden"></p>
+    <div id="libFiltersShade" class="lib-filters-shade"></div>
+    <div id="libFilters" class="lib-filters" role="group" aria-label="Filters" data-i18n-aria="libFilters">
+      <div class="lib-filters-head">
+        <h2 data-i18n="libFilters">Filters</h2>
+        <button id="libFiltersClose" type="button" class="icon-btn" aria-label="Close" data-i18n-aria="close">
+          <svg viewBox="0 0 24 24"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div id="libGenres" class="lib-genres" role="group" aria-label="Genres" data-i18n-aria="libGenres"></div>
+      <label class="btn-pill lib-select lib-artist">
+        <input id="libArtist" type="search" list="libArtistList" spellcheck="false" autocomplete="off"
+               placeholder="Artist" data-i18n-ph="libArtistPh" aria-label="Artist" data-i18n-aria="libArtistPh" />
+      </label>
+      <datalist id="libArtistList"></datalist>
+      <label class="btn-pill lib-select lib-problem">
+        <select id="libProblem" aria-label="Problems" data-i18n-aria="libProblems"></select>
+      </label>
+      <label class="btn-pill lib-select lib-folder">
+        <select id="libFolder" aria-label="Folder" data-i18n-aria="libFolderLabel"></select>
+      </label>
       <div class="lib-sort">
         <label class="btn-pill lib-select">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h7M4 17h4M17 6v12m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -104,23 +146,6 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m0 0l-5-5m5 5l5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
-      <button id="libHistoryBtn" type="button" class="btn-pill lib-trash-btn" aria-label="History" data-i18n-aria="edHistory">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4M12 8v4l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span class="lib-trash-label" data-i18n="edHistory">History</span>
-      </button>
-      <button id="libTrashBtn" type="button" class="btn-pill lib-trash-btn">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trash" /></svg>
-        <span id="libTrashLabel" class="lib-trash-label">Trash</span>
-        <span id="libTrashBadge" class="count count--dot hidden" aria-hidden="true"></span>
-      </button>
-      <button id="libEmptyTrash" type="button" class="btn-pill lib-empty-trash hidden" data-i18n="libEmptyTrash">Empty trash</button>
-    </div>
-    <p id="libTrashNote" class="lib-note hidden"></p>
-    <div id="libFilters" class="lib-filters hidden">
-      <div id="libGenres" class="lib-genres" role="group" aria-label="Genres" data-i18n-aria="libGenres"></div>
-      <label class="btn-pill lib-select lib-folder">
-        <select id="libFolder" aria-label="Folder" data-i18n-aria="libFolderLabel"></select>
-      </label>
     </div>
     <div id="libHead" class="lib-head hidden" aria-hidden="true">
       <span></span>
@@ -208,9 +233,9 @@
         <svg viewBox="0 0 24 24"><use href="#i-close" /></svg>
       </button>
       <span id="libSelCount" class="lib-sel-count" aria-live="polite"></span>
+      <button id="libSelAll" type="button" class="lib-link hidden"></button>
       <div id="libSelActions" class="lib-sel-actions">
         <button type="button" class="btn btn-quiet" data-bulk="edit" data-i18n="edEditTags">Edit tags</button>
-        <button type="button" class="btn btn-quiet" data-bulk="set_genre" data-i18n="libSetGenre">Set genre</button>
         <button type="button" class="btn btn-quiet" data-bulk="restore" data-i18n="libRestore">Restore</button>
         <button type="button" class="btn btn-danger" data-bulk="delete" data-i18n="libDelete">Delete</button>
       </div>
@@ -359,27 +384,6 @@
       <div class="modal-foot">
         <button type="button" class="btn btn-quiet" data-close data-i18n="close">Close</button>
         <button id="libSheetSave" type="submit" class="btn btn-primary" data-i18n="save">Save</button>
-      </div>
-    </form>
-  </div>
-
-  <!-- One genre for every selected track (the bulk bar's Set genre). -->
-  <div id="libGenreModal" class="modal modal--confirm hidden" role="dialog" aria-modal="true" aria-labelledby="libGenreTitle">
-    <form id="libGenreForm" class="modal-card" novalidate autocomplete="off">
-      <div class="modal-head">
-        <h2 id="libGenreTitle"></h2>
-        <button type="button" class="icon-btn modal-close" data-close aria-label="Close" data-i18n-aria="close">
-          <svg viewBox="0 0 24 24"><use href="#i-close" /></svg>
-        </button>
-      </div>
-      <div class="modal-body lib-genre-body">
-        <label class="lib-field"><span data-i18n="genre">Genre</span>
-          <input id="libGenreInput" type="text" list="genres" spellcheck="false" /></label>
-        <div id="libGenreChips" class="lib-chips"></div>
-      </div>
-      <div class="modal-foot">
-        <button type="button" class="btn btn-quiet" data-close data-i18n="cancel">Cancel</button>
-        <button id="libGenreApply" type="submit" class="btn btn-primary" data-i18n="libSetGenre">Set genre</button>
       </div>
     </form>
   </div>

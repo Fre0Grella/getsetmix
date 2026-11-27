@@ -42,7 +42,7 @@ import mutagen
 from mutagen.id3 import ID3
 from mutagen.mp4 import MP4Tags
 
-from . import audiohash, config, matching, tagger, thumbs
+from . import audiohash, config, matching, rules, tagger, thumbs
 from . import db as dbmod
 from .link import AUDIO_EXTS, served
 from .link import _skip as skipped  # the link's skip rules, shared on purpose
@@ -67,6 +67,7 @@ STATES = ("present", "trashed")
 WHEREABOUTS = {"present": 0, "trashed": 1, "missing": 2, "gone": 3}
 TAG_FIELDS = ("title", "artist", "album", "genre", "comment")
 BULK_ACTIONS = ("delete", "restore", "set_genre")
+ARTIST_MARK = "\x1f"        # between the names in the `artists` column
 MAX_SELECTION = 10_000      # tracks one bulk request or one batch edit may name
 TRASH_DIR = ".trash"      # inside the root; the dot keeps it out of the walk and the link
 DAY = 24 * 3600
@@ -272,6 +273,16 @@ def _vorbis_values(audio, tags, values: dict[str, list]) -> tuple[str, int]:
             int(bool(pictures) or bool(tags.get("metadata_block_picture"))))
 
 
+def _finding(tags: dict) -> dict:
+    """The columns behind the artist and problem filters (design 4.5.2): the
+    folded names between ARTIST_MARK, the problems between commas."""
+    names = [matching.fold(a) for a in rules.artists_of(tags.get("artist") or "",
+                                                         tags.get("title") or "")]
+    problems = rules.problems_of(tags, bool(tags.get("has_cover")))
+    return {"artists": ARTIST_MARK + ARTIST_MARK.join(names) + ARTIST_MARK if names else "",
+            "problems": "," + ",".join(problems) + "," if problems else ""}
+
+
 def _search(rel: str, tags: dict) -> str:
     name = rel.rsplit("/", 1)[-1]
     return matching.fold(" ".join([tags["title"], tags["artist"], tags["album"], tags["genre"],
@@ -381,7 +392,20 @@ class Library:
         finally:
             self._pass.release()
 
+    def _backfill(self) -> int:
+        """Fill the finding columns of rows indexed before they existed, from
+        the rows' own values; no file is read and no `rev` is taken."""
+        with self.db.transaction() as conn:
+            rows = [dict(r) for r in conn.execute(
+                "SELECT * FROM library_files WHERE problems IS NULL")]
+            for r in rows:
+                cols = _finding(r)
+                conn.execute("UPDATE library_files SET artists = ?, problems = ? WHERE id = ?",
+                             (cols["artists"], cols["problems"], r["id"]))
+        return len(rows)
+
     def _reconcile(self) -> dict:
+        self._backfill()
         root = self.root()
         now = self.clock()
         on_disk, settling = _settled(root, now)
@@ -563,6 +587,7 @@ class Library:
             **{k: tags[k] for k in (*TAG_FIELDS, "year", "has_cover", "multi", "duration",
                                     "bitrate", "sample_rate")},
             "search": _search(rel, tags),
+            **_finding(tags),
         }
 
     # --------------------------------------------------------- the worker
@@ -1107,16 +1132,43 @@ class Library:
                     folder = path.rsplit("/", 1)[0]
                     counts[folder] = counts.get(folder, 0) + 1
             rev = int(self._meta(conn, "rev") or 0)
+            # artists as written, counted once per track; the commonest spelling names them
+            names: dict[str, dict[str, int]] = {}
+            for r in conn.execute("SELECT artist, title FROM library_files WHERE state = ?",
+                                  (state,)):
+                for a in rules.artists_of(r["artist"], r["title"]):
+                    spellings = names.setdefault(matching.fold(a), {})
+                    spellings[a] = spellings.get(a, 0) + 1
+            problems = {p: conn.execute(
+                f"SELECT COUNT(*) FROM library_files WHERE {' AND '.join(w)}", ps).fetchone()[0]
+                for p in rules.PROBLEMS for w, ps in [self._where(None, None, None, state, None, p)]}
         folders = [{"path": p, "count": n} for p, n in
                    sorted(counts.items(), key=lambda kv: kv[0].casefold())]
-        return {"rev": rev, "genres": genres, "folders": folders}
+        # the commonest spelling names an artist; on a tie, one in mixed case ("Kito")
+        def spelled(s: dict[str, int]) -> str:
+            return max(s, key=lambda k: (s[k], k not in (k.lower(), k.upper()), k))
+        artists = sorted(({"name": spelled(s), "count": sum(s.values())}
+                          for s in names.values()), key=lambda a: (-a["count"], a["name"].casefold()))
+        return {"rev": rev, "genres": genres, "folders": folders, "artists": artists,
+                "problems": [{"id": p, "count": n} for p, n in problems.items()]}
 
     @staticmethod
-    def _where(q: str | None, genre: str | None, folder: str | None,
-               state: str) -> tuple[list[str], list]:
+    def _where(q: str | None, genre: str | None, folder: str | None, state: str,
+               artist: str | None = None, problem: str | None = None) -> tuple[list[str], list]:
         if state not in STATES:
             raise ValueError(f"state must be one of {', '.join(STATES)}")
         where, params = ["state = ?"], [state]
+        if artist:   # one of the track's artists, main, collaborator or featured
+            where.append("instr(artists, ?) > 0")
+            params.append(ARTIST_MARK + matching.fold(artist.strip()) + ARTIST_MARK)
+        if problem == "same_audio":
+            where.append("audio_id IN (SELECT audio_id FROM library_files WHERE state = 'present' "
+                         "GROUP BY audio_id HAVING COUNT(*) > 1)")
+        elif problem:
+            if problem not in rules.PROBLEMS:
+                raise ValueError(f"problem must be one of {', '.join(rules.PROBLEMS)}")
+            where.append("instr(problems, ?) > 0")
+            params.append(f",{problem},")
         for word in matching.fold(q or "").split():
             escaped = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             where.append("search LIKE ? ESCAPE '\\'")
@@ -1136,9 +1188,10 @@ class Library:
 
     # Not called yet: selection by filter in batch editing (#50).
     def select(self, q: str | None = None, genre: str | None = None, folder: str | None = None,
-               state: str = "present") -> list[dict]:
+               state: str = "present", artist: str | None = None,
+               problem: str | None = None) -> list[dict]:
         """Every id matching a filter, with its editable flag, without paging."""
-        where, params = self._where(q, genre, folder, state)
+        where, params = self._where(q, genre, folder, state, artist, problem)
         with self.db.transaction() as conn:
             rows = conn.execute(
                 f"SELECT id, format, audio_id FROM library_files WHERE {' AND '.join(where)} "
@@ -1148,7 +1201,8 @@ class Library:
 
     def list(self, q: str | None = None, genre: str | None = None, folder: str | None = None,
              state: str = "present", sort: str = "added", order: str | None = None,
-             limit: int = 200, cursor: str | None = None) -> dict:
+             limit: int = 200, cursor: str | None = None, artist: str | None = None,
+             problem: str | None = None) -> dict:
         """One page of the list (design 3.3). Raises ValueError for a bad argument."""
         if sort not in SORTS:
             raise ValueError(f"sort must be one of {', '.join(SORTS)}")
@@ -1157,7 +1211,7 @@ class Library:
             raise ValueError("order must be asc or desc")
         if not 1 <= limit <= 500:
             raise ValueError("limit must be between 1 and 500")
-        where, params = self._where(q, genre, folder, state)
+        where, params = self._where(q, genre, folder, state, artist, problem)
         expr = SORTS[sort]
         page_where, page_params = list(where), list(params)
         if cursor:

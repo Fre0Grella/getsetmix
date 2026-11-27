@@ -33,13 +33,25 @@ RANGE = re.compile(r"^bytes=(\d*)-(\d*)$")
 @router.get("")
 async def list_library(q: str = "", genre: str = "", folder: str = "", state: str = "present",
                        sort: str = "added", order: str | None = None, limit: int = 200,
-                       cursor: str | None = None):
+                       cursor: str | None = None, artist: str = "", problem: str = ""):
     try:
         return await asyncio.to_thread(
             library.current().list, q=q, genre=genre, folder=folder, state=state, sort=sort,
-            order=order, limit=limit, cursor=cursor)
+            order=order, limit=limit, cursor=cursor, artist=artist, problem=problem)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from None
+
+
+@router.get("/ids")
+async def library_ids(q: str = "", genre: str = "", folder: str = "", state: str = "present",
+                      artist: str = "", problem: str = ""):
+    """Every id the list's filter matches, unpaged: a selection of the whole view."""
+    try:
+        rows = await asyncio.to_thread(library.current().select, q, genre, folder, state,
+                                       artist, problem)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    return {"ids": [r["id"] for r in rows]}
 
 
 @router.get("/facets")

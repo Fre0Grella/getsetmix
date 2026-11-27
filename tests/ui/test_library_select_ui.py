@@ -65,25 +65,92 @@ def test_ctrl_and_shift_click_select_and_the_bar_counts_them(open_tab):
     assert tab.errors == []
 
 
-def test_bulk_set_genre_writes_every_selected_file(open_tab, server):
+def test_filter_by_artist_select_all_untick_one_and_set_the_genre(open_tab, server):
+    """The flow of design 4.5.2: an artist (main or featured), Select all,
+    take one out, Edit tags, Set Genre."""
+    server.music.mp3("Kito - Echo.mp3", seed=21, title="Echo", artist="Kito", genre="House")
+    server.music.mp3("Nova - Glow.mp3", seed=22, title="Glow (feat. Kito)", artist="Nova", genre="Techno")
+    server.music.mp3("Sol - Dust.mp3", seed=23, title="Dust", artist="Sol, Kito", genre="Disco")
+    server.http.post("/api/library/rescan")
+    server.wait_for_index(len(TRACKS) + 3)
     tab = open_tab("/#library")
-    row(tab, "Midnight Drive").click(modifiers=["Control"])
-    row(tab, "Blue Hour").click(modifiers=["Control"])
-    bar(tab).locator('[data-bulk="set_genre"]').click()
-    modal = tab.page.locator("#libGenreModal")
-    expect(modal).to_be_visible()
-    expect(tab.page.locator("#libGenreTitle")).to_have_text("Genre for 2 tracks")
-    tab.page.locator("#libGenreInput").fill("Tech House")
-    tab.page.locator("#libGenreApply").click()
-
-    expect(modal).to_be_hidden()
-    expect(tab.page.locator("#toast")).to_contain_text("Tech House")
-    expect(bar(tab)).to_be_hidden()
-    expect(row(tab, "Midnight Drive")).to_contain_text("Tech House")
-    expect(row(tab, "Blue Hour")).to_contain_text("Tech House")
-    assert server.item(MIDNIGHT)["genre"] == server.item(BLUE_HOUR)["genre"] == "Tech House"
-    assert server.item("Late Train.mp3")["genre"] == "Disco"
+    artist = tab.page.locator("#libArtist")
+    artist.fill("Kito")
+    artist.press("Enter")
+    artist.dispatch_event("change")
+    expect(tab.page.locator(".lib-row[data-id]")).to_have_count(3)
+    link = tab.page.locator("#libCountAll")
+    expect(link).to_be_visible()
+    link.click()
+    expect(tab.page.locator("#libSelCount")).to_have_text("All 3 selected")
+    expect(tab.page.locator(".lib-row.is-selected")).to_have_count(3)
+    row(tab, "Dust").click()     # take one out of "all"
+    expect(tab.page.locator("#libSelCount")).to_have_text("2 selected")
+    bar(tab).locator('[data-bulk="edit"]').click()
+    expect(tab.page.locator("#edTitle")).to_have_text("Edit tags of 2 tracks")
+    set_field(tab, "genre", "set", "Afro House")
+    tab.page.locator("#edPreviewBtn").click()
+    tab.page.locator("#edApply").click()
+    expect(tab.page.locator("#edResult")).to_have_text("Written to 2 files.")
+    genres = {i["title"]: i["genre"] for i in server.items()}
+    assert genres["Echo"] == genres["Glow (feat. Kito)"] == "Afro House"
+    assert genres["Dust"] == "Disco"
     assert tab.errors == []
+
+
+def test_the_select_button_starts_selection_and_select_all_takes_the_view(open_tab, server):
+    tab = open_tab("/#library")
+    expect(tab.page.locator(".lib-row[data-id]")).to_have_count(len(TRACKS))
+    tab.page.locator("#libSelectBtn").click()
+    expect(bar(tab)).to_be_visible()
+    expect(tab.page.locator("#libSelCount")).to_have_text("Pick tracks")
+    expect(bar(tab).locator('[data-bulk="edit"]')).to_be_disabled()
+    expect(tab.page.locator(".lib-check").first).to_be_visible()
+    row(tab, "Blue Hour").click()            # in the mode a click picks, never opens
+    expect(tab.page.locator("#libSheet")).to_be_hidden()
+    expect(tab.page.locator("#libSelCount")).to_have_text("1 selected")
+    tab.page.locator("#libSelAll").click()
+    expect(tab.page.locator("#libSelCount")).to_have_text(f"All {len(TRACKS)} selected")
+    tab.page.locator("#libSelectBtn").click()   # again: out of the mode
+    expect(bar(tab)).to_be_hidden()
+    row(tab, "Blue Hour").click()
+    expect(tab.page.locator("#libSheet")).to_be_visible()
+
+
+def test_the_hover_checkbox_picks_a_row_and_a_cover_click_opens_it(open_tab, server):
+    tab = open_tab("/#library")
+    target = row(tab, "Late Train")
+    target.hover()
+    target.locator(".lib-check").click()
+    expect(tab.page.locator("#libSelCount")).to_have_text("1 selected")
+    tab.page.keyboard.press("Escape")
+    expect(bar(tab)).to_be_hidden()
+
+
+def test_problem_filters_narrow_the_list(open_tab, server):
+    server.music.mp3("raw.mp3", seed=31, title="late train [free download]", artist="sol ft moon")
+    server.http.post("/api/library/rescan")
+    server.wait_for_index(len(TRACKS) + 1)
+    tab = open_tab("/#library")
+    problem = tab.page.locator("#libProblem")
+    expect(problem.locator('option[value="promo"]')).to_have_text("Promo text in the title (1)")
+    problem.select_option("promo")
+    expect(tab.page.locator(".lib-row[data-id]")).to_have_count(1)
+    expect(tab.page.locator("#libCountAll")).to_be_visible()
+    problem.select_option("")
+    expect(tab.page.locator(".lib-row[data-id]")).to_have_count(len(TRACKS) + 1)
+
+
+def test_on_a_phone_the_filters_are_a_sheet(open_tab, server):
+    tab = open_tab("/#library", PHONE)
+    expect(tab.page.locator("#libFilters")).to_be_hidden()
+    tab.page.locator("#libFiltersBtn").click()
+    expect(tab.page.locator("#libFilters")).to_be_visible()
+    tab.page.locator("#libProblem").select_option("no_cover")
+    expect(tab.page.locator("#libFiltersBadge")).to_have_text("1")
+    tab.page.locator("#libFiltersClose").click()
+    expect(tab.page.locator("#libFilters")).to_be_hidden()
+    assert tab.page.evaluate("document.documentElement.scrollWidth") <= PHONE["width"]
 
 
 def test_on_a_phone_a_long_press_selects_and_bulk_delete_asks_with_the_count(open_tab, server):
@@ -124,7 +191,7 @@ def test_in_the_trash_the_bar_restores_the_selection(open_tab, server):
     rows.nth(0).click(modifiers=["Control"])
     rows.nth(1).click(modifiers=["Shift"])
     expect(bar(tab).locator('[data-bulk="delete"]')).to_be_hidden()
-    expect(bar(tab).locator('[data-bulk="set_genre"]')).to_be_hidden()
+    expect(bar(tab).locator('[data-bulk="edit"]')).to_be_hidden()
     bar(tab).locator('[data-bulk="restore"]').click()
     expect(tab.page.locator(".lib-row[data-id]")).to_have_count(0)
     assert server.items("trashed") == []
@@ -137,7 +204,7 @@ def test_the_bar_speaks_italian(open_tab, server):
     expect(tab.page.locator("html")).to_have_attribute("lang", "it")
     long_press(tab, "Midnight Drive")
     expect(tab.page.locator("#libSelCount")).to_have_text("1 selezionato")
-    expect(bar(tab).locator('[data-bulk="set_genre"]')).to_have_text("Imposta genere")
+    expect(bar(tab).locator('[data-bulk="edit"]')).to_have_text("Modifica tag")
     expect(bar(tab).locator('[data-bulk="delete"]')).to_have_text("Elimina")
 
 

@@ -73,7 +73,9 @@ CREATE TABLE IF NOT EXISTS library_files (
     content_rev      INTEGER NOT NULL DEFAULT 0,
     state            TEXT    NOT NULL DEFAULT 'present',
     state_changed_at TEXT,
-    trash_path       TEXT
+    trash_path       TEXT,
+    artists          TEXT,   -- every artist the track names, folded (design 4.5.2)
+    problems         TEXT    -- ",no_genre,feat," ...: the problem filters it matches
 );
 -- One live row per path. Tombstones (trashed, gone) keep their last path,
 -- which a new file may take, so the design's UNIQUE is partial here.
@@ -172,6 +174,10 @@ class Database:
         # last time a file's bytes changed. A row from before it starts at its
         # `rev`, which is never older than the last change of its bytes.
         have = {r["name"] for r in self._conn.execute("PRAGMA table_info(library_files)")}
+        # The finding columns (design 4.5.2): NULL until the library fills them.
+        for col in ("artists", "problems"):
+            if col not in have:
+                self._conn.execute(f"ALTER TABLE library_files ADD COLUMN {col} TEXT")
         if "content_rev" not in have:
             self._conn.execute("ALTER TABLE library_files "
                                "ADD COLUMN content_rev INTEGER NOT NULL DEFAULT 0")

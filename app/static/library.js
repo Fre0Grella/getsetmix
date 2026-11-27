@@ -64,13 +64,15 @@ Object.assign(STR.en, {
   libInUse: "Another program has this file open, maybe a deck in Rekordbox. Unload it and try again.",
   libSelBar: "Selected tracks", libSelClear: "Clear the selection",
   libSelWord: (n) => plural(n, "selected", "selected"),
-  libSetGenre: "Set genre",
-  libSetGenreTitle: (n) => plural(n, "Genre for 1 track", "Genre for {n} tracks"),
-  libGenreEmpty: "Type a genre or pick one",
+  libSelect: "Select", libSelPick: "Pick tracks", libSelectAll: "Select all",
+  libSelectAllN: (n) => `Select all ${num(n)}`, libAllSelected: (n) => plural(n, "1 selected", `All ${num(n)} selected`),
+  libFilters: "Filters", libArtistPh: "Artist", libProblems: "Problems: any",
+  libProblem: { no_genre: "No genre", no_year: "No year", no_cover: "No cover",
+    lowercase: "All lowercase", feat: "“feat.” in the artist", promo: "Promo text in the title",
+    same_audio: "Same audio" },
   libBulkDeleteAsk: (n) => plural(n, "Move 1 track to the trash?", "Move {n} tracks to the trash?"),
   libBulkDeleted: (n) => plural(n, "Deleted 1 track", "Deleted {n} tracks"),
   libBulkRestored: (n) => plural(n, "Restored 1 track", "Restored {n} tracks"),
-  libBulkGenre: (n, g) => plural(n, `Genre “${g}” set on 1 track`, `Genre “${g}” set on {n} tracks`),
   libBulkFailed: (n, why) => plural(n, "1 track was not changed: ", "{n} tracks were not changed: ") + why,
 });
 Object.assign(STR.it, {
@@ -126,13 +128,15 @@ Object.assign(STR.it, {
   libInUse: "Un altro programma ha aperto questo file, forse un deck di Rekordbox. Scaricalo dal deck e riprova.",
   libSelBar: "Brani selezionati", libSelClear: "Annulla la selezione",
   libSelWord: (n) => plural(n, "selezionato", "selezionati"),
-  libSetGenre: "Imposta genere",
-  libSetGenreTitle: (n) => plural(n, "Genere per 1 brano", "Genere per {n} brani"),
-  libGenreEmpty: "Scrivi un genere o scegline uno",
+  libSelect: "Seleziona", libSelPick: "Scegli i brani", libSelectAll: "Seleziona tutti",
+  libSelectAllN: (n) => `Seleziona tutti (${num(n)})`, libAllSelected: (n) => plural(n, "1 selezionato", `Tutti i ${num(n)} selezionati`),
+  libFilters: "Filtri", libArtistPh: "Artista", libProblems: "Problemi: tutti",
+  libProblem: { no_genre: "Senza genere", no_year: "Senza anno", no_cover: "Senza copertina",
+    lowercase: "Tutto minuscolo", feat: "“feat.” nell'artista", promo: "Testo promozionale nel titolo",
+    same_audio: "Stesso audio" },
   libBulkDeleteAsk: (n) => plural(n, "Spostare 1 brano nel cestino?", "Spostare {n} brani nel cestino?"),
   libBulkDeleted: (n) => plural(n, "Eliminato 1 brano", "Eliminati {n} brani"),
   libBulkRestored: (n) => plural(n, "Ripristinato 1 brano", "Ripristinati {n} brani"),
-  libBulkGenre: (n, g) => plural(n, `Genere “${g}” impostato su 1 brano`, `Genere “${g}” impostato su {n} brani`),
   libBulkFailed: (n, why) => plural(n, "1 brano non è stato modificato: ", "{n} brani non sono stati modificati: ") + why,
 });
 
@@ -143,7 +147,7 @@ const COVER_PX = 96;       // the size a row's cover is kept at (2x the largest 
 
 const Lib = {
   view: "downloads",
-  q: "", genre: "", folder: "", sort: "added", order: null,
+  q: "", genre: "", folder: "", artist: "", problem: "", sort: "added", order: null,
   rows: [],          // the list by position; rows past `rows.length` are not loaded yet
   next: null,        // the cursor of the next page
   started: false,    // the first page of this query has arrived
@@ -166,7 +170,8 @@ const Lib = {
 
 // The tracks picked for the bulk bar, by id; `anchor` is the position a
 // Shift-click extends from.
-const Sel = { ids: new Set(), anchor: null, press: null, pressTimer: null, longPressed: false };
+const Sel = { mode: false, all: false, ids: new Set(), anchor: null, press: null, pressTimer: null,
+  longPressed: false };
 
 const libList = $("#libList");
 const shown = new Map();   // position -> the row element in the page
@@ -214,8 +219,8 @@ function libRowHtml(t, i) {
     ? `<button type="button" class="btn btn-quiet lib-act lib-restore" data-act="restore">${esc(T.libRestore)}</button>`
     : `<button type="button" class="icon-btn lib-act lib-del" data-act="delete" title="${esc(T.libDelete)}" aria-label="${esc(T.libDelete)}">${TRASH}</button>`;
   const key = coverKey(t);
-  return `<article class="lib-row${Sel.ids.has(t.id) ? " is-selected" : ""}" role="listitem" aria-setsize="${Lib.total}" aria-posinset="${i + 1}" data-i="${i}" data-id="${t.id}" tabindex="0">
-    <div class="lib-art${key ? " has-cover" : ""}"${key ? ` data-cover="${key}"` : ""}>${NOTE}</div>
+  return `<article class="lib-row${Sel.all || Sel.ids.has(t.id) ? " is-selected" : ""}" role="listitem" aria-setsize="${Lib.total}" aria-posinset="${i + 1}" data-i="${i}" data-id="${t.id}" tabindex="0">
+    <div class="lib-art${key ? " has-cover" : ""}"${key ? ` data-cover="${key}"` : ""}>${NOTE}<span class="lib-check" aria-hidden="true"></span></div>
     <div class="lib-who">
       <span class="lib-title">${title}</span>
       <span class="lib-sub"><span class="lib-artist">${esc(t.artist)}</span>${libFlags(t)}</span>
@@ -310,6 +315,8 @@ function libQuery(extra = {}) {
   if (Lib.q) p.set("q", Lib.q);
   if (Lib.genre) p.set("genre", Lib.genre);
   if (Lib.folder) p.set("folder", Lib.folder);
+  if (Lib.artist) p.set("artist", Lib.artist);
+  if (Lib.problem) p.set("problem", Lib.problem);
   if (Lib.trash) p.set("state", "trashed");
   return p;
 }
@@ -387,7 +394,16 @@ function libTexts() {
   const empty = Lib.started && !Lib.total;
   $("#libEmpty").classList.toggle("hidden", !empty);
   $("#libHead").classList.toggle("hidden", !Lib.total);
-  const filtered = Lib.q || Lib.genre || Lib.folder;
+  const filtered = Lib.q || Lib.genre || Lib.folder || Lib.artist || Lib.problem;
+  // Select all sits beside the count whenever the list is narrowed (design 4.5.2)
+  const countAll = $("#libCountAll");
+  countAll.dataset.can = filtered && Lib.total ? "1" : "";
+  countAll.classList.toggle("hidden", !countAll.dataset.can || Sel.mode);
+  const on = [Lib.genre, Lib.folder, Lib.artist, Lib.problem].filter(Boolean).length;
+  const badge2 = $("#libFiltersBadge");
+  badge2.textContent = String(on);
+  badge2.classList.toggle("hidden", !on);
+  $("#libSelectBtn").setAttribute("aria-pressed", String(Sel.mode));
   $("#libEmptyTitle").textContent = filtered ? T.libNoMatch : Lib.trash ? T.libTrashEmptyTitle : T.libEmptyTitle;
   $("#libEmptyHint").textContent = filtered ? T.libNoMatchHint : Lib.trash ? T.libTrashEmptyHint : T.libEmptyHint;
   $("#libCount").textContent = Lib.started ? T.libCount(Lib.total) : "";
@@ -431,8 +447,14 @@ function libFacetsRender() {
   $("#libFolder").innerHTML = `<option value="">${esc(T.libAllFolders)}</option>` + folders.map((x) =>
     `<option value="${esc(x.path)}">${esc(x.path)} (${num(x.count)})</option>`).join("");
   $("#libFolder").value = Lib.folder;
-  $("#libFilters").classList.toggle("hidden", !genres.length && !folders.length);
   $("#libFolder").parentElement.classList.toggle("hidden", !folders.length);
+  $("#libArtistList").innerHTML = (f.artists || []).slice(0, 500).map((a) =>
+    `<option value="${esc(a.name)}">${esc(a.name)} (${num(a.count)})</option>`).join("");
+  $("#libArtist").value = Lib.artist;
+  $("#libProblem").innerHTML = `<option value="">${esc(T.libProblems)}</option>` + (f.problems || [])
+    .filter((p) => p.count || p.id === Lib.problem)
+    .map((p) => `<option value="${p.id}">${esc(T.libProblem[p.id] || p.id)} (${num(p.count)})</option>`).join("");
+  $("#libProblem").value = Lib.problem;
 }
 
 $("#libGenres").addEventListener("click", (e) => {
@@ -443,6 +465,20 @@ $("#libGenres").addEventListener("click", (e) => {
   libLoad();
 });
 $("#libFolder").addEventListener("change", (e) => { Lib.folder = e.target.value; libLoad(); });
+// The artist filter takes a name as it is chosen or typed in full (or cleared).
+$("#libArtist").addEventListener("change", (e) => {
+  const name = e.target.value.trim();
+  if (name === Lib.artist) return;
+  Lib.artist = name;
+  libLoad();
+});
+$("#libArtist").addEventListener("search", (e) => { if (!e.target.value && Lib.artist) { Lib.artist = ""; libLoad(); } });
+$("#libProblem").addEventListener("change", (e) => { Lib.problem = e.target.value; libLoad(); });
+// On a phone the filters (and the sort) are a sheet opened from one button.
+function filtersSheet(open) { document.body.classList.toggle("lib-filters-open", open); }
+$("#libFiltersBtn").addEventListener("click", () => filtersSheet(true));
+$("#libFiltersClose").addEventListener("click", () => filtersSheet(false));
+$("#libFiltersShade").addEventListener("click", () => filtersSheet(false));
 $("#libSort").addEventListener("change", (e) => { Lib.sort = e.target.value; Lib.order = null; libLoad(); });
 $("#libOrder").addEventListener("click", () => {
   const now = Lib.order || Lib.shownOrder;
@@ -897,44 +933,84 @@ $("#libCoverBtn").addEventListener("click", () => {
 });
 
 // --------------------------------------------------------- selection
-// Several tracks are picked for the bulk bar (design 4.5): a long press on a
-// phone; Ctrl- or Cmd-click, Shift-click or a click on the cover on a
-// desktop. While any is picked, a tap or click on a row adds or removes it;
-// otherwise it opens the row's sheet (not in the trash). The bar's actions
-// read selectedIds(); each button in #libSelActions names its action in
-// `data-bulk`, and SEL_ACTIONS below runs it.
-export function selectedIds() { return [...Sel.ids]; }
+// Several tracks are picked for the bulk bar (design 4.5.1). The Select
+// button starts selection mode: every row shows a checkbox and a tap or
+// click picks it. A long press on a phone, Ctrl- or Cmd-click, Shift-click
+// and the checkbox a computer shows over a hovered cover start it too, with
+// that row picked. Select all takes the whole view, however long, as its
+// filter. Escape, ✕ and a new search, filter or sort end it. The bar's
+// actions read selection(); each button in #libSelActions names its action
+// in `data-bulk`, and SEL_ACTIONS below runs it.
+export function selection() {
+  return { all: Sel.all, ids: [...Sel.ids], count: Sel.all ? Lib.total : Sel.ids.size,
+    filter: libFilter() };
+}
+export const selectedIds = () => [...Sel.ids];
+
+// The filter of the list as GET /api/library takes it.
+function libFilter() {
+  return { q: Lib.q, genre: Lib.genre, folder: Lib.folder, artist: Lib.artist, problem: Lib.problem };
+}
 
 function selPaint() {
-  const n = Sel.ids.size;
-  document.body.classList.toggle("lib-selecting", n > 0);
-  $("#libSelBar").classList.toggle("hidden", !n);
+  const n = Sel.all ? Lib.total : Sel.ids.size;
+  document.body.classList.toggle("lib-selecting", Sel.mode);
+  $("#libSelBar").classList.toggle("hidden", !Sel.mode);
+  $("#libSelectBtn").setAttribute("aria-pressed", String(Sel.mode));
+  $("#libCountAll").classList.toggle("hidden", Sel.mode || !$("#libCountAll").dataset.can);
   // the number always; the word only where there is room for it (library.css)
-  $("#libSelCount").innerHTML = n ? `${num(n)}<span class="lib-sel-word"> ${esc(T.libSelWord(n))}</span>` : "";
-  document.querySelectorAll("#libSelActions [data-bulk]").forEach((b) =>
-    b.classList.toggle("hidden", (b.dataset.bulk === "restore") !== Lib.trash));
+  $("#libSelCount").innerHTML = !n ? esc(T.libSelPick) : Sel.all ? esc(T.libAllSelected(n))
+    : `${num(n)}<span class="lib-sel-word"> ${esc(T.libSelWord(n))}</span>`;
+  const all = $("#libSelAll");
+  all.textContent = T.libSelectAllN(Lib.total);
+  all.classList.toggle("hidden", Sel.all || Lib.total <= Sel.ids.size);
+  document.querySelectorAll("#libSelActions [data-bulk]").forEach((b) => {
+    b.classList.toggle("hidden", (b.dataset.bulk === "restore") !== Lib.trash);
+    b.disabled = !n;
+  });
   shown.forEach((el) => {
-    if (el.dataset.id) el.classList.toggle("is-selected", Sel.ids.has(Number(el.dataset.id)));
+    if (el.dataset.id) el.classList.toggle("is-selected", Sel.all || Sel.ids.has(Number(el.dataset.id)));
   });
 }
-function selClear() {
-  if (!Sel.ids.size && Sel.anchor === null) return;
-  Sel.ids.clear();
-  Sel.anchor = null;
+function selStart() {
+  Sel.mode = true;
   selPaint();
 }
-function selToggle(i, on = !Sel.ids.has(Lib.rows[i]?.id)) {
+function selClear() {
+  if (!Sel.mode && !Sel.ids.size) return;
+  Object.assign(Sel, { mode: false, all: false, anchor: null });
+  Sel.ids.clear();
+  selPaint();
+}
+function selAll() {
+  Object.assign(Sel, { mode: true, all: true, anchor: null });
+  Sel.ids.clear();
+  selPaint();
+}
+// Every id of the view, for an action that needs them (Delete) or when one
+// track is taken out of "all".
+async function viewIds() {
+  const p = new URLSearchParams(Object.entries(libFilter()).filter(([, v]) => v));
+  if (Lib.trash) p.set("state", "trashed");
+  return (await api(`/api/library/ids?${p}`)).ids;
+}
+async function selToggle(i, on) {
   const t = Lib.rows[i];
   if (!t) return;
-  if (on) Sel.ids.add(t.id); else Sel.ids.delete(t.id);
-  Sel.anchor = i;
+  if (Sel.all) {   // out of "all": every track of the view, then this one changes
+    try { Sel.ids = new Set(await viewIds()); } catch (e) { toast(e.message); return; }
+    Sel.all = false;
+  }
+  if (on ?? !Sel.ids.has(t.id)) Sel.ids.add(t.id); else Sel.ids.delete(t.id);
+  Object.assign(Sel, { mode: true, anchor: i });
   selPaint();
 }
 // Shift: every loaded row from the anchor to this one joins.
 function selRange(i) {
-  if (Sel.anchor === null) { selToggle(i); return; }
+  if (Sel.anchor === null || Sel.all) { selToggle(i); return; }
   const [a, b] = Sel.anchor < i ? [Sel.anchor, i] : [i, Sel.anchor];
   for (let k = a; k <= b; k += 1) if (Lib.rows[k]) Sel.ids.add(Lib.rows[k].id);
+  Sel.mode = true;
   selPaint();
 }
 
@@ -943,16 +1019,16 @@ function rowOf(e) {
   const row = e.target.closest(".lib-row");
   return row && row.dataset.id ? row : null;
 }
-function rowPick(e, row, viaArt) {
+function rowPick(e, row, viaCheck) {
   const i = Number(row.dataset.i);
   if (e.shiftKey) selRange(i);
-  else if (e.ctrlKey || e.metaKey || Sel.ids.size || viaArt) selToggle(i);
+  else if (Sel.mode || e.ctrlKey || e.metaKey || viaCheck) selToggle(i);
   else if (!Lib.trash) openSheet(Number(row.dataset.id));
 }
 libList.addEventListener("click", (e) => {
   if (Sel.longPressed) { Sel.longPressed = false; return; }  // the press has already picked it
   const row = rowOf(e);
-  if (row) rowPick(e, row, !!e.target.closest(".lib-art"));
+  if (row) rowPick(e, row, !!e.target.closest(".lib-check"));
 });
 libList.addEventListener("keydown", (e) => {
   const row = rowOf(e);
@@ -980,12 +1056,15 @@ libList.addEventListener("pointermove", (e) => {
   if (Sel.pressTimer && Math.hypot(e.clientX - Sel.press.x, e.clientY - Sel.press.y) > 10) pressEnd();
 });
 ["pointerup", "pointercancel", "pointerleave"].forEach((t) => libList.addEventListener(t, pressEnd));
-libList.addEventListener("contextmenu", (e) => { if (Sel.longPressed || Sel.ids.size) e.preventDefault(); });
+libList.addEventListener("contextmenu", (e) => { if (Sel.longPressed || Sel.mode) e.preventDefault(); });
 // Escape lets go of the selection, unless it is closing a dialog (app.js does that).
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && Sel.ids.size && !document.querySelector(".modal:not(.hidden)")) selClear();
+  if (e.key === "Escape" && Sel.mode && !document.querySelector(".modal:not(.hidden)")) selClear();
 });
 $("#libSelClear").addEventListener("click", selClear);
+$("#libSelectBtn").addEventListener("click", () => (Sel.mode ? selClear() : selStart()));
+$("#libSelAll").addEventListener("click", selAll);
+$("#libCountAll").addEventListener("click", selAll);
 
 // ------------------------------------------------------- bulk actions
 // One request for all of them (POST /api/library/bulk); the answer says per
@@ -1010,9 +1089,15 @@ function bulkToast(res, done) {
   const failed = T.libBulkFailed(res.failed.length, serverError(res.failed[0].detail));
   toast(res.done.length ? `${done} · ${failed}` : failed);
 }
+// The ids an action works on: the picked ones, or the whole view.
+async function pickedIds() {
+  return Sel.all ? viewIds() : [...Sel.ids];
+}
 
 async function bulkDelete() {
-  const ids = selectedIds();
+  let ids;
+  try { ids = await pickedIds(); } catch (e) { toast(e.message); return; }
+  if (!ids.length) return;
   if (!(await askConfirm(T.libBulkDeleteAsk(ids.length), T.libDelete, T.cancel, { danger: true }))) return;
   const res = await libBulk("delete", ids);
   if (!res) return;
@@ -1020,42 +1105,18 @@ async function bulkDelete() {
   const done = res.done;
   toastAction(T.libBulkDeleted(done.length), T.libUndo, () => bulkRestore(done));
 }
-async function bulkRestore(ids = selectedIds()) {
-  const res = await libBulk("restore", ids);
+async function bulkRestore(ids) {
+  let which = ids;
+  if (!which) { try { which = await pickedIds(); } catch (e) { toast(e.message); return; } }
+  const res = await libBulk("restore", which);
   if (res) bulkToast(res, T.libBulkRestored(res.done.length));
 }
 
-const genreModal = $("#libGenreModal");
-const genreInput = $("#libGenreInput");
-function genrePaint() { $("#libGenreChips").innerHTML = genreChips(shared.genrePicks, genreInput.value); }
-function genreOpen() {
-  $("#libGenreTitle").textContent = T.libSetGenreTitle(Sel.ids.size);
-  genreInput.value = "";
-  genrePaint();
-  genreModal.classList.remove("hidden");
-  genreInput.focus();
-}
-genreInput.addEventListener("input", genrePaint);
-$("#libGenreChips").addEventListener("click", (e) => {
-  const chip = e.target.closest("[data-genre]");
-  if (!chip) return;
-  genreInput.value = genreInput.value === chip.dataset.genre ? "" : chip.dataset.genre; // tap again to clear
-  genrePaint();
-});
-$("#libGenreForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const genre = genreInput.value.trim();
-  if (!genre) { toast(T.libGenreEmpty); genreInput.focus(); return; }
-  genreModal.classList.add("hidden");
-  const res = await libBulk("set_genre", selectedIds(), { genre });
-  if (res) bulkToast(res, T.libBulkGenre(res.done.length, genre));
-});
-
-const SEL_ACTIONS = { delete: bulkDelete, restore: () => bulkRestore(), set_genre: genreOpen };
+const SEL_ACTIONS = { delete: bulkDelete, restore: () => bulkRestore() };
 // What the list shows now, for an action on the whole view: its filter, as
 // GET /api/library takes it, and how many tracks it holds.
 export function libView() {
-  return { filter: { q: Lib.q, genre: Lib.genre, folder: Lib.folder }, total: Lib.total };
+  return { filter: libFilter(), total: Lib.total };
 }
 // Another screen adds its action to the bar (a button with that `data-bulk`).
 export function addSelAction(name, fn) { SEL_ACTIONS[name] = fn; }
@@ -1067,7 +1128,7 @@ export function libChanged() {
 }
 $("#libSelActions").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-bulk]");
-  if (btn && Sel.ids.size) SEL_ACTIONS[btn.dataset.bulk]();
+  if (btn && (Sel.all || Sel.ids.size)) SEL_ACTIONS[btn.dataset.bulk]();
 });
 
 document.querySelectorAll("[data-view]").forEach((b) =>
@@ -1080,6 +1141,8 @@ function setTrash(on) {
   Lib.trash = !!on;
   Lib.genre = "";
   Lib.folder = "";
+  Lib.artist = "";
+  Lib.problem = "";
   Lib.sort = "added";   // the trash has no sort menu
   Lib.order = null;
   document.body.classList.toggle("lib-in-trash", Lib.trash);
