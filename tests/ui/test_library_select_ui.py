@@ -29,6 +29,14 @@ def bar(tab):
     return tab.page.locator("#libSelBar")
 
 
+def set_field(tab, field: str, op: str, value: str = "") -> None:
+    """In the edit panel: choose what to do to one field, and its value."""
+    frow = tab.page.locator(f'.ed-frow[data-field="{field}"]')
+    frow.locator(".ed-op").select_option(op)
+    if value:
+        frow.locator(".ed-v").fill(value)
+
+
 def test_ctrl_and_shift_click_select_and_the_bar_counts_them(open_tab):
     tab = open_tab("/#library")
     expect(tab.page.locator(".lib-row[data-id]")).to_have_count(len(TRACKS))
@@ -143,8 +151,7 @@ def test_edit_tags_previews_then_writes_one_field_on_the_selection(open_tab, ser
     expect(panel).to_be_visible()
     expect(tab.page.locator("#edTitle")).to_have_text("Edit tags of 2 tracks")
 
-    tab.page.locator("#edField").select_option("genre")
-    tab.page.locator("#edValue").fill("Tech House")
+    set_field(tab, "genre", "set", "Tech House")
     tab.page.locator("#edPreviewBtn").click()
     expect(tab.page.locator("#edCounts")).to_have_text("2 changes on 2 tracks")
     expect(tab.page.locator(".ed-row")).to_have_count(2)
@@ -170,7 +177,7 @@ def test_edit_tags_says_when_nothing_changes(open_tab, server):
     tab = open_tab("/#library", PHONE)
     long_press(tab, "Midnight Drive")
     bar(tab).locator('[data-bulk="edit"]').click()
-    tab.page.locator("#edValue").fill("House")
+    set_field(tab, "genre", "set", "House")
     tab.page.locator("#edPreviewBtn").click()
     expect(tab.page.locator("#edCounts")).to_contain_text("Nothing to change")
     expect(tab.page.locator("#edApply")).to_be_hidden()
@@ -182,7 +189,7 @@ def test_an_edit_is_undone_from_the_panel_and_from_the_history(open_tab, server)
     tab = open_tab("/#library")
     row(tab, "Midnight Drive").click(modifiers=["Control"])
     bar(tab).locator('[data-bulk="edit"]').click()
-    tab.page.locator("#edValue").fill("Tech House")
+    set_field(tab, "genre", "set", "Tech House")
     tab.page.locator("#edPreviewBtn").click()
     tab.page.locator("#edApply").click()
     expect(tab.page.locator("#edResult")).to_have_text("Written to 1 file.")
@@ -201,4 +208,31 @@ def test_an_edit_is_undone_from_the_panel_and_from_the_history(open_tab, server)
     lines.nth(0).locator("[data-undo]").click()   # undo the undo
     expect(lines.nth(0)).to_contain_text("Undo: Undo: genre = Tech House")
     assert server.item(MIDNIGHT)["genre"] == "Tech House"
+    assert tab.errors == []
+
+
+# ------------------------------------------------ field operations (#50)
+def test_several_fields_and_the_whole_view_in_one_edit(open_tab, server):
+    tab = open_tab("/#library")
+    tab.page.locator(".lib-gchip", has_text="House").click()   # a view of one genre
+    expect(tab.page.locator(".lib-row[data-id]")).to_have_count(1)
+    tab.page.locator(".lib-gchip", has_text="House").click()   # back to all
+    expect(tab.page.locator(".lib-row[data-id]")).to_have_count(len(TRACKS))
+    row(tab, "Midnight Drive").click(modifiers=["Control"])
+    bar(tab).locator('[data-bulk="edit"]').click()
+    expect(tab.page.locator("#edScopeAll")).to_have_text(f"All {len(TRACKS)} tracks in this view")
+    tab.page.locator('#edScope input[value="filter"]').check()
+    set_field(tab, "album", "set", "Night Set")
+    frow = tab.page.locator('.ed-frow[data-field="title"]')
+    frow.locator(".ed-op").select_option("replace")
+    frow.locator(".ed-find").fill("drive")
+    frow.locator(".ed-with").fill("Ride")
+    tab.page.locator("#edPreviewBtn").click()
+    # every track gets the album; one title holds "Drive" (case is ignored by default)
+    expect(tab.page.locator("#edCounts")).to_have_text(f"{len(TRACKS) + 1} changes on {len(TRACKS)} tracks")
+    expect(tab.page.locator("#edNotes")).to_contain_text("downloads")
+    tab.page.locator("#edApply").click()
+    expect(tab.page.locator("#edResult")).to_have_text(f"Written to {len(TRACKS)} files.")
+    assert server.item(MIDNIGHT)["title"] == "Midnight Ride"
+    assert {i["album"] for i in server.items()} == {"Night Set"}
     assert tab.errors == []

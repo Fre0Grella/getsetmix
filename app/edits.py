@@ -81,10 +81,14 @@ def _next(last_id: int) -> str:
     return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
 
 
-def _selection(raw) -> list[int]:
-    if not isinstance(raw, dict) or "ids" not in raw:
-        raise LibraryError(400, "selection must hold the track ids")
-    return library.check_ids(raw["ids"])
+FILTER_KEYS = ("q", "genre", "folder")   # as GET /api/library takes them
+
+
+def _filter(raw) -> dict[str, str]:
+    if not isinstance(raw, dict) or set(raw) - set(FILTER_KEYS) or \
+            not all(isinstance(v, str) for v in raw.values()):
+        raise LibraryError(400, "filter takes q, genre and folder, as text")
+    return raw
 
 
 def _steps(raw) -> list[dict]:
@@ -92,7 +96,7 @@ def _steps(raw) -> list[dict]:
     if not isinstance(raw, list) or not raw:
         raise LibraryError(400, "steps must be a non-empty list")
     for step in raw:
-        if isinstance(step, dict) and step.get("field") in FIELDS:
+        if isinstance(step, dict) and step.get("op") == "set" and step.get("field") in FIELDS:
             library.check_fields({step["field"]: step.get("value")})  # the year's range
     try:
         rules.run_steps({f: None if f == "year" else "" for f in FIELDS}, raw)
@@ -151,7 +155,7 @@ class Edits:
         request that is not valid, 413 too many tracks."""
         if not isinstance(body, dict):
             raise LibraryError(400, "the edit must be an object")
-        ids = _selection(body.get("selection"))
+        ids = self._selection(body.get("selection"))
         eid, skipped_by_id, unchanged = self._store(ids, _steps(body.get("steps")))
         skipped: dict[str, int] = {}
         for why in skipped_by_id.values():
@@ -161,6 +165,19 @@ class Edits:
         out["counts"].update(selected=len(ids), unchanged=len(unchanged),
                              skipped=len(skipped_by_id), skipped_by_reason=skipped)
         return out
+
+    def _selection(self, raw) -> list[int]:
+        """The tracks of a selection, frozen now (design 3.3): the ids given,
+        or every present track a filter of the Library list matches. A filter
+        that matches nothing is an empty selection, not an error."""
+        if isinstance(raw, dict) and "filter" in raw:
+            found = [r["id"] for r in self.lib.select(**_filter(raw["filter"]))]
+            if len(found) > library.MAX_SELECTION:
+                raise LibraryError(413, f"at most {library.MAX_SELECTION} tracks at once")
+            return found
+        if not isinstance(raw, dict) or "ids" not in raw:
+            raise LibraryError(400, "selection must hold the track ids or a filter")
+        return library.check_ids(raw["ids"])
 
     def _store(self, ids: list[int], steps: list[dict]) -> tuple[int, dict[int, str], list[int]]:
         """Run the steps over the index and store the preview: its id, the
@@ -258,6 +275,11 @@ class Edits:
                 return None
             rows = conn.execute("SELECT file_id, field, state, warnings FROM edit_changes "
                                 "WHERE edit_id = ?", (eid,)).fetchall()
+            # what every paired computer downloads again once it is written (design 4.6)
+            tracks, size = conn.execute(
+                "SELECT COUNT(*), COALESCE(SUM(size), 0) FROM library_files WHERE id IN "
+                "(SELECT DISTINCT file_id FROM edit_changes WHERE edit_id = ? "
+                "AND state = 'pending')", (eid,)).fetchone()
         if e["purged_at"]:
             return self._line(e, json.loads(e["summary"] or "{}"),
                               {"files_total": 0, "files_done": 0, "files_failed": 0,
@@ -273,12 +295,14 @@ class Edits:
             warned += r["warnings"] != "[]"
         written = set().union(*(files.get(s, set()) for s in
                                 ("pending", "applied", "failed", "conflict")))
-        return self._line(
+        line = self._line(
             e, {"changed": len({r["file_id"] for r in rows}), "changes": len(rows),
                 "by_field": by_field, "by_state": by_state, "warnings": warned},
             {"files_total": len(written), "files_done": len(files.get("applied", set())),
              "files_failed": len(files.get("failed", set())),
              "files_conflict": len(files.get("conflict", set()))})
+        line["resend"] = {"tracks": tracks, "bytes": size}
+        return line
 
     def _line(self, e, counts: dict, progress: dict) -> dict:
         """An edit as the API shows it. `undone` is "all" when every change it

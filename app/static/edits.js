@@ -7,7 +7,7 @@
    from the panel or from the History (slice 3). Loaded by app.js. */
 import { $, api, esc, libRules, toast } from "./core.js";
 import { lang, num, plural, serverError, STR, T } from "./i18n.js";
-import { addSelAction, libChanged, selectedIds } from "./library.js";
+import { addSelAction, libChanged, libView, selectedIds } from "./library.js";
 
 const SKIP_IT = {
   "read-only format": "formato in sola lettura", "damaged file": "file danneggiato",
@@ -17,7 +17,15 @@ const SKIP_IT = {
 Object.assign(STR.en, {
   edEditTags: "Edit tags",
   edTitle: (n) => plural(n, "Edit tags of 1 track", "Edit tags of {n} tracks"),
-  edField: "Field", edValue: "New value", edPreview: "Preview",
+  edPreview: "Preview",
+  edOps: { leave: "Leave as it is", set: "Set to", clear: "Clear", prepend: "Add before",
+    append: "Add after", replace: "Replace" },
+  edValuePh: "New value", edFind: "Find", edWith: "Replace with",
+  edWord: "Whole words", edCase: "Match case",
+  edScopeIds: (n) => plural(n, "The selected track", "The {n} selected tracks"),
+  edScopeAll: (n) => plural(n, "The 1 track in this view", "All {n} tracks in this view"),
+  edPickOne: "Choose a change for at least one field.",
+  edResend: (t, mb) => `${plural(t, "Each paired computer downloads 1 track again", "Each paired computer downloads {n} tracks again")} (${mb} MB).`,
   edCounts: (c, t) => `${plural(c, "1 change", "{n} changes")} on ${plural(t, "1 track", "{n} tracks")}`,
   edNothing: "Nothing to change: the selected tracks already hold this value.",
   edUnchanged: (n) => plural(n, "1 track already holds it.", "{n} tracks already hold it."),
@@ -44,7 +52,15 @@ Object.assign(STR.en, {
 Object.assign(STR.it, {
   edEditTags: "Modifica tag",
   edTitle: (n) => plural(n, "Modifica i tag di 1 brano", "Modifica i tag di {n} brani"),
-  edField: "Campo", edValue: "Nuovo valore", edPreview: "Anteprima",
+  edPreview: "Anteprima",
+  edOps: { leave: "Lascia com'è", set: "Imposta a", clear: "Svuota", prepend: "Aggiungi prima",
+    append: "Aggiungi dopo", replace: "Sostituisci" },
+  edValuePh: "Nuovo valore", edFind: "Trova", edWith: "Sostituisci con",
+  edWord: "Parole intere", edCase: "Maiuscole uguali",
+  edScopeIds: (n) => plural(n, "Il brano selezionato", "I {n} brani selezionati"),
+  edScopeAll: (n) => plural(n, "L'unico brano di questa vista", "Tutti i {n} brani di questa vista"),
+  edPickOne: "Scegli una modifica per almeno un campo.",
+  edResend: (t, mb) => `${plural(t, "Ogni computer abbinato riscarica 1 brano", "Ogni computer abbinato riscarica {n} brani")} (${mb} MB).`,
   edCounts: (c, t) => `${plural(c, "1 modifica", "{n} modifiche")} su ${plural(t, "1 brano", "{n} brani")}`,
   edNothing: "Niente da cambiare: i brani selezionati hanno già questo valore.",
   edUnchanged: (n) => plural(n, "1 brano lo ha già.", "{n} brani lo hanno già."),
@@ -75,9 +91,12 @@ const FIELD_LABEL = { title: "libTitle", artist: "libArtist", album: "album", ge
   year: "libYear", comment: "libComment" };
 
 const modal = $("#edModal");
-const field = $("#edField");
-const value = $("#edValue");
-const Ed = { ids: [], edit: null, timer: null, busy: false };
+const FIELDS = ["title", "artist", "album", "genre", "year", "comment"];
+// Which operations each field takes, as the server's rules allow them.
+const FIELD_OPS = { title: ["set", "prepend", "append", "replace"], artist: ["set", "prepend", "append", "replace"],
+  album: ["set", "clear", "prepend", "append", "replace"], genre: ["set", "clear", "prepend", "append", "replace"],
+  year: ["set", "clear"], comment: ["set", "clear", "prepend", "append", "replace"] };
+const Ed = { ids: [], view: null, edit: null, timer: null, busy: false };
 
 function edReset() {
   clearTimeout(Ed.timer);
@@ -90,46 +109,93 @@ function edReset() {
   $("#edList").innerHTML = "";
 }
 
+// One row per field (design 4.3, the Fields tab): what to do, and its inputs.
+function edRows() {
+  $("#edFields").innerHTML = FIELDS.map((f) => {
+    const name = T[FIELD_LABEL[f]];
+    const ops = ["leave", ...FIELD_OPS[f]].map((op) => `<option value="${op}">${esc(T.edOps[op])}</option>`).join("");
+    const extra = f === "genre" ? ' list="genres"' : f === "year" ? ' inputmode="numeric" maxlength="4"' : "";
+    return `<div class="ed-frow" data-field="${f}" data-op="leave">
+      <span class="ed-fname">${esc(name)}</span>
+      <select class="ed-select ed-op" aria-label="${esc(name)}">${ops}</select>
+      <div class="ed-args">
+        <input class="ed-v" type="text" spellcheck="false" placeholder="${esc(T.edValuePh)}" aria-label="${esc(`${name}: ${T.edValuePh}`)}"${extra} />
+        <input class="ed-find" type="text" spellcheck="false" placeholder="${esc(T.edFind)}" aria-label="${esc(`${name}: ${T.edFind}`)}" />
+        <input class="ed-with" type="text" spellcheck="false" placeholder="${esc(T.edWith)}" aria-label="${esc(`${name}: ${T.edWith}`)}" />
+        <label class="ed-check"><input class="ed-word" type="checkbox" /> ${esc(T.edWord)}</label>
+        <label class="ed-check"><input class="ed-case" type="checkbox" /> ${esc(T.edCase)}</label>
+      </div>
+    </div>`;
+  }).join("");
+}
+
 function edOpen() {
   Ed.ids = selectedIds();
   if (!Ed.ids.length) return;
+  Ed.view = libView();
   edReset();
   $("#edTitle").textContent = T.edTitle(Ed.ids.length);
-  value.value = "";
-  edField();
+  // The whole view is offered when it holds more than the selection: one
+  // request, resolved by the server, however long the list.
+  const more = Ed.view.total > Ed.ids.length;
+  $("#edScope").classList.toggle("hidden", !more);
+  $('#edScope input[value="ids"]').checked = true;
+  edScopeTexts();
+  edRows();
   modal.classList.remove("hidden");
-  value.focus();
+  $("#edFields .ed-op").focus();
+}
+function edScopeTexts() {
+  $("#edScopeIds").textContent = T.edScopeIds(Ed.ids.length);
+  $("#edScopeAll").textContent = T.edScopeAll(Ed.view ? Ed.view.total : 0);
 }
 
-// The value box follows the field: the genre list for a genre, digits for a year.
-function edField() {
-  const f = field.value;
-  if (f === "genre") value.setAttribute("list", "genres"); else value.removeAttribute("list");
-  value.inputMode = f === "year" ? "numeric" : "text";
-  value.maxLength = f === "year" ? 4 : 524288;
-}
-field.addEventListener("change", () => { edField(); edReset(); value.focus(); });
-value.addEventListener("input", () => { if (Ed.edit && Ed.edit.state === "preview") edReset(); });
+$("#edFields").addEventListener("change", (e) => {
+  const sel = e.target.closest(".ed-op");
+  if (sel) {
+    const row = sel.closest(".ed-frow");
+    row.dataset.op = sel.value;
+    const first = row.querySelector(sel.value === "replace" ? ".ed-find" : ".ed-v");
+    if (sel.value !== "leave" && sel.value !== "clear") first.focus();
+  }
+  if (Ed.edit && Ed.edit.state === "preview") edReset();
+});
+$("#edFields").addEventListener("input", () => { if (Ed.edit && Ed.edit.state === "preview") edReset(); });
+$("#edScope").addEventListener("change", () => { if (Ed.edit && Ed.edit.state === "preview") edReset(); });
 
-// What the step sets: the year as a number (empty clears it), text as typed.
-function edValue() {
-  if (field.value !== "year") return value.value;
-  const s = value.value.trim();
-  if (!s) return null;
-  return /^\d{4}$/.test(s) ? Number(s) : NaN;
+// The steps the rows ask for, in field order; NaN marks a year that is not one.
+function edSteps() {
+  const steps = [];
+  for (const row of $("#edFields").querySelectorAll(".ed-frow")) {
+    const op = row.dataset.op;
+    const f = row.dataset.field;
+    if (op === "leave") continue;
+    const v = row.querySelector(".ed-v").value;
+    if (op === "clear") steps.push({ op, field: f });
+    else if (op === "replace") {
+      steps.push({ op, field: f, find: row.querySelector(".ed-find").value, with: row.querySelector(".ed-with").value,
+        match: row.querySelector(".ed-word").checked ? "word" : "text", ignore_case: !row.querySelector(".ed-case").checked });
+    } else if (f === "year") {
+      const s = v.trim();
+      steps.push({ op, field: f, value: !s ? null : /^\d{4}$/.test(s) ? Number(s) : NaN });
+    } else steps.push({ op, field: f, value: v });
+  }
+  return steps;
 }
 
 $("#edForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (Ed.busy) return;
-  const v = edValue();
-  if (Number.isNaN(v)) { toast(T.libBadYear(...(libRules.year || [1000, 9999]))); value.focus(); return; }
+  const steps = edSteps();
+  if (!steps.length) { toast(T.edPickOne); return; }
+  if (steps.some((s) => Number.isNaN(s.value))) { toast(T.libBadYear(...(libRules.year || [1000, 9999]))); return; }
+  const all = $('#edScope input[value="filter"]').checked && !$("#edScope").classList.contains("hidden");
   Ed.busy = true;
   edReset();
   try {
     const edit = await api("/api/library/edits", {
       method: "POST",
-      body: JSON.stringify({ selection: { ids: Ed.ids }, steps: [{ op: "set", field: field.value, value: v }] }),
+      body: JSON.stringify({ selection: all ? { filter: Ed.view.filter } : { ids: Ed.ids }, steps }),
     });
     Ed.edit = edit;
     await edShow(edit);
@@ -147,6 +213,9 @@ function edSummary(edit) {
   if (c.unchanged && c.changes) notes.push(T.edUnchanged(c.unchanged));
   const skipped = Object.entries(c.skipped_by_reason || {});
   if (skipped.length) notes.push(T.edSkipped(skipped.map(([r, n]) => `${T.edWhy(r)} (${num(n)})`).join(", ")));
+  if (edit.state === "preview" && edit.resend && edit.resend.tracks) {
+    notes.push(T.edResend(edit.resend.tracks, (edit.resend.bytes / 1048576).toLocaleString(lang, { maximumFractionDigits: 1 })));
+  }
   $("#edNotes").textContent = notes.join(" ");
 }
 
@@ -279,6 +348,21 @@ $("#edUndo").addEventListener("click", async () => {
   }
 });
 
+// A language change keeps what was chosen in the rows; only their words follow.
+function edRowTexts() {
+  for (const row of $("#edFields").querySelectorAll(".ed-frow")) {
+    const name = T[FIELD_LABEL[row.dataset.field]];
+    row.querySelector(".ed-fname").textContent = name;
+    row.querySelectorAll(".ed-op option").forEach((o) => { o.textContent = T.edOps[o.value]; });
+    row.querySelector(".ed-v").placeholder = T.edValuePh;
+    row.querySelector(".ed-find").placeholder = T.edFind;
+    row.querySelector(".ed-with").placeholder = T.edWith;
+    const [word, kase] = row.querySelectorAll(".ed-check");
+    word.lastChild.textContent = ` ${T.edWord}`;
+    kase.lastChild.textContent = ` ${T.edCase}`;
+  }
+}
+
 // ------------------------------------------------------------ history
 const histModal = $("#edHistoryModal");
 const edLabel = (label) => (label.startsWith("undo: ") ? T.edUndoLabel(edLabel(label.slice(6))) : label);
@@ -345,6 +429,8 @@ new MutationObserver(() => {
   if (!histModal.classList.contains("hidden")) edHistory();
   if (modal.classList.contains("hidden")) return;
   $("#edTitle").textContent = T.edTitle(Ed.ids.length);
+  edScopeTexts();
+  edRowTexts();
   if (Ed.edit) { edSummary(Ed.edit); edButton(Ed.edit); edList(Ed.edit).catch(() => {}); }
 }).observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
 

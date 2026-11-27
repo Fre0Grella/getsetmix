@@ -1052,6 +1052,11 @@ $("#libGenreForm").addEventListener("submit", async (e) => {
 });
 
 const SEL_ACTIONS = { delete: bulkDelete, restore: () => bulkRestore(), set_genre: genreOpen };
+// What the list shows now, for an action on the whole view: its filter, as
+// GET /api/library takes it, and how many tracks it holds.
+export function libView() {
+  return { filter: { q: Lib.q, genre: Lib.genre, folder: Lib.folder }, total: Lib.total };
+}
 // Another screen adds its action to the bar (a button with that `data-bulk`).
 export function addSelAction(name, fn) { SEL_ACTIONS[name] = fn; }
 // Another screen wrote to files: the selection goes and the list reloads.

@@ -1188,3 +1188,23 @@ and the history:
   own `bulk` keeps delete and restore.
 - UI: *Undo* in the edit panel once an apply ends, and **History** beside
   Trash in the Library bar, each edit with *Undo* while it can be undone.
+
+**Slice 5** ([#50](https://github.com/Fre0Grella/getsetmix/issues/50)), the
+field operations and selection by filter (built before slice 4):
+
+- `rules.run_op` takes `set`, `clear`, `append`, `prepend` and `replace`;
+  `rules.OPS` says which fields each may be aimed at (`clear` never title or
+  artist; the year takes only `set` and `clear`). `replace` escapes `find`,
+  so it is always plain text; `match: "word"` needs no letter or digit on
+  either side; `ignore_case` defaults to false.
+- `{"filter": {"q", "genre", "folder"}}` is resolved with `Library.select`
+  (present tracks, by id) when the preview is made, and the ids are stored;
+  a filter that matches nothing is an empty edit, more than 10,000 is `413`.
+- Every edit carries `resend: {tracks, bytes}`: the tracks with a pending
+  change and the sum of their sizes, so it falls to zero once written.
+- The panel's Fields rows: one per field, *Leave as it is* by default, then
+  the operations that field takes, with their inputs (value; or find,
+  replace with, whole words, match case). When the view holds more tracks
+  than the selection, the panel offers *All N tracks in this view*, which
+  sends the view's filter instead of ids. The preview notes say what each
+  paired computer downloads again.

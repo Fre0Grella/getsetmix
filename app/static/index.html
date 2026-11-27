@@ -395,17 +395,11 @@
       </div>
       <div class="modal-body ed-body">
         <form id="edForm" class="ed-form" novalidate autocomplete="off">
-          <label class="lib-field"><span data-i18n="edField">Field</span>
-            <select id="edField" class="ed-select">
-              <option value="genre" data-i18n="genre">Genre</option>
-              <option value="artist" data-i18n="libArtist">Artist</option>
-              <option value="title" data-i18n="libTitle">Title</option>
-              <option value="album" data-i18n="album">Album</option>
-              <option value="year" data-i18n="libYear">Year</option>
-              <option value="comment" data-i18n="libComment">Comment</option>
-            </select></label>
-          <label class="lib-field"><span data-i18n="edValue">New value</span>
-            <input id="edValue" type="text" spellcheck="false" /></label>
+          <fieldset id="edScope" class="ed-scope hidden">
+            <label><input type="radio" name="edScope" value="ids" checked /> <span id="edScopeIds"></span></label>
+            <label><input type="radio" name="edScope" value="filter" /> <span id="edScopeAll"></span></label>
+          </fieldset>
+          <div id="edFields" class="ed-fields"></div>
           <button id="edPreviewBtn" type="submit" class="btn btn-primary" data-i18n="edPreview">Preview</button>
         </form>
         <section id="edPreview" class="ed-preview hidden" aria-live="polite">
