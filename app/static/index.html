@@ -399,7 +399,25 @@
             <label><input type="radio" name="edScope" value="ids" checked /> <span id="edScopeIds"></span></label>
             <label><input type="radio" name="edScope" value="filter" /> <span id="edScopeAll"></span></label>
           </fieldset>
-          <div id="edFields" class="ed-fields"></div>
+          <div class="ed-tabs" role="tablist">
+            <button type="button" role="tab" class="ed-tab" data-tab="fields" aria-selected="true" aria-controls="edFields" data-i18n="edTabFields">Fields</button>
+            <button type="button" role="tab" class="ed-tab" data-tab="cleanup" aria-selected="false" aria-controls="edCleanup" data-i18n="edTabCleanup">Cleanup</button>
+          </div>
+          <div id="edFields" class="ed-fields" role="tabpanel"></div>
+          <div id="edCleanup" class="ed-cleanup hidden" role="tabpanel">
+            <div class="ed-setbar">
+              <select id="edSet" class="ed-select" aria-label="Rule set" data-i18n-aria="edRuleSet"></select>
+              <button id="edSetSave" type="button" class="btn btn-quiet hidden" data-i18n="edSetSave">Save</button>
+              <button id="edSetCopy" type="button" class="btn btn-quiet" data-i18n="edSetCopy">Save as new</button>
+              <button id="edSetDelete" type="button" class="btn btn-quiet hidden" data-i18n="edSetDelete">Delete</button>
+            </div>
+            <p id="edSetNote" class="ed-more hidden"></p>
+            <div id="edSetNew" class="ed-setbar hidden">
+              <input id="edSetName" type="text" spellcheck="false" placeholder="Name of the new set" data-i18n-ph="edSetName" aria-label="Name of the new set" data-i18n-aria="edSetName" />
+              <button id="edSetNewSave" type="button" class="btn btn-quiet" data-i18n="edSetSave">Save</button>
+            </div>
+            <ol id="edRules" class="ed-rules"></ol>
+          </div>
           <button id="edPreviewBtn" type="submit" class="btn btn-primary" data-i18n="edPreview">Preview</button>
         </form>
         <section id="edPreview" class="ed-preview hidden" aria-live="polite">
@@ -410,6 +428,7 @@
             <div class="batch-track"><div id="edProgressFill" class="batch-fill"></div></div>
           </div>
           <p id="edResult" class="ed-result hidden"></p>
+          <div id="edFilter" class="lib-chips ed-filter" role="group"></div>
           <div id="edList" class="ed-list"></div>
         </section>
       </div>

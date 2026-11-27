@@ -112,8 +112,10 @@ def _label(steps: list[dict]) -> str:
     return "; ".join(parts)[:200]
 
 
-def _warnings(field: str, new, multi: set[str]) -> list[str]:
-    out = []
+def _warnings(field: str, new, multi: set[str], flagged: list[dict]) -> list[str]:
+    """The warnings on one change: its own, and those the rules raised on its field."""
+    out = list(dict.fromkeys(w["warning"] for w in flagged
+                             if w.get("field") == field and w.get("warning") in WARNINGS))
     if field in ("title", "artist") and not str(new or "").strip():
         out.append("would_empty")
     if field in multi:
@@ -156,7 +158,14 @@ class Edits:
         if not isinstance(body, dict):
             raise LibraryError(400, "the edit must be an object")
         ids = self._selection(body.get("selection"))
-        eid, skipped_by_id, unchanged = self._store(ids, _steps(body.get("steps")))
+        steps, label = body.get("steps"), None
+        if body.get("ruleset_id") is not None:   # with both, the steps win; the set names it
+            chosen = self.ruleset(body["ruleset_id"])
+            if chosen is None:
+                raise LibraryError(404, "no such rule set")
+            steps = chosen["steps"] if steps is None else steps
+            label = chosen["name"]
+        eid, skipped_by_id, unchanged = self._store(ids, _steps(steps), label)
         skipped: dict[str, int] = {}
         for why in skipped_by_id.values():
             skipped[why] = skipped.get(why, 0) + 1
@@ -179,7 +188,8 @@ class Edits:
             raise LibraryError(400, "selection must hold the track ids or a filter")
         return library.check_ids(raw["ids"])
 
-    def _store(self, ids: list[int], steps: list[dict]) -> tuple[int, dict[int, str], list[int]]:
+    def _store(self, ids: list[int], steps: list[dict],
+               label: str | None = None) -> tuple[int, dict[int, str], list[int]]:
         """Run the steps over the index and store the preview: its id, the
         tracks left out with why, and the tracks the steps leave as they are."""
         rows = self._rows(ids)
@@ -201,7 +211,7 @@ class Edits:
                 continue
             multi = set(row["multi"].split(","))
             for f in differ:
-                warnings = _warnings(f, result.fields[f], multi)
+                warnings = _warnings(f, result.fields[f], multi, result.warnings)
                 state = "blocked" if set(warnings) & set(BLOCKING) else "pending"
                 changes.append((fid, row["audio_id"], f, _encode(before[f]),
                                 _encode(result.fields[f]), json.dumps(result.by.get(f, [])),
@@ -211,7 +221,7 @@ class Edits:
             eid = conn.execute(
                 "INSERT INTO edits (state, label, selection, steps, catalogue, library_rev, "
                 "created_at) VALUES ('preview', ?, ?, ?, ?, ?, ?)",
-                (_label(steps), json.dumps({"ids": ids}), json.dumps(steps),
+                (label or _label(steps), json.dumps({"ids": ids}), json.dumps(steps),
                  rules.CATALOGUE_VERSION, rev, dbmod.iso(self.clock()))).lastrowid
             conn.executemany(
                 "INSERT INTO edit_changes (edit_id, file_id, audio_id, field, old_value, "
@@ -378,6 +388,116 @@ class Edits:
             "new": _decode(r["field"], r["new_value"]), "by": json.loads(r["by"]),
             "warnings": json.loads(r["warnings"]), "state": r["state"], "error": r["error"],
         } for r in rows]}
+
+    # ------------------------------------------------------- leave out
+    def leave_out(self, eid: int, body) -> dict:
+        """Leave tracks or single changes out of a preview, or put them back
+        (design 3.5, PATCH). Only `pending` changes go out and only
+        `excluded` ones come back; blocked ones stay blocked. Raises
+        LibraryError: 400 a body that is not valid, 404 unknown edit, 409 not a
+        preview."""
+        if not isinstance(body, dict) or set(body) - {"exclude", "include"}:
+            raise LibraryError(400, "send exclude and include, each with files and changes")
+        moves = []
+        for key, src, dst in (("exclude", "pending", "excluded"), ("include", "excluded", "pending")):
+            part = body.get(key) or {}
+            if not isinstance(part, dict) or set(part) - {"files", "changes"}:
+                raise LibraryError(400, "send exclude and include, each with files and changes")
+            files, changes = part.get("files") or [], part.get("changes") or []
+            for ids in (files, changes):
+                if not isinstance(ids, list) or not all(isinstance(i, int) and not isinstance(i, bool)
+                                                        for i in ids):
+                    raise LibraryError(400, "files and changes are lists of ids")
+            moves.append((src, dst, files, changes))
+        with self.db.transaction() as conn:
+            e = conn.execute("SELECT state FROM edits WHERE id = ?", (eid,)).fetchone()
+            if e is None:
+                raise LibraryError(404, "no such edit")
+            if e["state"] != "preview":
+                raise LibraryError(409, "only a preview can be changed")
+            for src, dst, files, changes in moves:
+                for column, ids in (("file_id", files), ("id", changes)):
+                    for start in range(0, len(ids), 500):
+                        chunk = ids[start:start + 500]
+                        conn.execute(
+                            f"UPDATE edit_changes SET state = ? WHERE edit_id = ? AND state = ? "
+                            f"AND {column} IN ({', '.join('?' for _ in chunk)})",
+                            (dst, eid, src, *chunk))
+        out = self.get(eid)
+        assert out is not None
+        return out
+
+    # ------------------------------------------------------- rule sets
+    def _seed(self, conn) -> None:
+        """The built-in rule sets, as the catalogue has them now."""
+        now = dbmod.iso(self.clock())
+        for rs in rules.BUILTIN_RULESETS:
+            conn.execute(
+                "INSERT INTO rule_sets (name, steps, builtin, created_at, updated_at) "
+                "VALUES (?, ?, 1, ?, ?) ON CONFLICT(name) DO UPDATE SET steps = excluded.steps "
+                "WHERE builtin = 1", (rs["name"], json.dumps(rs["steps"]), now, now))
+
+    @staticmethod
+    def _ruleset(r) -> dict:
+        return {"id": r["id"], "name": r["name"], "builtin": bool(r["builtin"]),
+                "steps": json.loads(r["steps"]), "updated_at": r["updated_at"]}
+
+    def rulesets(self) -> list[dict]:
+        """The saved rule sets, the built-in ones first."""
+        with self.db.transaction() as conn:
+            self._seed(conn)
+            rows = conn.execute("SELECT * FROM rule_sets ORDER BY builtin DESC, name").fetchall()
+        return [self._ruleset(r) for r in rows]
+
+    def ruleset(self, rid) -> dict | None:
+        if not isinstance(rid, int) or isinstance(rid, bool):
+            raise LibraryError(400, "ruleset_id is a rule set id")
+        with self.db.transaction() as conn:
+            self._seed(conn)
+            r = conn.execute("SELECT * FROM rule_sets WHERE id = ?", (rid,)).fetchone()
+        return self._ruleset(r) if r else None
+
+    def save_ruleset(self, body, rid: int | None = None) -> dict:
+        """Save a new rule set, or rename, reorder or change one (design 3.5).
+        A built-in set is copied, never changed. Raises LibraryError: 400 a
+        body that is not valid, 404 unknown set, 409 built in, or the name is
+        taken."""
+        if not isinstance(body, dict):
+            raise LibraryError(400, "a rule set has a name and steps")
+        old = self.ruleset(rid) if rid is not None else None
+        if rid is not None and old is None:
+            raise LibraryError(404, "no such rule set")
+        if old and old["builtin"]:
+            raise LibraryError(409, "the built-in rule set cannot be changed: save a copy")
+        name = body.get("name", old["name"] if old else None)
+        if not isinstance(name, str) or not name.strip() or len(name) > 100:
+            raise LibraryError(400, "a rule set needs a name of up to 100 characters")
+        steps = _steps(body.get("steps", old["steps"] if old else None))
+        now = dbmod.iso(self.clock())
+        with self.db.transaction() as conn:
+            taken = conn.execute("SELECT id FROM rule_sets WHERE name = ?", (name.strip(),)).fetchone()
+            if taken and taken["id"] != rid:
+                raise LibraryError(409, "another rule set has this name")
+            if old is None:
+                rid = conn.execute(
+                    "INSERT INTO rule_sets (name, steps, builtin, created_at, updated_at) "
+                    "VALUES (?, ?, 0, ?, ?)", (name.strip(), json.dumps(steps), now, now)).lastrowid
+            else:
+                conn.execute("UPDATE rule_sets SET name = ?, steps = ?, updated_at = ? WHERE id = ?",
+                             (name.strip(), json.dumps(steps), now, rid))
+        out = self.ruleset(rid)
+        assert out is not None
+        return out
+
+    def delete_ruleset(self, rid: int) -> None:
+        """Raises LibraryError: 404 unknown set, 409 built in."""
+        old = self.ruleset(rid)
+        if old is None:
+            raise LibraryError(404, "no such rule set")
+        if old["builtin"]:
+            raise LibraryError(409, "the built-in rule set cannot be removed")
+        with self.db.transaction() as conn:
+            conn.execute("DELETE FROM rule_sets WHERE id = ?", (rid,))
 
     # ------------------------------------------------------------- apply
     def apply(self, eid: int) -> dict:

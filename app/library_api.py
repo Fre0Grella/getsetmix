@@ -115,6 +115,34 @@ async def edit_changes(eid: int, field: str = "", state: str = "", warning: str 
     return await _call(edits.current().changes, eid, field, state, warning, limit, cursor)
 
 
+@router.patch("/edits/{eid:int}")
+async def leave_out(eid: int, body: Annotated[dict, Body()]):
+    """Leave tracks or changes out of a preview, or put them back."""
+    return await _call(edits.current().leave_out, eid, body)
+
+
+@router.get("/rulesets")
+async def rulesets():
+    """The saved rule sets, the built-in ones first."""
+    return await _call(edits.current().rulesets)
+
+
+@router.post("/rulesets", status_code=201)
+async def new_ruleset(body: Annotated[dict, Body()]):
+    return await _call(edits.current().save_ruleset, body)
+
+
+@router.put("/rulesets/{rid:int}")
+async def change_ruleset(rid: int, body: Annotated[dict, Body()]):
+    """Rename, reorder or change a saved rule set; a built-in one is refused."""
+    return await _call(edits.current().save_ruleset, body, rid)
+
+
+@router.delete("/rulesets/{rid:int}", status_code=204)
+async def delete_ruleset(rid: int):
+    await _call(edits.current().delete_ruleset, rid)
+
+
 @router.post("/edits/{eid:int}/apply", status_code=202)
 async def apply_edit(eid: int):
     """Write a previewed edit, one file at a time; also retries what failed."""
